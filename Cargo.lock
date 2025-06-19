@@ -847,6 +847,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "earn"
+version = "0.1.0"
+source = "git+https://github.com/m0-foundation/solana-m?branch=develop#fb96d0521d4a187b33874936b21b22bb16505fec"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "cfg-if",
+ "solana-program",
+ "solana-security-txt",
+ "spl-token-2022 7.0.0",
+]
+
+[[package]]
 name = "ed25519"
 version = "1.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -900,10 +913,21 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "cfg-if",
- "earn",
+ "earn 0.1.0",
  "solana-program",
  "solana-security-txt",
  "spl-token-2022 7.0.0",
+]
+
+[[package]]
+name = "ext_swap"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "earn 0.1.0 (git+https://github.com/m0-foundation/solana-m?branch=develop)",
+ "m_ext",
+ "solana-security-txt",
 ]
 
 [[package]]
@@ -1175,6 +1199,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 
 [[package]]
+name = "m_ext"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "cfg-if",
+ "earn 0.1.0 (git+https://github.com/m0-foundation/solana-m?branch=develop)",
+ "solana-security-txt",
+ "spl-token-2022 7.0.0",
+]
+
+[[package]]
 name = "memchr"
 version = "2.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1370,7 +1406,8 @@ dependencies = [
  "anchor-spl",
  "bitmaps",
  "cfg-if",
- "earn",
+ "earn 0.1.0",
+ "ext_swap",
  "solana-program",
  "solana-security-txt",
  "spl-token-2022 7.0.0",

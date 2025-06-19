@@ -98,6 +98,8 @@ fn map_transfer_events_to_db(block: Block) -> DatabaseChanges {
         table_changes: vec![],
     };
 
+    let block_time = block.block_time.unwrap_or_default().timestamp.to_string();
+
     for (i, t) in block.transactions.into_iter().enumerate() {
         let context = match transaction::get_context(&t) {
             Ok(context) => context,
@@ -125,6 +127,11 @@ fn map_transfer_events_to_db(block: Block) -> DatabaseChanges {
                     old_value: "".to_owned(),
                     new_value: context.signature.clone(),
                 },
+                Field {
+                    name: "block_time".to_owned(),
+                    old_value: "".to_owned(),
+                    new_value: block_time.clone(),
+                },
             ],
         };
 
@@ -134,11 +141,6 @@ fn map_transfer_events_to_db(block: Block) -> DatabaseChanges {
                 old_value: "".to_owned(),
                 new_value: height.block_height.to_string(),
             });
-        }
-        if let Some(ref time) = block.block_time {
-            transaction
-                .fields
-                .push(new_field("block_time", time.timestamp.to_string()));
         }
 
         // Parse token account balance updates from mints and transfers
@@ -169,6 +171,7 @@ fn map_transfer_events_to_db(block: Block) -> DatabaseChanges {
                     new_field("pre_balance", pre_balance),
                     new_field("post_balance", post_balance),
                     new_field("signature", context.signature.clone()),
+                    new_field("ts", block_time.clone()),
                 ],
             };
 
@@ -204,6 +207,7 @@ fn map_transfer_events_to_db(block: Block) -> DatabaseChanges {
                     new_field("program_id", pid.to_string()),
                     new_field("instruction", ix_name),
                     new_field("signature", context.signature.clone()),
+                    new_field("ts", block_time.clone()),
                 ],
             };
 

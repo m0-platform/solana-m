@@ -1,0 +1,102 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+
+service:
+  auth: false
+  base-path: /events
+  endpoints:
+    bridges:
+      docs: Get latest bridge events
+      method: GET
+      path: /bridges
+      response: Bridges
+      request:
+        name: GetBridgesRequest
+        query-parameters:
+          skip: optional<integer>
+          limit: optional<integer>
+      examples:
+        - response:
+            body:
+              bridges:
+                - amount: 100000
+                  chain: Ethereum
+                  from: 'AAAAAAAAAAAAAAAAd7qzL3WZbegHXrpirqexIFz34AQ='
+                  to: 's9x7XBNcYoYaMyViaXbzbD5xuRQChVBXie8GSSK8T/Y='
+                  programId: 'mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY'
+                  signature: '5HiQ3CPqmteRFZqqqd97vXwgvow8MkhtUPUY1n2YTh7diUTTudVp1j4DcBTchtfwHjfFLwXsjGoY8dLCRvbBZ3MY'
+                  tokenSupply: 18150034600821
+                  ts: 2025-04-25T17:27:37.000Z
+
+    index-updates:
+      docs: Get latest index update events
+      method: GET
+      path: /index-updates
+      response: IndexUpdates
+      request:
+        name: GetIndexUpdatesRequest
+        query-parameters:
+          skip: optional<integer>
+          limit: optional<integer>
+          from_time: optional<integer>
+          to_time: optional<integer>
+      examples:
+        - response:
+            body:
+              updates:
+                - index: 1042706510795
+                  programId: 'MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c'
+                  signature: '3uiYEveHBAQ6TLt8FLFDnLNJLgUyq2D3AGwzZtpRL8xWPM8DjHqmiKJqi9K4szqzpKTJTPoNeraSiEPGA3VkriLY'
+                  tokenSupply: 18182747979648
+                  ts: 2025-04-25T17:27:37.000Z
+
+    current-index:
+      docs: Get latest index on Solana and Ethereum
+      method: GET
+      path: /current-index
+      response: CurrentIndex
+      examples:
+        - response:
+            body:
+              solana:
+                index: 1042706510795
+                ts: 2025-04-25T17:27:37.000Z
+              ethereum:
+                index: 1042706510795
+                ts: 2025-04-25T17:27:37.000Z
+
+types:
+  Bridges:
+    properties:
+      bridges: list<Bridge>
+
+  Bridge:
+    properties:
+      amount: double
+      chain: string
+      from: base64
+      to: base64
+      programId: string
+      signature: string
+      tokenSupply: double
+      ts: datetime
+
+  CurrentIndex:
+    properties:
+      solana: IndexValue
+      ethereum: IndexValue
+
+  IndexValue:
+    properties:
+      index: double
+      ts: datetime
+
+  IndexUpdates:
+    properties:
+      updates: list<IndexUpdate>
+
+  IndexUpdate:
+    extends: IndexValue
+    properties:
+      programId: string
+      signature: string
+      tokenSupply: double

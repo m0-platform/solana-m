@@ -1,4 +1,4 @@
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, solana_program};
 use std::io;
 use wormhole_io::{Readable, TypePrefixedPayload, Writeable};
 

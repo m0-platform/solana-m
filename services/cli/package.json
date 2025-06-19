@@ -9,10 +9,11 @@
     "@solana/spl-token": "catalog:",
     "@solana/spl-token-metadata": "~0.1.6",
     "@solana/web3.js": "catalog:",
+    "@sqds/multisig": "catalog:",
     "@wormhole-foundation/sdk": "catalog:",
-    "@wormhole-foundation/sdk-solana-ntt": "catalog:",
     "@wormhole-foundation/sdk-solana": "catalog:",
-    "commander": "catalog:",
-    "bn.js": "catalog:"
+    "@wormhole-foundation/sdk-solana-ntt": "catalog:",
+    "bn.js": "catalog:",
+    "commander": "catalog:"
   }
 }

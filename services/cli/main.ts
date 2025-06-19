@@ -35,7 +35,7 @@ import {
   TokenMetadata,
 } from '@solana/spl-token-metadata';
 import { Chain, ChainAddress, UniversalAddress, assertChain, signSendWait } from '@wormhole-foundation/sdk';
-import { createPublicClient, EXT_GLOBAL_ACCOUNT, EXT_MINT, Graph, http, EarnAuthority } from '../../sdk/src';
+import { createPublicClient, EXT_GLOBAL_ACCOUNT, EXT_MINT, http, EarnAuthority } from '../../sdk/src';
 
 import { createSetEvmAddresses } from '../../tests/test-utils';
 import { createInitializeConfidentialTransferMintInstruction } from './confidential-transfers';
@@ -540,7 +540,7 @@ async function main() {
       const earner = new PublicKey(earnerAddress);
 
       const evmClient = createPublicClient({ transport: http(process.env.ETH_RPC_URL) });
-      const manager = await EarnManager.fromManagerAddress(connection, evmClient, new Graph(''), owner.publicKey);
+      const manager = await EarnManager.fromManagerAddress(connection, evmClient, owner.publicKey);
 
       const ixs = await manager.buildAddEarnerInstruction(earner);
       const sig = await sendAndConfirmTransaction(connection, new Transaction().add(...ixs), [owner]);
@@ -629,17 +629,14 @@ async function main() {
 
       // Add current earners to LUT
       for (const pid of [PROGRAM_ID, EXT_PROGRAM_ID]) {
-        const auth = await EarnAuthority.load(connection, evmClient, new Graph(''), pid);
+        const auth = await EarnAuthority.load(connection, evmClient, pid);
         const earners = await auth.getAllEarners();
 
         for (const earner of earners) {
           addressesForTable.push(earner.pubkey, earner.data.userTokenAccount);
 
           // Check if there is an earn manager
-          if (
-            earner.data.earnManager &&
-            !addressesForTable.find((a) => a.equals(earner.data.earnManager))
-          ) {
+          if (earner.data.earnManager && !addressesForTable.find((a) => a.equals(earner.data.earnManager!))) {
             addressesForTable.push(earner.data.earnManager);
           }
         }

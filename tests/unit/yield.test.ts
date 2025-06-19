@@ -6,26 +6,17 @@ import {
   Transaction,
 } from '@solana/web3.js';
 import { fromWorkspace, LiteSVMProvider } from 'anchor-litesvm';
-import {
-  createPublicClient,
-  http,
-  MINT,
-  PROGRAM_ID,
-  TOKEN_2022_ID,
-  DEVNET_GRAPH_ID,
-  Graph,
-  EarnAuthority,
-} from '@m0-foundation/solana-m-sdk';
+import { createPublicClient, http, MINT, PROGRAM_ID, TOKEN_2022_ID, EarnAuthority } from '@m0-foundation/solana-m-sdk';
+import { M0SolanaApi } from '@m0-foundation/solana-m-api-sdk';
 import nock from 'nock';
 import { TransactionMetadata } from 'litesvm';
 import BN from 'bn.js';
 
-const GRAPH_URL = 'https://gateway.thegraph.com/api/subgraphs/id/Exir1TE2og5jCPjAM5485NTHtgT6oAEHTevYhvpU8UFL';
+const API_URL = 'http://localhost:5500';
 
 describe('Yield calculation tests', () => {
   const svm = fromWorkspace('../').withSplPrograms();
   const evmClient = createPublicClient({ transport: http('http://localhost:8545') });
-  const graphClient = new Graph('', DEVNET_GRAPH_ID);
   const provider = new LiteSVMProvider(svm);
   const connection = provider.connection;
 
@@ -146,12 +137,12 @@ describe('Yield calculation tests', () => {
     const testConfig = {
       indexUpdates,
       balanceUpdates: [
+        { ts: 0n, amount: 1000000000n },
         { ts: 25n, amount: 250000000n },
         { ts: 55n, amount: -250000000n },
         { ts: 85n, amount: 250000000n },
         { ts: 95n, amount: 250000000n },
       ],
-      startingBalance: 1000000000n,
       expectedReward: new BN(24968184),
       expectedTolerance: new BN(20),
     };
@@ -204,21 +195,17 @@ describe('Yield calculation tests', () => {
             continue;
           }
 
-          const lastClaimTs = testConfig.indexUpdates[lastClaim].ts;
+          // for API env
+          process.env.LOCALNET = 'true';
 
           // set balance updates on mocked subgraph for this iteration
-          const currentBalance = balanceUpdates
-            .filter((b) => b.ts <= update.ts)
-            .reduce((acc, b) => acc + b.amount, testConfig.startingBalance);
-          setTokenAccountBalance(currentBalance);
-          const filteredUpdates = balanceUpdates.filter((b) => b.ts >= lastClaimTs && b.ts <= update.ts);
-          mockSubgraphBalances(currentBalance, filteredUpdates);
+          mockSubgraphBalances(balanceUpdates);
 
           // set index updates on mocked subgraph
           mockSubgraphIndexUpdates(testConfig.indexUpdates.slice(lastClaim, j + 2));
 
           // build claim for earner
-          const auth = await EarnAuthority.load(connection, evmClient, graphClient);
+          const auth = await EarnAuthority.load(connection, evmClient);
           const earner = (await auth.getAllEarners())[0];
           const ix = await auth.buildClaimInstruction(earner);
           // build transaction
@@ -244,17 +231,9 @@ describe('Yield calculation tests', () => {
           });
           balanceUpdates.sort((a, b) => (a.ts > b.ts ? 1 : -1));
 
-          // console.log(
-          //   `Case: ${i} | Update: ${j + 1} | Index ${update.index} | Earner LCI: ${
-          //     earner.data.lastClaimIndex
-          //   } | Claimed: ${rewards.toString()} | Total: ${totalRewards.toString()}`,
-          // );
           svm.expireBlockhash();
-
           nock.cleanAll();
         }
-
-        // console.log(`Case: ${i} | Total rewards: ${totalRewards.toString()}`);
 
         // validate total rewards distributed within tolerance
         if (
@@ -269,31 +248,45 @@ describe('Yield calculation tests', () => {
 });
 
 function mockSubgraphBalances(
-  currentBalance: bigint,
   balanceUpdates: {
     ts: bigint;
     amount: bigint;
   }[],
 ) {
-  nock(GRAPH_URL)
-    .post('', (body) => body.operationName === 'getBalanceUpdates')
-    .reply(200, (_: any, requestBody: { variables: { lowerTS: string } }) => {
-      const lowerTS = BigInt(requestBody.variables.lowerTS);
+  const transfers: M0SolanaApi.BalanceUpdate[] = [];
 
-      return {
-        data: {
-          tokenAccount: {
-            balance: currentBalance.toString(),
-            transfers: balanceUpdates
-              .filter((u) => u.ts >= lowerTS)
-              .sort((a, b) => (a.ts > b.ts ? -1 : 1))
-              .map((update) => ({
-                amount: update.amount.toString(),
-                ts: update.ts.toString(),
-              })),
-          },
-        },
-      };
+  let balance = 0n;
+
+  for (const update of balanceUpdates) {
+    const amount = update.amount;
+
+    transfers.push({
+      postBalance: Number(balance + amount),
+      preBalance: Number(balance),
+      ts: new Date(Number(update.ts) * 1000),
+      tokenAccount: '',
+      owner: '',
+      signature: '',
+    });
+
+    balance += amount;
+  }
+
+  nock(API_URL)
+    .get(/token-account\/.*\/.*\/transfers/)
+    .query(true)
+    .reply(200, (url: any) => {
+      const urlParams = new URLSearchParams(url.split('?')?.[1] ?? '');
+      const from_time = new Date(Number(urlParams.get('from_time')) * 1000);
+      const to_time = new Date(Number(urlParams.get('to_time')) * 1000);
+
+      // requesting first balance update outside range
+      if (urlParams.get('limit') === '1') {
+        const balances = transfers.filter((t) => t.ts <= to_time);
+        return { transfers: [balances[balances.length - 1]] };
+      }
+
+      return { transfers: transfers.filter((t) => t.ts >= from_time && t.ts < to_time).reverse() };
     })
     .persist();
 }
@@ -304,16 +297,18 @@ function mockSubgraphIndexUpdates(
     ts: bigint;
   }[],
 ) {
-  nock(GRAPH_URL)
-    .post('', (body) => body.operationName === 'getIndexUpdates')
-    .reply(200, {
-      data: {
-        indexUpdates: indexUpdates.map((update) => ({
-          index: update.index.toString(),
-          ts: update.ts.toString(),
-        })),
-      },
-    })
+  nock(API_URL)
+    .get('/events/index-updates')
+    .query(true)
+    .reply(200, (url: any) => ({
+      updates: indexUpdates.reverse().map((update) => ({
+        index: Number(update.index),
+        ts: new Date(Number(update.ts) * 1000).toISOString(),
+        programId: '',
+        signature: '',
+        tokenSupply: 0,
+      })),
+    }))
     .persist();
 }
 

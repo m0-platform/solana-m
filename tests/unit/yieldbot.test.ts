@@ -5,7 +5,7 @@ import { EARN_ADDRESS_TABLE_DEVNET, EARN_ADDRESS_TABLE } from '@m0-foundation/so
 
 const SVM_RPC = 'https://dummy.solana.com';
 const EVM_RPC = 'https://ethereum-sepolia-rpc.publicnode.com';
-const GRAPH_URL = 'https://gateway.thegraph.com/api/subgraphs/id/bgd3AFHw9bcSox1mfU39W9NbYUeSY53fr4kaVzmkPjC';
+const API_URL = 'https://api-production-0046.up.railway.app';
 
 describe('Yield bot tests', () => {
   const earner = Keypair.generate();
@@ -34,28 +34,16 @@ describe('Yield bot tests', () => {
 function mockRequestData(earner: PublicKey) {
   nock.disableNetConnect();
 
-  nock(GRAPH_URL)
-    .post('/query/106645/m-token-transactions/version/latest', (body: any) => true)
+  nock(API_URL)
+    .get('/events/current-index', (body: any) => true)
     .reply(200, {
-      data: {
-        tokenAccount: {
-          balance: '0',
-          transfers: [],
-        },
+      solana: {
+        index: 1044692126132,
+        ts: '2025-05-28T13:17:52.000Z',
       },
-    })
-    .persist();
-
-  nock(GRAPH_URL)
-    .post('', (body: any) => body.operationName === 'getLatestIndex')
-    .reply(200, {
-      data: {
-        indexUpdates: [
-          {
-            index: '1004732326605',
-            timestamp: '482752727808',
-          },
-        ],
+      ethereum: {
+        index: 1044808175759,
+        ts: '2025-05-29T12:58:04.519Z',
       },
     })
     .persist();

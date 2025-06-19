@@ -13,9 +13,9 @@ https://www.npmjs.com/package/@m0-foundation/solana-m-sdk
 ```typescript
 import { EarnManager } from '@m0-foundation/solana-m-sdk';
 
-const manager = await EarnManager.fromManagerAddress(connection, evmClient, graphClient, manager.publicKey);
+const manager = await EarnManager.fromManagerAddress(connection, evmClient, manager.publicKey);
 const ix = await manager.buildAddEarnerInstruction(user);
 
-const earner = await Earner.fromTokenAccount(connection, evmClient, graphClient, tokenAccount);
+const earner = await Earner.fromTokenAccount(connection, evmClient, tokenAccount);
 const claims = await earner.getHistoricalClaims();
 ```

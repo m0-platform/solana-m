@@ -3,14 +3,7 @@ import { Turnkey } from '@turnkey/sdk-server';
 import { TurnkeySigner } from '@turnkey/solana';
 import { privateKeyToAccount } from 'viem/accounts';
 import { sepolia, mainnet } from 'viem/chains';
-import {
-  createPublicClient,
-  DEVNET_GRAPH_ID,
-  http,
-  MAINNET_GRAPH_ID,
-  PublicClient,
-  Graph,
-} from '@m0-foundation/solana-m-sdk';
+import { createPublicClient, http, M0SolanaApiEnvironment, PublicClient } from '@m0-foundation/solana-m-sdk';
 import { Hex, createWalletClient, WalletClient } from 'viem';
 
 type TurnkeyEnvOption = {
@@ -28,7 +21,7 @@ export interface EnvOptions {
   connection: Connection;
   evmClient: PublicClient;
   evmWalletClient?: WalletClient;
-  graphClient: Graph;
+  apiEnvornment: M0SolanaApiEnvironment;
   signerPubkey: PublicKey;
   signer?: Keypair;
   squads?: SquadsEnvOption;
@@ -40,7 +33,7 @@ export function getEnv(): EnvOptions {
     KEYPAIR,
     RPC_URL,
     EVM_RPC_URL,
-    GRAPH_KEY,
+    DEVNET,
     TURNKEY_API_PRIVATE_KEY,
     TURNKEY_API_PUBLIC_KEY,
     TURNKEY_PUBKEY,
@@ -58,8 +51,7 @@ export function getEnv(): EnvOptions {
     }
   }
 
-  const isDevnet = RPC_URL!.includes('devnet');
-  const graphID = isDevnet ? DEVNET_GRAPH_ID : MAINNET_GRAPH_ID;
+  const isDevnet = DEVNET === 'true';
 
   let evmWalletClient: WalletClient | undefined;
   if (EVM_KEY) {
@@ -109,7 +101,7 @@ export function getEnv(): EnvOptions {
     connection: new Connection(RPC_URL!, 'confirmed'),
     evmClient: createPublicClient({ transport: http(EVM_RPC_URL!) }),
     evmWalletClient,
-    graphClient: new Graph(GRAPH_KEY!, graphID),
+    apiEnvornment: isDevnet ? M0SolanaApiEnvironment.Devnet : M0SolanaApiEnvironment.Mainnet,
     turnkey,
     squads,
   };

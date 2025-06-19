@@ -1,11 +1,4 @@
-import {
-  ComputeBudgetProgram,
-  Connection,
-  Keypair,
-  PublicKey,
-  Transaction,
-  TransactionInstruction,
-} from '@solana/web3.js';
+import { ComputeBudgetProgram, Connection, Keypair, PublicKey, Transaction } from '@solana/web3.js';
 import { signSendWait, UniversalAddress } from '@wormhole-foundation/sdk';
 import { Command } from 'commander';
 import * as multisig from '@sqds/multisig';
@@ -18,7 +11,6 @@ import {
   getOrCreateAssociatedTokenAccount,
   TOKEN_2022_PROGRAM_ID,
 } from '@solana/spl-token';
-import BN from 'bn.js';
 import { Program } from '@coral-xyz/anchor';
 import { ExtEarn } from '../../sdk/src/idl/ext_earn';
 const EXT_EARN_IDL = require('../../sdk/src/idl/ext_earn.json');
@@ -59,8 +51,6 @@ async function main() {
 
       const [fromMTokenAccount, toExtTokenAccount, vaultMTokenAccount] = atas;
       await new Promise((resolve) => setTimeout(resolve, 2500));
-
-      amount = new BN(amount);
 
       const sig = await program.methods
         .wrap(amount)

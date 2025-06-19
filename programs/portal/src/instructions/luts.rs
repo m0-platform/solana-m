@@ -22,10 +22,12 @@
 //!
 //! Because of all the above, this instruction can be called permissionlessly.
 
-use anchor_lang::prelude::*;
-use solana_program::{
-    address_lookup_table,
-    program::{invoke, invoke_signed},
+use anchor_lang::{
+    prelude::*,
+    solana_program::{
+        address_lookup_table,
+        program::{invoke, invoke_signed},
+    },
 };
 
 use crate::{config::Config, queue::outbox::OutboxRateLimit, transceivers::wormhole::accounts::*};

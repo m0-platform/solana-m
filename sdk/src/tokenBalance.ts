@@ -15,7 +15,7 @@ export async function getBalanceAt(tokenAccount: PublicKey, mint: PublicKey, ts:
   }
 
   // fetch first transfer before the timestamp to get the balance at that time
-  // TODO: need to make sure this does not include a transfer that happened at the timestamp (e.g. minting new tokens that were bridged in)
+  // Note: `toTime` is not inclusive, so a transfer that happened at the timestamp (e.g. minting new tokens that were bridged in) will not be included
   const { transfers } = await getApiClient().tokenAccount.transfers(tokenAccount.toBase58(), mint.toBase58(), {
     toTime: dateToBN(ts).toNumber(),
     limit: 1,

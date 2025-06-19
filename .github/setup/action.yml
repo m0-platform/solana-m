@@ -33,13 +33,12 @@ runs:
         path: |
           ~/.cache/solana/
           ~/.local/share/solana/
+          ~/.config/solana
         key: solana-cli-${{ inputs.solana-version }}
 
     - name: Install Solana CLI
       run: |
         mkdir -p ~/.local/share/solana
-        mkdir -p ~/.config/solana/install
-        touch ~/.config/solana/install/config.yml
         sh -c "$(curl -sSfL https://release.anza.xyz/v${{ inputs.solana-version }}/install)"
         echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
       shell: bash

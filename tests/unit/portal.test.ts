@@ -41,6 +41,7 @@ import NodeWallet from '@coral-xyz/anchor/dist/cjs/nodewallet';
 import { utils } from 'web3';
 import { BN, Program } from '@coral-xyz/anchor';
 import { Earn } from '../../target/types/earn';
+import { sha256 } from '@coral-xyz/anchor/dist/cjs/utils';
 const EARN_IDL = require('../../target/idl/earn.json');
 
 const TOKEN_PROGRAM = spl.TOKEN_2022_PROGRAM_ID;
@@ -294,6 +295,50 @@ describe('Portal unit tests', () => {
       const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
       expect(parsedTokenAccount.amount).toBe(9900000n);
     });
+    test('can send extension tokens', async () => {
+      const amount = 100_000n;
+      const sender = Wormhole.parseAddress('Solana', signer.address());
+      const receiver = testing.utils.makeUniversalChainAddress('Ethereum');
+
+      const outboxItem = Keypair.generate();
+
+      const xferTxs = ntt.transfer(
+        sender,
+        amount,
+        receiver,
+        { queue: false, automatic: false, gasDropoff: 0n },
+        outboxItem,
+      );
+
+      // update generator to return transfer_extension instruction
+      async function* tranferExtension() {
+        const tx = new Transaction().add(buildTransferExtensionIx(100_000, signer.address()));
+        yield ntt.createUnsignedTx({ transaction: tx }, 'Ntt.Redeem');
+      }
+
+      await ssw(ctx, tranferExtension(), signer);
+
+      // assert that released bitmap has transceiver bits set
+      const outboxItemInfo = await ntt.program.account.outboxItem.fetch(outboxItem.publicKey);
+      expect(outboxItemInfo.released.map.bitLength()).toBe(1);
+
+      const [wormholeMessage] = PublicKey.findProgramAddressSync(
+        [Buffer.from('message'), outboxItem.publicKey.toBytes()],
+        config.PORTAL_PROGRAM_ID,
+      );
+
+      const unsignedVaa = await wc.coreBridge.parsePostMessageAccount(wormholeMessage);
+      const payloadHex = Buffer.from(unsignedVaa.payload).toString('hex').slice(272);
+      const payloadAmount = BigInt('0x' + payloadHex.slice(10, 26));
+
+      // assert that amount is what we expect
+      expect(payloadAmount.toString()).toBe('10000');
+
+      // get from balance
+      const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
+      const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
+      expect(parsedTokenAccount.amount).toBe(9800000n);
+    });
   });
 
   describe('Receiving', () => {
@@ -402,7 +447,7 @@ describe('Portal unit tests', () => {
       const logs = await fetchTransactionLogs(provider, txIds[txIds.length - 1].txid);
       expect(logs).toContain(
         // bridge event log
-        'Program data: bEUUGiR+tFmghgEAAAAAAICWmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+s4GuMrJWH+VN3VKYLnupK10TITmkAVIVRaGiXwYoEbZEgIA',
+        'Program data: bEUUGiR+tFmghgEAAAAAAOAPlwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+s4GuMrJWH+VN3VKYLnupK10TITmkAVIVRaGiXwYoEbZEgIA',
       );
       expect(logs).toContain('Program log: Index update: 1000000000001 | root update: false');
 
@@ -499,3 +544,23 @@ describe('Portal unit tests', () => {
     });
   });
 });
+
+function buildTransferExtensionIx(amount: number, signer: string): TransactionInstruction {
+  return new TransactionInstruction({
+    programId: config.PORTAL_PROGRAM_ID,
+    keys: [
+      {
+        pubkey: new PublicKey(signer),
+        isSigner: true,
+        isWritable: true,
+      },
+    ],
+    data: Buffer.concat([
+      Buffer.from(sha256.hash('global:transfer_extension_burn')).subarray(0, 8),
+      new BN(amount).toArrayLike(Buffer, 'le', 8), // amount
+      new BN(2).toArrayLike(Buffer, 'le', 2), // chain: ethereum
+      Buffer.alloc(32), // recipient_address
+      Buffer.from([1]), // should_queue
+    ]),
+  });
+}

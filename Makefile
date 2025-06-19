@@ -40,6 +40,11 @@ test-local-validator:
 	kill $$pid \ 
 	exit $$e
 
+build-test-swap-program:
+	@cd ../solana-extensions && anchor build -p ext_swap
+	@cp -f ../solana-extensions/target/deploy/ext_swap.so tests/programs/ext_swap.so
+	@cp -f ../solana-extensions/target/idl/ext_swap.json tests/programs/ext_swap.json
+	@cp -f ../solana-extensions/target/types/ext_swap.ts tests/programs/ext_swap.ts
 
 #
 # Devnet commands

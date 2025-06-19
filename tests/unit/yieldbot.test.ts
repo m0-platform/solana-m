@@ -132,7 +132,7 @@ function mockRequestData(earner: PublicKey) {
         context,
         value: {
           data: [
-            'nT0aSBDxU4yz3HtcE1xihhozJWJpdvNsPnG5FAKFUFeJ7wZJIrxP9rPce1wTXGKGGjMlYml282w+cbkUAoVQV4nvBkkivE/2C4a+ZrwfmLR9IKO+YVpJBagluCaGTioPTJSEZ9M+5wkLhr5mv860wdfpJ7zE0BS+Dyhjq534X9phCFG2Tb0K5eRoMAbaMvJBTyQcLMmsnaDkH0FwZa+QwkrYCQghj/MVxrIB0uoAAAB3Ng9oAAAAAP/+/A==',
+            'nT0aSBDxU4yz3HtcE1xihhozJWJpdvNsPnG5FAKFUFeJ7wZJIrxP9iO8K5T0ASjYhJ0tk6FGBzNvB/wA8HJXQK2ngVbIwAUqC4a+ZrwfmLR9IKO+YVpJBagluCaGTioPTJSEZ9M+5wkLhr5mv860wdfpJ7zE0BS+Dyhjq534X9phCFG2Tb0K5eRoMAbaMvJBTyQcLMmsnaDkH0FwZa+QwkrYCQghj/MVc51eBuwAAAD4YkZoAAAAAP/+/AEAAABROSSz4CTqF4utHt88XRoXhTBiZu6dBVhEXgHi3Wt9QQ==',
             'base64',
           ],
           executable: false,

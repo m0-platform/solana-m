@@ -81,7 +81,7 @@ MAX_SIGN_ATTEMPTS := 5
 
 define build-verified
 	@echo "Building verified $(1) program for $(2)...\n"
-	solana-verify build --library-name $(1) -- --features $(2) --no-default-features
+	anchor build -p $(1) --verifiable -- --features $(2) --no-default-features
 endef
 
 define upgrade_program
@@ -123,7 +123,7 @@ upgrade-earn-devnet:
 	$(call upgrade_program,earn,$(EARN_PROGRAM_ID))
 
 upgrade-ext-earn-devnet:
-	$(call build-verified,ext_ear,devnet)
+	$(call build-verified,ext_earn,devnet)
 	$(call upgrade_program,ext_earn,$(EXT_EARN_PROGRAM_ID))
 
 upgrade-portal-devnet:
@@ -135,7 +135,7 @@ upgrade-earn-mainnet:
 	$(call propose_upgrade_program,earn,$(EARN_PROGRAM_ID))
 
 upgrade-ext-earn-mainnet:
-	$(call build-verified,ext_ear,mainnet)
+	$(call build-verified,ext_earn,mainnet)
 	$(call propose_upgrade_program,ext_earn,$(EXT_EARN_PROGRAM_ID))
 
 upgrade-portal-mainnet:

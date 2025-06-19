@@ -44,7 +44,7 @@ pub fn handler(ctx: Context<AddWrapAuthority>, new_wrap_authority: Pubkey) -> Re
     // Reallocate more space if needed
     // (removing whitelisted items does not shrink the account)
     if global_account.data_len() < new_size {
-        global_account.realloc(new_size, false)?;
+        global_account.resize(new_size)?;
 
         // If more lamports are needed, transfer them to the account
         let rent_exempt_lamports = Rent::get().unwrap().minimum_balance(new_size).max(1);

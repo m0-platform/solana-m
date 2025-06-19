@@ -203,6 +203,55 @@ export type ExtEarn = {
       ]
     },
     {
+      "name": "addWrapAuthority",
+      "discriminator": [
+        234,
+        104,
+        99,
+        10,
+        191,
+        202,
+        68,
+        43
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "globalAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "newWrapAuthority",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
       "name": "claimFor",
       "discriminator": [
         245,
@@ -865,6 +914,53 @@ export type ExtEarn = {
       "args": []
     },
     {
+      "name": "removeWrapAuthority",
+      "discriminator": [
+        218,
+        60,
+        185,
+        181,
+        112,
+        63,
+        60,
+        152
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "globalAccount"
+          ]
+        },
+        {
+          "name": "globalAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "wrapAuthority",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
       "name": "setEarnAuthority",
       "discriminator": [
         241,
@@ -1393,8 +1489,13 @@ export type ExtEarn = {
       ],
       "accounts": [
         {
-          "name": "signer",
+          "name": "tokenAuthority",
           "signer": true
+        },
+        {
+          "name": "programAuthority",
+          "signer": true,
+          "optional": true
         },
         {
           "name": "mMint",
@@ -1428,6 +1529,10 @@ export type ExtEarn = {
           }
         },
         {
+          "name": "mEarnerAccount",
+          "optional": true
+        },
+        {
           "name": "mVault",
           "pda": {
             "seeds": [
@@ -1441,6 +1546,32 @@ export type ExtEarn = {
                   117,
                   108,
                   116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "extMintAuthority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
                 ]
               }
             ]
@@ -1512,6 +1643,10 @@ export type ExtEarn = {
           "writable": true
         },
         {
+          "name": "mTokenProgram",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+        },
+        {
           "name": "token2022",
           "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         }
@@ -1537,8 +1672,13 @@ export type ExtEarn = {
       ],
       "accounts": [
         {
-          "name": "signer",
+          "name": "tokenAuthority",
           "signer": true
+        },
+        {
+          "name": "programAuthority",
+          "signer": true,
+          "optional": true
         },
         {
           "name": "mMint",
@@ -1570,6 +1710,10 @@ export type ExtEarn = {
               }
             ]
           }
+        },
+        {
+          "name": "mEarnerAccount",
+          "optional": true
         },
         {
           "name": "mVault",
@@ -1680,6 +1824,10 @@ export type ExtEarn = {
         {
           "name": "toExtTokenAccount",
           "writable": true
+        },
+        {
+          "name": "mTokenProgram",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         },
         {
           "name": "token2022",
@@ -1921,6 +2069,12 @@ export type ExtEarn = {
           {
             "name": "extMintAuthorityBump",
             "type": "u8"
+          },
+          {
+            "name": "wrapAuthorities",
+            "type": {
+              "vec": "pubkey"
+            }
           }
         ]
       }

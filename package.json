@@ -6,7 +6,7 @@
     "op:program-keypairs": "mkdir -p target/deploy && op read --account mzerolabs.1password.com 'op://Solana Dev/Solana Program Keys/portal-keypair' > target/deploy/portal-keypair.json && op read --account mzerolabs.1password.com 'op://Solana Dev/Solana Program Keys/earn-keypair' > target/deploy/earn-keypair.json && op read --account mzerolabs.1password.com 'op://Solana Dev/Solana Program Keys/ext-earn-keypair' > target/deploy/ext_earn-keypair.json",
     "op:devnet-authority": "op read --account mzerolabs.1password.com 'op://Solana Dev/Solana Program Keys/devnet-authority' > devnet-keypair.json",
     "build": "anchor build",
-    "cli:dev": "op run --account mzerolabs.1password.com --env-file='./.env.dev' -- ts-node services/cli/main.ts",
+    "cli:dev": "op run --account mzerolabs.1password.com --env-file='./.env.dev' --no-masking -- ts-node services/cli/main.ts",
     "cli:prod": "op run --account mzerolabs.1password.com --env-file='./.env.prod' -- ts-node services/cli/main.ts",
     "cli:test": "op run --account mzerolabs.1password.com --env-file='./.env.dev' -- ts-node services/cli/test.ts",
     "fb:dev": "op run --account mzerolabs.1password.com --env-file='./.env.dev' -- ts-node services/cli/fb.ts"

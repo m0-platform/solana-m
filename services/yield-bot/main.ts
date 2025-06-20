@@ -3,6 +3,7 @@ import { Registrar, EarnAuthority, WinstonLogger, PROGRAM_ID, TransactionBuilder
 import {
   ComputeBudgetProgram,
   PublicKey,
+  SendTransactionError,
   SystemProgram,
   TransactionInstruction,
   TransactionMessage,
@@ -94,7 +95,7 @@ export async function yieldCLI() {
         ixs.push(...(await distributeYield(options, pid)));
       }
 
-      await pRetry(() => buildAndSendInstructions(options, ixs), {
+      await pRetry(() => bundleAndSend(options, ixs), {
         onFailedAttempt: ({ message, attemptNumber }) => {
           logger.error('failed transaction send attempt', { attemptNumber, message });
         },
@@ -316,7 +317,7 @@ async function getPriorityFee(): Promise<number> {
   }
 }
 
-async function buildAndSendInstructions(opt: ParsedOptions, ixs: TransactionInstruction[]) {
+async function bundleAndSend(opt: ParsedOptions, ixs: TransactionInstruction[]) {
   // send regularly if not bundling
   if (!opt.jitoClient) return buildAndSendTransaction(opt, ixs);
 
@@ -345,6 +346,7 @@ async function buildAndSendInstructions(opt: ParsedOptions, ixs: TransactionInst
   }
 
   const jitoBundle = new bundle.Bundle(transactions, 5);
+  const encodedTxns = transactions.map((t) => Buffer.from(t.serialize()).toString('base64'));
 
   // subscribe to the bundle result
   opt.jitoClient.onBundleResult(
@@ -356,14 +358,28 @@ async function buildAndSendInstructions(opt: ParsedOptions, ixs: TransactionInst
     },
   );
 
-  // simulate bundle
-  const connection = new JitoRpcConnection(opt.connection.rpcEndpoint);
-  const sim = await connection.simulateBundle(transactions);
-  logger.info('simulated Jito bundle', {
-    summary: sim.value.summary,
-    logs: sim.value.transactionResults.map((r) => r.logs).flat(),
-    transactions: transactions.map((t) => Buffer.from(t.serialize()).toString('base64')),
-  });
+  // simulate bundle (may fail if unsupported by RPC)
+  try {
+    const connection = new JitoRpcConnection(opt.connection.rpcEndpoint);
+    const sim = await connection.simulateBundle(transactions);
+    logger.info('simulated Jito bundle', {
+      summary: sim.value.summary,
+      logs: sim.value.transactionResults.map((r) => r.logs).flat(),
+      transactions: encodedTxns,
+    });
+  } catch (error) {
+    if (error instanceof SendTransactionError) {
+      logger.error('failed to simulate Jito bundle', {
+        error: error.message,
+        logs: error.logs,
+        transactions: encodedTxns,
+      });
+      // simulation returned error
+      if (error.message.startsWith('failed to simulate bundle')) {
+        throw new Error(error.message);
+      }
+    }
+  }
 
   const resp = await opt.jitoClient.sendBundle(jitoBundle);
   if (!resp.ok) throw new Error(`Failed to send bundle: ${resp.error.message}`);

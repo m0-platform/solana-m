@@ -6,7 +6,7 @@ import { EarnManager } from './earn_manager';
 import { GlobalAccountData, loadGlobal } from './accounts';
 import * as spl from '@solana/spl-token';
 import { BN, Program } from '@coral-xyz/anchor';
-import { getExtProgram, getProgram } from './idl';
+import { getProgramFromID, MProgram } from './idl';
 import { Earn } from './idl/earn';
 import { ExtEarn } from './idl/ext_earn';
 import { MockLogger, Logger } from './logger';
@@ -18,7 +18,7 @@ export class EarnAuthority {
   private connection: Connection;
   private builder: TransactionBuilder;
   private evmClient: PublicClient;
-  private program: Program<Earn> | Program<ExtEarn>;
+  private program: MProgram;
   private global: GlobalAccountData;
   private managerCache: Map<PublicKey, EarnManager> = new Map();
   private mintAuth: PublicKey;
@@ -38,7 +38,7 @@ export class EarnAuthority {
     this.builder = new TransactionBuilder(connection);
     this.evmClient = evmClient;
     this.programID = program;
-    this.program = program.equals(PROGRAM_ID) ? getProgram(connection) : getExtProgram(connection);
+    this.program = getProgramFromID(connection, program);
     this.global = global;
     this.mintAuth = mintAuth;
   }
@@ -59,10 +59,6 @@ export class EarnAuthority {
 
   async refresh(): Promise<void> {
     this.global = await loadGlobal(this.connection, this.programID);
-  }
-
-  public get latestIndex(): BN {
-    return this.global.index;
   }
 
   public get admin() {
@@ -87,13 +83,18 @@ export class EarnAuthority {
     return await (this.program as Program<Earn>).methods
       .completeClaims()
       .accounts({
-        earnAuthority: new PublicKey(this.global.earnAuthority),
+        earnAuthority: new PublicKey(this.global.earnAuthority!),
         globalAccount: PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAM_ID)[0],
       })
       .instruction();
   }
 
   async buildClaimInstruction(earner: Earner): Promise<TransactionInstruction | null> {
+    if (!this.global.index) {
+      this.logger.error('Targeted program does not have an index');
+      return null;
+    }
+
     if (this.global.claimComplete) {
       this.logger.error('No active claim cycle');
       return null;
@@ -107,7 +108,7 @@ export class EarnAuthority {
     // get the index updates from the earner's last claim to the current index
     const { updates: steps } = await getApiClient().events.indexUpdates({
       fromTime: earner.data.lastClaimTimestamp.toNumber(),
-      toTime: this.global.timestamp.toNumber() + 1, // include current index
+      toTime: this.global.timestamp!.toNumber() + 1, // include current index
     });
 
     // iterate through the steps and calculate the pending yield for the earner
@@ -190,7 +191,7 @@ export class EarnAuthority {
       return (this.program as Program<Earn>).methods
         .claimFor(claimBalance)
         .accountsPartial({
-          earnAuthority: new PublicKey(this.global.earnAuthority),
+          earnAuthority: new PublicKey(this.global.earnAuthority!),
           globalAccount: GLOBAL_ACCOUNT,
           mint: new PublicKey(this.global.mint),
           tokenAuthorityAccount,

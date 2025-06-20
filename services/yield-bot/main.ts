@@ -41,17 +41,27 @@ if (process.env.LOKI_URL) {
 const limiter = new RateLimiter({ tokensPerInterval: 2, interval: 1000 });
 
 // meta info from job will be posted to slack
-let slackMessage: SlackMessage;
+let slackMessage: SlackMessage = {
+  messages: [],
+  service: 'yield-bot',
+  level: 'info',
+};
 
 interface ParsedOptions extends EnvOptions {
   builder: TransactionBuilder;
   dryRun: boolean;
-  skipCycle: boolean;
   claimThreshold: BN;
-  programID: PublicKey;
   merkleTreeAddress: `0x${string}`;
-  mint: 'M' | 'wM';
 }
+
+// yield must be synced and distributed to all extensions at the same time
+const extensionsMainnet = [new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko')];
+
+const extensionsDevnet = [
+  new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'),
+  new PublicKey('Fb2AsCKmPd4gKhabT6KsremSHMrJ8G2Mopnc6rDQZX9e'),
+  new PublicKey('3PskKTHgboCbUSQPMcCAZdZNFHbNvSoZ8zEFYANCdob7'),
+];
 
 // entrypoint for the yield bot command
 export async function yieldCLI() {
@@ -60,11 +70,9 @@ export async function yieldCLI() {
   program
     .command('distribute')
     .option('-d, --dryRun [bool]', 'Build and simulate transactions without sending them', false)
-    .option('-s, --skipCycle [bool]', 'Mark cycle as complete without claiming', false)
     .option('-t, --claimThreshold [bigint]', 'Threshold for claiming yield', '100000')
-    .option('-i, --stepInterval [number]', 'Wait interval for steps', '5000')
-    .option('-p, --programID [pubkey]', 'Earn program ID', PROGRAM_ID.toBase58())
-    .action(async ({ dryRun, skipCycle, programID, claimThreshold, stepInterval }) => {
+    .option('-b, --bundle [bool]', 'Use Jito Bundle', false)
+    .action(async ({ dryRun, claimThreshold }) => {
       const env = getEnv();
 
       await logBlockchainBalance('solana', env.connection.rpcEndpoint, env.signerPubkey.toBase58(), logger);
@@ -74,74 +82,40 @@ export async function yieldCLI() {
         builder: new TransactionBuilder(env.connection, logger),
         merkleTreeAddress: env.isDevnet ? ETH_MERKLE_TREE_BUILDER_DEVNET : ETH_MERKLE_TREE_BUILDER,
         dryRun,
-        skipCycle,
-        programID: new PublicKey(programID),
         claimThreshold: new BN(claimThreshold),
-        mint: new PublicKey(programID).equals(EXT_PROGRAM_ID) ? 'wM' : 'M',
       };
 
-      logger.addMetaField('mint', options.mint);
+      // make sure data is up-to-date
+      await validation(options);
 
-      slackMessage = {
-        messages: [],
-        mint: options.mint,
-        service: 'yield-bot',
-        level: 'info',
-        devnet: env.isDevnet,
-      };
+      // pre-yield actions
+      await removeEarners(options);
 
-      const steps = options.programID.equals(PROGRAM_ID)
-        ? [validation, removeEarners, distributeYield, addEarners, syncIndex]
-        : [validation, distributeYield];
+      // collect all instructions to sent together
+      const ixs = [...(await distributeYield(options, PROGRAM_ID))];
+      for (const pid of env.isDevnet ? extensionsDevnet : extensionsMainnet) {
+        ixs.push(...(await distributeYield(options, pid)));
+      }
 
-      await executeSteps(options, steps, parseInt(stepInterval));
+      // post-yield actions
+      await addEarners(options);
     });
 
   await program.parseAsync(process.argv);
 }
 
-async function executeSteps(
-  opt: ParsedOptions,
-  steps: ((options: ParsedOptions) => Promise<boolean>)[],
-  waitInterval: number,
-) {
-  for (const step of steps) {
-    const continueSteps = await step(opt);
-
-    if (!continueSteps) {
-      logger.info('stopping execution early');
-      return;
-    }
-
-    // wait interval to ensure transactions from previous steps have landed
-    await new Promise((resolve) => setTimeout(resolve, waitInterval));
-  }
-}
-
 async function validation(opt: ParsedOptions) {
-  const auth = await EarnAuthority.load(opt.connection, opt.evmClient, opt.programID, logger);
+  const auth = await EarnAuthority.load(opt.connection, opt.evmClient, PROGRAM_ID, logger);
   await validateDatabaseData(auth, opt.apiEnvornment);
   return true;
 }
 
-async function distributeYield(opt: ParsedOptions) {
-  const auth = await EarnAuthority.load(opt.connection, opt.evmClient, opt.programID, logger);
+async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promise<TransactionInstruction[]> {
+  const auth = await EarnAuthority.load(opt.connection, opt.evmClient, programID, logger);
 
   if (auth['global'].claimComplete) {
     logger.info('claim cycle already complete');
-    return true;
-  }
-
-  if (opt.skipCycle) {
-    logger.info('skipping cycle');
-    const ix = await auth.buildCompleteClaimCycleInstruction();
-    if (!ix) {
-      return true;
-    }
-
-    const signature = await buildAndSendTransaction(opt, [ix]);
-    logger.info('cycle complete', { signature });
-    return true;
+    return [];
   }
 
   // get all earners on the earn program
@@ -160,54 +134,30 @@ async function distributeYield(opt: ParsedOptions) {
   const batchSize = 8;
   const [filteredIxs, distributed] = await auth.simulateAndValidateClaimIxs(claimIxs, batchSize, opt.claimThreshold);
 
-  logger.info(`distributing ${opt.programID.equals(PROGRAM_ID) ? 'M' : 'wM'} yield`, {
+  logger.info('distributing yield', {
     amount: distributed.toNumber(),
     claims: filteredIxs.length,
     belowThreshold: claimIxs.length - filteredIxs.length,
   });
 
   const amountDec = distributed.toNumber() / 1e6;
-  slackMessage.messages.push(`Distributed ${amountDec.toFixed(2)} ${opt.mint} to ${filteredIxs.length} earners`);
+  slackMessage.messages.push(`Distributed ${amountDec.toFixed(2)} to ${filteredIxs.length} earners`);
 
   // cycle instructions - will be null they don't apply to the target program
   const completeClaimIx = await auth.buildCompleteClaimCycleInstruction();
   const syncIndexIx = await auth.buildIndexSyncInstruction();
 
-  // if instructions will fit into a single transaction
-  if (filteredIxs.length <= batchSize) {
-    if (syncIndexIx) filteredIxs.unshift(syncIndexIx);
-    if (completeClaimIx) filteredIxs.push(completeClaimIx);
-
-    const sig = await buildAndSendTransaction(opt, filteredIxs, batchSize, 'yield claim');
-
-    logger.info('yield distributed', { signature: sig[0] });
-    slackMessage.messages.push(`Claims: https://solscan.io/tx/${sig[0]}`);
-    return true;
-  }
+  const ixs: TransactionInstruction[] = [];
 
   // sync index if applicable
-  if (syncIndexIx) {
-    const sigs = await buildAndSendTransaction(opt, [syncIndexIx], batchSize, 'sync index');
-    logger.info('synced index', { signature: sigs[0] });
-  }
+  if (syncIndexIx) ixs.push(syncIndexIx);
 
-  // send all the claims
-  if (filteredIxs.length > 0) {
-    const signatures = await buildAndSendTransaction(opt, filteredIxs, batchSize, 'yield claim');
-    logger.info('yield distributed', { signatures });
+  ixs.push(...filteredIxs);
 
-    for (const sig of signatures) {
-      slackMessage.messages.push(`Claims: https://solscan.io/tx/${sig}`);
-    }
-  }
+  // complete cycle after distribution if applicable
+  if (completeClaimIx) ixs.push(completeClaimIx);
 
-  // complete cycle on last claim transaction
-  if (completeClaimIx) {
-    const sigs = await buildAndSendTransaction(opt, [completeClaimIx], batchSize, 'complete claim cycle');
-    logger.info('cycle complete', { signature: sigs[0] });
-  }
-
-  return true;
+  return ixs;
 }
 
 async function addEarners(opt: ParsedOptions) {
@@ -244,35 +194,6 @@ async function removeEarners(opt: ParsedOptions) {
   const signature = await buildAndSendTransaction(opt, instructions, 10, 'removing earners');
   logger.info('removed earners', { signature, earners: instructions.length });
   slackMessage.messages.push(`Removed ${instructions.length} earners`);
-
-  return true;
-}
-
-async function syncIndex(opt: ParsedOptions) {
-  logger.info('syncing index');
-  const auth = await EarnAuthority.load(opt.connection, opt.evmClient, EXT_PROGRAM_ID, logger);
-  const extIndex = auth['global'].index;
-
-  // fetch the current index on the earn program
-  const [globalAccount] = PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAM_ID);
-  const index = (await getProgram(opt.connection).account.global.fetch(globalAccount)).index;
-
-  const logsFields = {
-    extIndex: extIndex.toString(),
-    index: index.toString(),
-  };
-
-  if (extIndex.eq(index)) {
-    slackMessage.messages.push('index already synced');
-    logger.info('index already synced', logsFields);
-    return false;
-  }
-
-  const ix = await auth.buildIndexSyncInstruction();
-  const signature = await buildAndSendTransaction(opt, [ix!], 10, 'sync index');
-
-  logger.info('updated index on ext earn', { ...logsFields, signature: signature[0] });
-  slackMessage.messages.push(`Synced index: ${signature[0]}`);
 
   return true;
 }

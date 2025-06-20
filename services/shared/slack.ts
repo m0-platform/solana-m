@@ -2,7 +2,6 @@ import { EXT_PROGRAM_ID, PROGRAM_ID } from '@m0-foundation/solana-m-sdk';
 
 export interface SlackMessage {
   messages: string[];
-  mint: 'M' | 'wM';
   service: 'yield-bot' | 'index-bot';
   level: string;
   devnet?: boolean;
@@ -16,7 +15,10 @@ export async function sendSlackMessage(message: SlackMessage) {
     return;
   }
 
-  const { mint, messages, level, service, devnet, explorer } = message;
+  const { messages, level, service, devnet, explorer } = message;
+
+  // TODO: Remove mint from messages
+  const mint = 'M';
 
   const body = {
     mint,
@@ -28,7 +30,7 @@ export async function sendSlackMessage(message: SlackMessage) {
       `https://solscan.io/account/${mint === 'M' ? PROGRAM_ID.toBase58() : EXT_PROGRAM_ID.toBase58()}${
         devnet ? '?cluster=devnet' : ''
       }`,
-    link: grafanaLinkBuilder(message.service, message.mint, ''),
+    link: grafanaLinkBuilder(message.service, mint, ''),
   };
 
   const response = await fetch(webhookUrl, {

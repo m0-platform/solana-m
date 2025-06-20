@@ -18,8 +18,9 @@ import LokiTransport from 'winston-loki';
 import winston from 'winston';
 import { validateDatabaseData } from 'shared/validation';
 import { EnvOptions, getEnv } from 'shared/environment';
-import { bundle } from 'jito-ts';
+import { bundle, JitoRpcConnection } from 'jito-ts';
 import pRetry from 'p-retry';
+import bs58 from 'bs58';
 
 // logger used by bot and passed to SDK
 const logger = new WinstonLogger('yield-bot', { imageBuild: process.env.BUILD_TIME ?? '' }, true);
@@ -111,7 +112,6 @@ export async function yieldCLI() {
 async function validation(opt: ParsedOptions) {
   const auth = await EarnAuthority.load(opt.connection, opt.evmClient, PROGRAM_ID, logger);
   await validateDatabaseData(auth, opt.apiEnvornment);
-  return true;
 }
 
 async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promise<TransactionInstruction[]> {
@@ -173,14 +173,12 @@ async function addEarners(opt: ParsedOptions) {
 
   if (instructions.length === 0) {
     logger.info('no earners to add');
-    return true;
+    return;
   }
 
   const signature = await buildAndSendTransaction(opt, instructions, 10, 'adding earners');
   logger.info('added earners', { signature, earners: instructions.length });
   slackMessage.messages.push(`Added ${instructions.length} earners`);
-
-  return true;
 }
 
 async function removeEarners(opt: ParsedOptions) {
@@ -192,14 +190,14 @@ async function removeEarners(opt: ParsedOptions) {
 
   if (instructions.length === 0) {
     logger.info('no earners to remove');
-    return true;
+    return;
   }
 
   const signature = await buildAndSendTransaction(opt, instructions, 10, 'removing earners');
   logger.info('removed earners', { signature, earners: instructions.length });
   slackMessage.messages.push(`Removed ${instructions.length} earners`);
 
-  return true;
+  return;
 }
 
 async function buildAndSendTransaction(
@@ -348,7 +346,7 @@ async function buildAndSendInstructions(opt: ParsedOptions, ixs: TransactionInst
 
   const jitoBundle = new bundle.Bundle(transactions, 5);
 
-  // Subscribe to the bundle result
+  // subscribe to the bundle result
   opt.jitoClient.onBundleResult(
     (result) => {
       logger.info('received bundle result', { bundleId: result.bundleId, result: result });
@@ -358,10 +356,22 @@ async function buildAndSendInstructions(opt: ParsedOptions, ixs: TransactionInst
     },
   );
 
+  // simulate bundle
+  const connection = new JitoRpcConnection(opt.connection.rpcEndpoint);
+  const sim = await connection.simulateBundle(transactions);
+  logger.info('simulated Jito bundle', {
+    summary: sim.value.summary,
+    logs: sim.value.transactionResults.map((r) => r.logs).flat(),
+    transactions: transactions.map((t) => Buffer.from(t.serialize()).toString('base64')),
+  });
+
   const resp = await opt.jitoClient.sendBundle(jitoBundle);
   if (!resp.ok) throw new Error(`Failed to send bundle: ${resp.error.message}`);
 
-  logger.info('sent Jito bundle', { bundleId: resp.value });
+  logger.info('sent Jito bundle', {
+    bundleId: resp.value,
+    transactions: transactions.map((t) => bs58.encode(t.signatures[0])),
+  });
 
   return [];
 }

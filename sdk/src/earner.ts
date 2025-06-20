@@ -5,7 +5,7 @@ import { EXT_MINT, EXT_PROGRAM_ID, getApiClient, MINT } from '.';
 import { EarnerData } from './accounts';
 import { getExtProgram, getProgram } from './idl';
 import { EarnManager } from './earn_manager';
-import { getTimeWeightedBalance } from './twb';
+import { getBalanceAt } from './tokenBalance';
 import { M0SolanaApi } from '@m0-foundation/solana-m-api-sdk';
 
 export class Earner {
@@ -124,11 +124,15 @@ export class Earner {
         throw new Error('Invalid index or timestamp');
       }
 
-      const twb = await getTimeWeightedBalance(this.data.userTokenAccount, this.mint, last.ts, current.ts);
+      const indexBalance = await getBalanceAt(this.data.userTokenAccount, this.mint, current.ts);
 
       // iterative calculation
-      // y_n = (y_(n-1) + twb) * (I_n / I_(n-1) - twb
-      pendingYield = pendingYield.add(twb).mul(new BN(current.index)).div(new BN(last.index)).sub(twb);
+      // y_n = (y_(n-1) + b) * (I_n / I_(n-1) - b
+      pendingYield = pendingYield
+        .add(indexBalance)
+        .mul(new BN(current.index))
+        .div(new BN(last.index))
+        .sub(indexBalance);
 
       last = current;
     }

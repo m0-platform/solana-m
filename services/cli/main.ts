@@ -8,6 +8,7 @@ import {
   sendAndConfirmTransaction,
   SystemProgram,
   Transaction,
+  TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
 } from '@solana/web3.js';
@@ -35,7 +36,15 @@ import {
   TokenMetadata,
 } from '@solana/spl-token-metadata';
 import { Chain, ChainAddress, UniversalAddress, assertChain, signSendWait } from '@wormhole-foundation/sdk';
-import { createPublicClient, EXT_GLOBAL_ACCOUNT, EXT_MINT, http, EarnAuthority } from '../../sdk/src';
+import {
+  createPublicClient,
+  EXT_GLOBAL_ACCOUNT,
+  EXT_MINT,
+  http,
+  EarnAuthority,
+  ETH_MERKLE_TREE_BUILDER,
+  ETH_MERKLE_TREE_BUILDER_DEVNET,
+} from '../../sdk/src';
 
 import { createSetEvmAddresses } from '../../tests/test-utils';
 import { createInitializeConfidentialTransferMintInstruction } from './confidential-transfers';
@@ -122,7 +131,7 @@ async function main() {
     .description('Print the global state of the earn program')
     .action(async () => {
       const [owner] = keysFromEnv(['PAYER_KEYPAIR']);
-      const earn = new Program<Earn>(EARN_IDL, PROGRAMS.earn, anchorProvider(connection, owner));
+      const earn = new Program<Earn>(EARN_IDL, anchorProvider(connection, owner));
       const [globalAccount] = PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAMS.earn);
       const global = await earn.account.global.fetch(globalAccount);
       console.log('Earn Global State:', global);
@@ -133,7 +142,7 @@ async function main() {
     .description('Print the global state of the ext earn program')
     .action(async () => {
       const [owner] = keysFromEnv(['PAYER_KEYPAIR']);
-      const extEarn = new Program<ExtEarn>(EXT_EARN_IDL, PROGRAMS.extEarn, anchorProvider(connection, owner));
+      const extEarn = new Program<ExtEarn>(EXT_EARN_IDL, anchorProvider(connection, owner));
       const [globalAccount] = PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAMS.extEarn);
       const global = await extEarn.account.extGlobal.fetch(globalAccount);
       console.log('ExtEarn Global State:', global);
@@ -273,7 +282,7 @@ async function main() {
     .action(async ({ squadsEarnAuth, squadsAdmin }) => {
       const [owner, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
 
-      const earn = new Program<Earn>(EARN_IDL, PROGRAMS.earn, anchorProvider(connection, owner));
+      const earn = new Program<Earn>(EARN_IDL, anchorProvider(connection, owner));
       const [globalAccount] = PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAMS.earn);
 
       let earnAuth = owner.publicKey;
@@ -296,7 +305,6 @@ async function main() {
           new BN(8 * 60 * 60), // cooldown (8 hours)
         )
         .accounts({
-          globalAccount,
           admin,
           mint: mint.publicKey,
         })
@@ -312,9 +320,7 @@ async function main() {
     .action(async ({ squadsEarnAuth, squadsAdmin }) => {
       const [owner, mMint, wmMint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR', 'WM_MINT_KEYPAIR']);
 
-      const extEarn = new Program<ExtEarn>(EXT_EARN_IDL, PROGRAMS.extEarn, anchorProvider(connection, owner));
-      const [earnGlobalAccount] = PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAMS.earn);
-      const [extGlobalAccount] = PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAMS.extEarn);
+      const extEarn = new Program<ExtEarn>(EXT_EARN_IDL, anchorProvider(connection, owner));
 
       let earnAuth = owner.publicKey;
       let admin = owner.publicKey;
@@ -330,12 +336,8 @@ async function main() {
         .initialize(earnAuth)
         .accounts({
           admin,
-          globalAccount: extGlobalAccount,
           mMint: mMint.publicKey,
           extMint: wmMint.publicKey,
-          mEarnGlobalAccount: earnGlobalAccount,
-          token2022: TOKEN_2022_PROGRAM_ID,
-          systemProgram: SystemProgram.programId,
         })
         .signers([owner])
         .rpc();
@@ -453,17 +455,17 @@ async function main() {
       // assumes ata is being used as the token account
       const earnerATA = getAssociatedTokenAddressSync(mint.publicKey, earner, true, TOKEN_2022_PROGRAM_ID);
 
-      const earn = new Program<Earn>(EARN_IDL, PROGRAMS.earn, anchorProvider(connection, owner));
+      const earn = new Program<Earn>(EARN_IDL, anchorProvider(connection, owner));
 
       // PDAs
       const [globalAccount] = PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAMS.earn);
-      const [earnerAccount] = PublicKey.findProgramAddressSync(
-        [Buffer.from('earner'), earnerATA.toBuffer()],
-        PROGRAMS.earn,
-      );
 
-      // fetch registrar earners from mainnet
-      const evmCaller = new EvmCaller(evmClient);
+      // fetch registrar earners
+      const evmCaller = new EvmCaller(
+        evmClient,
+        undefined,
+        process.env.NETWORK === 'devnet' ? ETH_MERKLE_TREE_BUILDER_DEVNET : ETH_MERKLE_TREE_BUILDER,
+      );
       const earners = await evmCaller.getEarners();
 
       console.log(`earners on registrar: ${earners.map((e) => e.toBase58())}`);
@@ -486,8 +488,6 @@ async function main() {
         .accounts({
           signer: owner.publicKey,
           userTokenAccount: earnerATA,
-          globalAccount,
-          earnerAccount,
         })
         .signers([])
         .rpc();
@@ -500,7 +500,7 @@ async function main() {
     .description('Add earn manager to the wM earn program')
     .action(async () => {
       const [owner] = keysFromEnv(['PAYER_KEYPAIR']);
-      const extEarn = new Program<ExtEarn>(EXT_EARN_IDL, PROGRAMS.extEarn, anchorProvider(connection, owner));
+      const extEarn = new Program<ExtEarn>(EXT_EARN_IDL, anchorProvider(connection, owner));
 
       const [earnManagerAccount] = PublicKey.findProgramAddressSync(
         [Buffer.from('earn_manager'), owner.publicKey.toBuffer()],
@@ -521,9 +521,6 @@ async function main() {
       const sig = await extEarn.methods
         .addEarnManager(owner.publicKey, new BN(15))
         .accounts({
-          admin: owner.publicKey,
-          globalAccount: EXT_GLOBAL_ACCOUNT,
-          earnManagerAccount,
           feeTokenAccount: managerATA.address,
         })
         .rpc({ skipPreflight: true });
@@ -556,7 +553,7 @@ async function main() {
       const [owner] = keysFromEnv(['PAYER_KEYPAIR']);
       const earnAuth = new PublicKey(earnAuthAddress);
 
-      const earn = new Program<Earn>(EARN_IDL, PROGRAMS.earn, anchorProvider(connection, owner));
+      const earn = new Program<Earn>(EARN_IDL, anchorProvider(connection, owner));
       const [globalAccount] = PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAMS.earn);
 
       const sig = await earn.methods

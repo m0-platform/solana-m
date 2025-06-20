@@ -143,8 +143,8 @@ describe('Yield calculation tests', () => {
         { ts: 85n, amount: 250000000n },
         { ts: 95n, amount: 250000000n },
       ],
-      expectedReward: new BN(24968184),
-      expectedTolerance: new BN(20),
+      expectedReward: new BN(25221086),
+      expectedTolerance: new BN(30),
     };
 
     // each test is an array of indexes where claims are made

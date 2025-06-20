@@ -87,7 +87,7 @@ export class MerkleTree {
       level++;
       let lastNodes = this.tree[level - 1];
       let lastEven = len % 2 == 0;
-      let nextLen = lastEven ? len / 2 : len / 2 + 1;
+      let nextLen = lastEven ? Math.floor(len / 2) : Math.floor(len / 2) + 1;
       let nodes = new Array<Buffer>(nextLen);
 
       for (let i = 0; i < len - 1; i = i + 2) {

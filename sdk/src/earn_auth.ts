@@ -11,7 +11,7 @@ import { Earn } from './idl/earn';
 import { ExtEarn } from './idl/ext_earn';
 import { MockLogger, Logger } from './logger';
 import { RateLimiter } from 'limiter';
-import { getTimeWeightedBalance } from './twb';
+import { getBalanceAt } from './tokenBalance';
 
 export class EarnAuthority {
   private logger: Logger;
@@ -123,11 +123,11 @@ export class EarnAuthority {
         throw new Error('Invalid index or timestamp');
       }
 
-      const twb = await getTimeWeightedBalance(earner.data.userTokenAccount, this.global.mint, last.ts, current.ts);
+      const indexBalance = await getBalanceAt(earner.data.userTokenAccount, this.global.mint, current.ts);
 
       // iterative calculation
-      // y_n = (y_(n-1) + twb) * I_n / I_(n-1) - twb
-      claimYield = claimYield.add(twb).mul(new BN(current.index)).div(new BN(last.index)).sub(twb);
+      // y_n = (y_(n-1) + b) * I_n / I_(n-1) - b
+      claimYield = claimYield.add(indexBalance).mul(new BN(current.index)).div(new BN(last.index)).sub(indexBalance);
 
       // update last
       last = current;

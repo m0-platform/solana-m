@@ -45,7 +45,6 @@ let slackMessage: SlackMessage = {
 interface ParsedOptions extends EnvOptions {
   builder: TransactionBuilder;
   dryRun: boolean;
-  claimThreshold: BN;
   bundle: true;
   tip: number;
 }
@@ -66,10 +65,9 @@ export async function yieldCLI() {
   program
     .command('distribute')
     .option('-d, --dryRun [bool]', 'Build and simulate transactions without sending them', false)
-    .option('-t, --claimThreshold [bigint]', 'Threshold for claiming yield', '100000')
     .option('-b, --bundle [bool]', 'Use Jito Bundle', false)
     .option('-t, --tip [number]', 'Tip amount in lamports (min 1000)', '10000')
-    .action(async ({ dryRun, claimThreshold, bundle, tip }) => {
+    .action(async ({ dryRun, bundle, tip }) => {
       const env = getEnv();
 
       await logBlockchainBalance('solana', env.connection.rpcEndpoint, env.signerPubkey.toBase58(), logger);
@@ -77,7 +75,6 @@ export async function yieldCLI() {
       const options: ParsedOptions = {
         ...env,
         builder: new TransactionBuilder(env.connection, logger),
-        claimThreshold: new BN(claimThreshold),
         dryRun,
         bundle,
         tip: Number.parseInt(tip, 10),
@@ -123,43 +120,41 @@ async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promis
     return [];
   }
 
-  // get all earners on the earn program
-  const earners = await auth.getAllEarners();
+  const ixs: TransactionInstruction[] = [];
 
-  // build claim instructions
-  let claimIxs: TransactionInstruction[] = [];
-  for (const earner of earners) {
+  // sync index if applicable
+  const syncIndexIx = await auth.buildIndexSyncInstruction();
+  if (syncIndexIx) ixs.push(syncIndexIx);
+
+  // build claim instructions if there are any earners
+  for (const earner of await auth.getAllEarners()) {
     // throttle requests
     await limiter.removeTokens(1);
 
     const ix = await auth.buildClaimInstruction(earner);
-    if (ix) claimIxs.push(ix);
+    if (ix) ixs.push(ix);
   }
 
-  const batchSize = 8;
-  const [filteredIxs, distributed] = await auth.simulateAndValidateClaimIxs(claimIxs, batchSize, opt.claimThreshold);
+  // simulate claims if there are any
+  if (ixs.length > 1) {
+    let distributed: BN;
+    if (syncIndexIx) {
+      distributed = await auth.simulateAndValidateClaimIxs(ixs.slice(1), 8, 1, syncIndexIx, opt.signerPubkey);
+    } else {
+      distributed = await auth.simulateAndValidateClaimIxs(ixs, 8, 1, undefined, opt.signerPubkey);
+    }
 
-  logger.info('distributing yield', {
-    amount: distributed.toNumber(),
-    claims: filteredIxs.length,
-    belowThreshold: claimIxs.length - filteredIxs.length,
-  });
+    logger.info('distributing yield', {
+      amount: distributed.toNumber(),
+      claims: ixs.length - 1,
+    });
 
-  const amountDec = distributed.toNumber() / 1e6;
-  slackMessage.messages.push(`Distributed ${amountDec.toFixed(2)} to ${filteredIxs.length} earners`);
-
-  // cycle instructions - will be null they don't apply to the target program
-  const completeClaimIx = await auth.buildCompleteClaimCycleInstruction();
-  const syncIndexIx = await auth.buildIndexSyncInstruction();
-
-  const ixs: TransactionInstruction[] = [];
-
-  // sync index if applicable
-  if (syncIndexIx) ixs.push(syncIndexIx);
-
-  ixs.push(...filteredIxs);
+    const amountDec = distributed.toNumber() / 1e6;
+    slackMessage.messages.push(`Distributed ${amountDec.toFixed(2)} to ${ixs.length - 1} earners`);
+  }
 
   // complete cycle after distribution if applicable
+  const completeClaimIx = await auth.buildCompleteClaimCycleInstruction();
   if (completeClaimIx) ixs.push(completeClaimIx);
 
   return ixs;

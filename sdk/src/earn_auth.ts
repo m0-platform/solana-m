@@ -67,6 +67,11 @@ export class EarnAuthority {
   }
 
   async getAllEarners(): Promise<Earner[]> {
+    // extensions do not have earners
+    if (!this.programID.equals(PROGRAM_ID) && !this.programID.equals(EXT_PROGRAM_ID)) {
+      return [];
+    }
+
     const accounts = await this.program.account.earner.all();
     return accounts.map((a) => new Earner(this.connection, this.evmClient, a.publicKey, a.account, this.global.mint));
   }
@@ -204,27 +209,31 @@ export class EarnAuthority {
   async simulateAndValidateClaimIxs(
     ixs: TransactionInstruction[],
     batchSize = 10,
-    claimSizeThreshold = new BN(100000), // $0.10
     rps = 1, // batches per second
-  ): Promise<[TransactionInstruction[], BN]> {
+    syncIx?: TransactionInstruction, // some claims require a sync instruction
+    payer?: PublicKey, // default to earn authority
+  ): Promise<BN> {
     const limiter = new RateLimiter({ tokensPerInterval: rps, interval: 1000 });
+    const feePayer = payer ?? new PublicKey(this.global.earnAuthority!);
 
     if (this.global.claimComplete) {
       throw new Error('No active claim cycle');
     }
 
     let totalRewards = new BN(0);
-    const filteredTxns: TransactionInstruction[] = [];
 
     // batch instructions into transactions
-    const payer = new PublicKey(this.global.earnAuthority!);
     const transactions: VersionedTransaction[] = [];
     for (let i = 0; i < ixs.length; i += batchSize) {
       const batchIxs = ixs.slice(i, i + batchSize);
-      transactions.push(await this.builder.buildTransaction(batchIxs, payer, 250_000));
+
+      // sync index so yield can be claimed
+      if (syncIx) batchIxs.unshift(syncIx);
+
+      transactions.push(await this.builder.buildTransaction(batchIxs, feePayer, 250_000));
     }
 
-    for (const [i, txn] of transactions.entries()) {
+    for (const txn of transactions) {
       // throttle requests
       await limiter.removeTokens(1);
 
@@ -241,17 +250,14 @@ export class EarnAuthority {
 
       // add up rewards
       const batchRewards = this._getRewardAmounts(result.value.logs!);
-      for (const [index, reward] of batchRewards.entries()) {
+      for (const reward of batchRewards) {
         this.logger.debug('Claim for earner', {
           tokenAccount: reward.tokenAccount.toString(),
           rewards: reward.user.toString(),
           fee: reward.fee.toString(),
         });
 
-        if (reward.user.gt(claimSizeThreshold)) {
-          totalRewards = totalRewards.add(reward.user).add(reward.fee);
-          filteredTxns.push(ixs[i * batchSize + index]);
-        }
+        totalRewards = totalRewards.add(reward.user).add(reward.fee);
       }
     }
 
@@ -265,7 +271,7 @@ export class EarnAuthority {
         });
         throw new Error('Claim amount exceeds max claimable rewards');
       }
-    } else {
+    } else if (this.programID.equals(EXT_PROGRAM_ID)) {
       // total supply
       const mint = await spl.getMint(
         this.connection,
@@ -300,7 +306,7 @@ export class EarnAuthority {
       }
     }
 
-    return [filteredTxns, totalRewards];
+    return totalRewards;
   }
 
   async buildIndexSyncInstruction(): Promise<TransactionInstruction | null> {

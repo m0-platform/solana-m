@@ -1,17 +1,9 @@
 import { Command } from 'commander';
-import {
-  Registrar,
-  EarnAuthority,
-  WinstonLogger,
-  ETH_MERKLE_TREE_BUILDER,
-  ETH_MERKLE_TREE_BUILDER_DEVNET,
-  EXT_PROGRAM_ID,
-  PROGRAM_ID,
-  TransactionBuilder,
-} from '@m0-foundation/solana-m-sdk';
+import { Registrar, EarnAuthority, WinstonLogger, PROGRAM_ID, TransactionBuilder } from '@m0-foundation/solana-m-sdk';
 import {
   ComputeBudgetProgram,
   PublicKey,
+  SystemProgram,
   TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
@@ -25,8 +17,9 @@ import { logBlockchainBalance } from 'shared/balances';
 import LokiTransport from 'winston-loki';
 import winston from 'winston';
 import { validateDatabaseData } from 'shared/validation';
-import { getProgram } from '@m0-foundation/solana-m-sdk/src/idl';
 import { EnvOptions, getEnv } from 'shared/environment';
+import { bundle } from 'jito-ts';
+import pRetry from 'p-retry';
 
 // logger used by bot and passed to SDK
 const logger = new WinstonLogger('yield-bot', { imageBuild: process.env.BUILD_TIME ?? '' }, true);
@@ -51,7 +44,8 @@ interface ParsedOptions extends EnvOptions {
   builder: TransactionBuilder;
   dryRun: boolean;
   claimThreshold: BN;
-  merkleTreeAddress: `0x${string}`;
+  bundle: true;
+  tip: number;
 }
 
 // yield must be synced and distributed to all extensions at the same time
@@ -72,7 +66,8 @@ export async function yieldCLI() {
     .option('-d, --dryRun [bool]', 'Build and simulate transactions without sending them', false)
     .option('-t, --claimThreshold [bigint]', 'Threshold for claiming yield', '100000')
     .option('-b, --bundle [bool]', 'Use Jito Bundle', false)
-    .action(async ({ dryRun, claimThreshold }) => {
+    .option('-t, --tip [number]', 'Tip amount in lamports (min 1000)', '10000')
+    .action(async ({ dryRun, claimThreshold, bundle, tip }) => {
       const env = getEnv();
 
       await logBlockchainBalance('solana', env.connection.rpcEndpoint, env.signerPubkey.toBase58(), logger);
@@ -80,9 +75,10 @@ export async function yieldCLI() {
       const options: ParsedOptions = {
         ...env,
         builder: new TransactionBuilder(env.connection, logger),
-        merkleTreeAddress: env.isDevnet ? ETH_MERKLE_TREE_BUILDER_DEVNET : ETH_MERKLE_TREE_BUILDER,
-        dryRun,
         claimThreshold: new BN(claimThreshold),
+        dryRun,
+        bundle,
+        tip: Number.parseInt(tip, 10),
       };
 
       // make sure data is up-to-date
@@ -91,11 +87,19 @@ export async function yieldCLI() {
       // pre-yield actions
       await removeEarners(options);
 
-      // collect all instructions to sent together
+      // collect all instructions to send together
       const ixs = [...(await distributeYield(options, PROGRAM_ID))];
       for (const pid of env.isDevnet ? extensionsDevnet : extensionsMainnet) {
         ixs.push(...(await distributeYield(options, pid)));
       }
+
+      await pRetry(() => buildAndSendInstructions(options, ixs), {
+        onFailedAttempt: ({ message, attemptNumber }) => {
+          logger.error('failed transaction send attempt', { attemptNumber, message });
+        },
+        retries: 3,
+        minTimeout: 2500,
+      });
 
       // post-yield actions
       await addEarners(options);
@@ -312,6 +316,54 @@ async function getPriorityFee(): Promise<number> {
     logger.warn('error fetching priority fee', { error });
     return defaultFee;
   }
+}
+
+async function buildAndSendInstructions(opt: ParsedOptions, ixs: TransactionInstruction[]) {
+  // send regularly if not bundling
+  if (!opt.jitoClient) return buildAndSendTransaction(opt, ixs);
+
+  const priorityFee = await getPriorityFee();
+
+  // randomly select a tip account
+  const accs = await opt.jitoClient.getTipAccounts();
+  if (!accs.ok) throw new Error(`Failed to get tip accounts: ${accs.error.message}`);
+  const tipAccount = new PublicKey(accs.value[Math.floor(Math.random() * accs.value.length)]);
+
+  // add tip
+  const ixsWithTip = [
+    ...ixs,
+    SystemProgram.transfer({
+      fromPubkey: opt.signerPubkey,
+      toPubkey: tipAccount,
+      lamports: opt.tip,
+    }),
+  ];
+
+  // split over 5 transactions
+  const batchSize = Math.ceil(ixsWithTip.length / 5);
+  const transactions: VersionedTransaction[] = [];
+  for (let i = 0; i < ixsWithTip.length; i += batchSize) {
+    opt.builder.buildTransaction(ixsWithTip.slice(i, i + batchSize), opt.signerPubkey, priorityFee);
+  }
+
+  const jitoBundle = new bundle.Bundle(transactions, 5);
+
+  // Subscribe to the bundle result
+  opt.jitoClient.onBundleResult(
+    (result) => {
+      logger.info('received bundle result', { bundleId: result.bundleId, result: result });
+    },
+    (e) => {
+      throw new Error(`Error on Jito bundle: ${e.message}`);
+    },
+  );
+
+  const resp = await opt.jitoClient.sendBundle(jitoBundle);
+  if (!resp.ok) throw new Error(`Failed to send bundle: ${resp.error.message}`);
+
+  logger.info('sent Jito bundle', { bundleId: resp.value });
+
+  return [];
 }
 
 async function proposeSquadsTransaction(

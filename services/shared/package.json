@@ -9,6 +9,7 @@
     "@turnkey/solana": "1.0.22",
     "@types/bn.js": "catalog:",
     "bn.js": "catalog:",
+    "jito-ts": "^4.2.0",
     "viem": "catalog:"
   }
 }

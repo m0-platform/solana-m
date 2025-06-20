@@ -522,6 +522,57 @@ export type MExt = {
           "type": {
             "vec": "pubkey"
           }
+        },
+        {
+          "name": "feeBps",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "setFee",
+      "discriminator": [
+        18,
+        154,
+        24,
+        18,
+        237,
+        214,
+        19,
+        80
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "globalAccount"
+          ]
+        },
+        {
+          "name": "globalAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "feeBps",
+          "type": "u64"
         }
       ]
     },
@@ -770,6 +821,246 @@ export type MExt = {
               ]
             }
           }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "sync",
+      "discriminator": [
+        4,
+        219,
+        40,
+        164,
+        21,
+        157,
+        189,
+        88
+      ],
+      "accounts": [
+        {
+          "name": "globalAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mVault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "vaultMTokenAccount",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "mVault"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  238,
+                  117,
+                  143,
+                  222,
+                  24,
+                  66,
+                  93,
+                  188,
+                  228,
+                  108,
+                  205,
+                  218,
+                  182,
+                  26,
+                  252,
+                  77,
+                  131,
+                  185,
+                  13,
+                  39,
+                  254,
+                  189,
+                  249,
+                  40,
+                  216,
+                  161,
+                  139,
+                  252
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "global_account.m_mint",
+                "account": "extGlobal"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "mEarnerAccount",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  97,
+                  114,
+                  110,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vaultMTokenAccount"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                5,
+                96,
+                203,
+                194,
+                112,
+                168,
+                176,
+                78,
+                85,
+                26,
+                180,
+                224,
+                26,
+                229,
+                153,
+                66,
+                23,
+                208,
+                230,
+                56,
+                28,
+                164,
+                98,
+                240,
+                154,
+                37,
+                49,
+                118,
+                130,
+                244,
+                142,
+                245
+              ]
+            }
+          }
+        },
+        {
+          "name": "extMint",
+          "writable": true,
+          "relations": [
+            "globalAccount"
+          ]
+        },
+        {
+          "name": "extMintAuthority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "extTokenProgram",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         }
       ],
       "args": []
@@ -1583,7 +1874,20 @@ export type MExt = {
       "name": "yieldConfig",
       "type": {
         "kind": "struct",
-        "fields": []
+        "fields": [
+          {
+            "name": "feeBps",
+            "type": "u64"
+          },
+          {
+            "name": "lastMIndex",
+            "type": "u64"
+          },
+          {
+            "name": "lastExtIndex",
+            "type": "u64"
+          }
+        ]
       }
     }
   ],

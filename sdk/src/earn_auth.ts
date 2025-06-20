@@ -12,6 +12,7 @@ import { ExtEarn } from './idl/ext_earn';
 import { MockLogger, Logger } from './logger';
 import { RateLimiter } from 'limiter';
 import { getBalanceAt } from './tokenBalance';
+import { MExt } from './idl/m_ext';
 
 export class EarnAuthority {
   private logger: Logger;
@@ -71,6 +72,7 @@ export class EarnAuthority {
   }
 
   async buildCompleteClaimCycleInstruction(): Promise<TransactionInstruction | null> {
+    // only valid for $M
     if (!this.programID.equals(PROGRAM_ID)) {
       return null;
     }
@@ -90,17 +92,12 @@ export class EarnAuthority {
   }
 
   async buildClaimInstruction(earner: Earner): Promise<TransactionInstruction | null> {
-    if (!this.global.index) {
-      this.logger.error('Targeted program does not have an index');
-      return null;
-    }
-
     if (this.global.claimComplete) {
       this.logger.error('No active claim cycle');
       return null;
     }
 
-    if (earner.data.lastClaimIndex.gte(this.global.index)) {
+    if (earner.data.lastClaimIndex.gte(this.global.index!)) {
       this.logger.warn('Earner already claimed');
       return null;
     }
@@ -138,7 +135,7 @@ export class EarnAuthority {
     // b* = y / ((I_n / I_l) - 1) = y * I_l / (I_n - I_l)
     const claimBalance = claimYield
       .mul(earner.data.lastClaimIndex)
-      .div(this.global.index.sub(earner.data.lastClaimIndex));
+      .div(this.global.index!.sub(earner.data.lastClaimIndex));
 
     // PDAs
     const [earnerAccount] = PublicKey.findProgramAddressSync(
@@ -219,7 +216,15 @@ export class EarnAuthority {
     let totalRewards = new BN(0);
     const filteredTxns: TransactionInstruction[] = [];
 
-    for (const [i, txn] of (await this._buildTransactions(ixs, batchSize)).entries()) {
+    // batch instructions into transactions
+    const payer = new PublicKey(this.global.earnAuthority!);
+    const transactions: VersionedTransaction[] = [];
+    for (let i = 0; i < ixs.length; i += batchSize) {
+      const batchIxs = ixs.slice(i, i + batchSize);
+      transactions.push(await this.builder.buildTransaction(batchIxs, payer, 250_000));
+    }
+
+    for (const [i, txn] of transactions.entries()) {
       // throttle requests
       await limiter.removeTokens(1);
 
@@ -303,14 +308,11 @@ export class EarnAuthority {
       return null;
     }
 
-    return (this.program as Program<ExtEarn>).methods
-      .sync()
-      .accounts({
-        earnAuthority: this.global.earnAuthority,
-        globalAccount: EXT_GLOBAL_ACCOUNT,
-        mEarnGlobalAccount: GLOBAL_ACCOUNT,
-      })
-      .instruction();
+    if (this.programID.equals(EXT_PROGRAM_ID)) {
+      return (this.program as Program<ExtEarn>).methods.sync().accounts({}).instruction();
+    }
+
+    return (this.program as Program<MExt>).methods.sync().accounts({}).instruction();
   }
 
   private _getRewardAmounts(logs: string[]) {
@@ -331,24 +333,6 @@ export class EarnAuthority {
     }
 
     return rewards;
-  }
-
-  private async _buildTransactions(
-    ixs: TransactionInstruction[],
-    batchSize = 10,
-    priorityFee = 250_000,
-  ): Promise<VersionedTransaction[]> {
-    const feePayer = new PublicKey(this.global.earnAuthority);
-
-    // split instructions into batches
-    const transactions: VersionedTransaction[] = [];
-
-    for (let i = 0; i < ixs.length; i += batchSize) {
-      const batchIxs = ixs.slice(i, i + batchSize);
-      transactions.push(await this.builder.buildTransaction(batchIxs, feePayer, priorityFee));
-    }
-
-    return transactions;
   }
 }
 

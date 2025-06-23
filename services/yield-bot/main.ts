@@ -18,8 +18,6 @@ import LokiTransport from 'winston-loki';
 import winston from 'winston';
 import { validateDatabaseData } from 'shared/validation';
 import { EnvOptions, getEnv } from 'shared/environment';
-import { bundle, JitoRpcConnection } from 'jito-ts';
-import bs58 from 'bs58';
 
 // logger used by bot and passed to SDK
 const logger = new WinstonLogger('yield-bot', { imageBuild: process.env.BUILD_TIME ?? '' }, true);
@@ -308,81 +306,6 @@ async function getPriorityFee(): Promise<number> {
     logger.warn('error fetching priority fee', { error });
     return defaultFee;
   }
-}
-
-async function bundleAndSend(opt: ParsedOptions, ixs: TransactionInstruction[]) {
-  // send regularly if not bundling
-  if (!opt.jitoClient) return buildAndSendTransaction(opt, ixs);
-
-  const priorityFee = await getPriorityFee();
-
-  // randomly select a tip account
-  const accs = await opt.jitoClient.getTipAccounts();
-  if (!accs.ok) throw new Error(`Failed to get tip accounts: ${accs.error.message}`);
-  const tipAccount = new PublicKey(accs.value[Math.floor(Math.random() * accs.value.length)]);
-
-  // add tip
-  const ixsWithTip = [
-    ...ixs,
-    SystemProgram.transfer({
-      fromPubkey: opt.signerPubkey,
-      toPubkey: tipAccount,
-      lamports: opt.tip,
-    }),
-  ];
-
-  // split over 5 transactions
-  const batchSize = Math.ceil(ixsWithTip.length / 5);
-  const transactions: VersionedTransaction[] = [];
-  for (let i = 0; i < ixsWithTip.length; i += batchSize) {
-    opt.builder.buildTransaction(ixsWithTip.slice(i, i + batchSize), opt.signerPubkey, priorityFee);
-  }
-
-  const jitoBundle = new bundle.Bundle(transactions, 5);
-  const encodedTxns = transactions.map((t) => Buffer.from(t.serialize()).toString('base64'));
-
-  // subscribe to the bundle result
-  opt.jitoClient.onBundleResult(
-    (result) => {
-      logger.info('received bundle result', { bundleId: result.bundleId, result: result });
-    },
-    (e) => {
-      throw new Error(`Error on Jito bundle: ${e.message}`);
-    },
-  );
-
-  // simulate bundle (may fail if unsupported by RPC)
-  try {
-    const connection = new JitoRpcConnection(opt.connection.rpcEndpoint);
-    const sim = await connection.simulateBundle(transactions);
-    logger.info('simulated Jito bundle', {
-      summary: sim.value.summary,
-      logs: sim.value.transactionResults.map((r) => r.logs).flat(),
-      transactions: encodedTxns,
-    });
-  } catch (error) {
-    if (error instanceof SendTransactionError) {
-      logger.error('failed to simulate Jito bundle', {
-        error: error.message,
-        logs: error.logs,
-        transactions: encodedTxns,
-      });
-      // simulation returned error
-      if (error.message.startsWith('failed to simulate bundle')) {
-        throw new Error(error.message);
-      }
-    }
-  }
-
-  const resp = await opt.jitoClient.sendBundle(jitoBundle);
-  if (!resp.ok) throw new Error(`Failed to send bundle: ${resp.error.message}`);
-
-  logger.info('sent Jito bundle', {
-    bundleId: resp.value,
-    transactions: transactions.map((t) => bs58.encode(t.signatures[0])),
-  });
-
-  return;
 }
 
 async function proposeSquadsTransaction(

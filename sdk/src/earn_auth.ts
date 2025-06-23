@@ -215,7 +215,7 @@ export class EarnAuthority {
     }
 
     const feePayer = new PublicKey(this.global.earnAuthority!);
-    const txn = await this.builder.buildTransaction(ixs, feePayer, 250_000);
+    const txn = await this.builder.buildTransaction([...ixs], feePayer, 250_000);
 
     // simulate transaction
     const result = await this.connection.simulateTransaction(txn, { sigVerify: false, replaceRecentBlockhash: true });

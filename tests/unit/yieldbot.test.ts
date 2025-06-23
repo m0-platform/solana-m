@@ -22,7 +22,6 @@ describe('Yield bot tests', () => {
     // mock command-line arguments
     process.argv = ['node', 'main.ts', 'distribute'];
     process.argv.push('--dryRun');
-    process.argv.push('--stepInterval', '10');
 
     await yieldCLI();
   }, 15_000);

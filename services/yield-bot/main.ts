@@ -50,9 +50,10 @@ interface ParsedOptions extends EnvOptions {
 }
 
 // yield must be synced and distributed to all extensions at the same time
-const extensionsMainnet = [new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko')];
+const programsMainnet = [PROGRAM_ID, new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko')];
 
-const extensionsDevnet = [
+const programsDevnet = [
+  PROGRAM_ID,
   new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'),
   new PublicKey('Fb2AsCKmPd4gKhabT6KsremSHMrJ8G2Mopnc6rDQZX9e'),
   new PublicKey('3PskKTHgboCbUSQPMcCAZdZNFHbNvSoZ8zEFYANCdob7'),
@@ -87,8 +88,8 @@ export async function yieldCLI() {
       await removeEarners(options);
 
       // collect all instructions to send together
-      const ixs = [...(await distributeYield(options, PROGRAM_ID))];
-      for (const pid of env.isDevnet ? extensionsDevnet : extensionsMainnet) {
+      const ixs: TransactionInstruction[] = [];
+      for (const pid of env.isDevnet ? programsDevnet : programsMainnet) {
         ixs.push(...(await distributeYield(options, pid)));
       }
 

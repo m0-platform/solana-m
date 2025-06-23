@@ -38,7 +38,6 @@ import {
 import { Chain, ChainAddress, UniversalAddress, assertChain, signSendWait } from '@wormhole-foundation/sdk';
 import {
   createPublicClient,
-  EXT_GLOBAL_ACCOUNT,
   EXT_MINT,
   http,
   EarnAuthority,
@@ -49,7 +48,6 @@ import {
 import { createSetEvmAddresses } from '../../tests/test-utils';
 import { createInitializeConfidentialTransferMintInstruction } from './confidential-transfers';
 import { Program, BN } from '@coral-xyz/anchor';
-import * as multisig from '@sqds/multisig';
 import { Earn } from '../../sdk/src/idl/earn';
 import { ExtEarn } from '../../sdk/src/idl/ext_earn';
 import { anchorProvider, keysFromEnv, NttManager } from './utils';

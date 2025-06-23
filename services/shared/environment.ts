@@ -11,7 +11,6 @@ import {
   PublicClient,
 } from '@m0-foundation/solana-m-sdk';
 import { Hex, createWalletClient, WalletClient } from 'viem';
-import { searcher } from 'jito-ts';
 import { ETH_MERKLE_TREE_BUILDER_DEVNET } from '@m0-foundation/solana-m-sdk';
 
 type TurnkeyEnvOption = {
@@ -27,7 +26,6 @@ type SquadsEnvOption = {
 export interface EnvOptions {
   isDevnet: boolean;
   connection: Connection;
-  jitoClient: searcher.SearcherClient | null;
   evmClient: PublicClient;
   merkleTreeAddress: `0x${string}`;
   evmWalletClient?: WalletClient;
@@ -50,7 +48,6 @@ export function getEnv(): EnvOptions {
     SQUADS_PDA,
     SQUADS_VAULT,
     EVM_KEY,
-    JITO_BLOCK_ENGINE_URL,
   } = process.env;
 
   let signer: Keypair | undefined;
@@ -105,10 +102,6 @@ export function getEnv(): EnvOptions {
     };
   }
 
-  // Jito bundles not available on devnet
-  const blockEngine = JITO_BLOCK_ENGINE_URL ?? 'https://mainnet.block-engine.jito.wtf';
-  const jitoClient = !isDevnet ? searcher.searcherClient(blockEngine) : null;
-
   return {
     isDevnet,
     signer,
@@ -116,7 +109,6 @@ export function getEnv(): EnvOptions {
     connection: new Connection(RPC_URL!, 'confirmed'),
     evmClient: createPublicClient({ transport: http(EVM_RPC_URL!) }),
     merkleTreeAddress: isDevnet ? ETH_MERKLE_TREE_BUILDER_DEVNET : ETH_MERKLE_TREE_BUILDER,
-    jitoClient,
     evmWalletClient,
     apiEnvornment: isDevnet ? M0SolanaApiEnvironment.Devnet : M0SolanaApiEnvironment.Mainnet,
     turnkey,

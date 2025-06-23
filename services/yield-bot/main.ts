@@ -47,7 +47,7 @@ interface ParsedOptions extends EnvOptions {
   tip: number;
 }
 
-// yield must be synced and distributed to all extensions at the same time
+// all programs and extensions that require yield distribution
 const programsMainnet = [PROGRAM_ID, new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko')];
 
 const programsDevnet = [
@@ -80,7 +80,7 @@ export async function yieldCLI() {
       };
 
       // make sure data is up-to-date
-      await validation(options);
+      if (!options.isDevnet) await validation(options);
 
       // pre-yield actions
       await removeEarners(options);

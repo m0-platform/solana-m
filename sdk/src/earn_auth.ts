@@ -61,6 +61,10 @@ export class EarnAuthority {
     this.global = await loadGlobal(this.connection, this.programID);
   }
 
+  public get latestIndex(): BN | undefined {
+    return this.global.index;
+  }
+
   public get admin() {
     return new PublicKey(this.global.admin);
   }

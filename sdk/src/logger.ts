@@ -77,7 +77,4 @@ export class WinstonLogger implements Logger {
   addMetaField(key: string, value: string) {
     this.logger.defaultMeta[key] = value;
   }
-  clearMetaFields() {
-    this.logger.defaultMeta = {};
-  }
 }

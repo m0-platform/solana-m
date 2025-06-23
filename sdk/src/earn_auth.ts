@@ -10,7 +10,6 @@ import { getProgramFromID, MProgram } from './idl';
 import { Earn } from './idl/earn';
 import { ExtEarn } from './idl/ext_earn';
 import { MockLogger, Logger } from './logger';
-import { RateLimiter } from 'limiter';
 import { getBalanceAt } from './tokenBalance';
 import { MExt } from './idl/m_ext';
 
@@ -206,59 +205,36 @@ export class EarnAuthority {
     }
   }
 
-  async simulateAndValidateClaimIxs(
-    ixs: TransactionInstruction[],
-    batchSize = 10,
-    rps = 1, // batches per second
-    syncIx?: TransactionInstruction, // some claims require a sync instruction
-    payer?: PublicKey, // default to earn authority
-  ): Promise<BN> {
-    const limiter = new RateLimiter({ tokensPerInterval: rps, interval: 1000 });
-    const feePayer = payer ?? new PublicKey(this.global.earnAuthority!);
-
+  async simulateAndValidateClaimIxs(ixs: TransactionInstruction[]): Promise<BN> {
     if (this.global.claimComplete) {
       throw new Error('No active claim cycle');
     }
 
-    let totalRewards = new BN(0);
+    const feePayer = new PublicKey(this.global.earnAuthority!);
+    const txn = await this.builder.buildTransaction(ixs, feePayer, 250_000);
 
-    // batch instructions into transactions
-    const transactions: VersionedTransaction[] = [];
-    for (let i = 0; i < ixs.length; i += batchSize) {
-      const batchIxs = ixs.slice(i, i + batchSize);
-
-      // sync index so yield can be claimed
-      if (syncIx) batchIxs.unshift(syncIx);
-
-      transactions.push(await this.builder.buildTransaction(batchIxs, feePayer, 250_000));
+    // simulate transaction
+    const result = await this.connection.simulateTransaction(txn, { sigVerify: false, replaceRecentBlockhash: true });
+    if (result.value.err) {
+      this.logger.error('Claim batch simulation failed', {
+        logs: result.value.logs,
+        err: result.value.err.toString(),
+        b64: Buffer.from(txn.serialize()).toString('base64'),
+      });
+      throw new Error(`Claim batch simulation failed: ${JSON.stringify(result.value.err)}`);
     }
 
-    for (const txn of transactions) {
-      // throttle requests
-      await limiter.removeTokens(1);
+    // add up rewards
+    let totalRewards = new BN(0);
 
-      // simulate transaction
-      const result = await this.connection.simulateTransaction(txn, { sigVerify: false, replaceRecentBlockhash: true });
-      if (result.value.err) {
-        this.logger.error('Claim batch simulation failed', {
-          logs: result.value.logs,
-          err: result.value.err.toString(),
-          b64: Buffer.from(txn.serialize()).toString('base64'),
-        });
-        throw new Error(`Claim batch simulation failed: ${JSON.stringify(result.value.err)}`);
-      }
+    for (const reward of this._getRewardAmounts(result.value.logs!)) {
+      this.logger.debug('Claim for earner', {
+        tokenAccount: reward.tokenAccount.toString(),
+        rewards: reward.user.toString(),
+        fee: reward.fee.toString(),
+      });
 
-      // add up rewards
-      const batchRewards = this._getRewardAmounts(result.value.logs!);
-      for (const reward of batchRewards) {
-        this.logger.debug('Claim for earner', {
-          tokenAccount: reward.tokenAccount.toString(),
-          rewards: reward.user.toString(),
-          fee: reward.fee.toString(),
-        });
-
-        totalRewards = totalRewards.add(reward.user).add(reward.fee);
-      }
+      totalRewards = totalRewards.add(reward.user).add(reward.fee);
     }
 
     // validate rewards is not higher than max claimable rewards

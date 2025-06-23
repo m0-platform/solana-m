@@ -11,7 +11,6 @@ import {
 } from '@solana/web3.js';
 import * as multisig from '@sqds/multisig';
 import { instructions } from '@sqds/multisig';
-import BN from 'bn.js';
 import { RateLimiter } from 'limiter';
 import { sendSlackMessage, SlackMessage } from 'shared/slack';
 import { logBlockchainBalance } from 'shared/balances';
@@ -20,7 +19,6 @@ import winston from 'winston';
 import { validateDatabaseData } from 'shared/validation';
 import { EnvOptions, getEnv } from 'shared/environment';
 import { bundle, JitoRpcConnection } from 'jito-ts';
-import pRetry from 'p-retry';
 import bs58 from 'bs58';
 
 // logger used by bot and passed to SDK
@@ -87,19 +85,15 @@ export async function yieldCLI() {
       // pre-yield actions
       await removeEarners(options);
 
-      // collect all instructions to send together
-      const ixs: TransactionInstruction[] = [];
+      // distribute yield for each program
       for (const pid of env.isDevnet ? programsDevnet : programsMainnet) {
-        ixs.push(...(await distributeYield(options, pid)));
-      }
+        slackMessage.messages.push(`\nDistributing yield for program ${pid.toBase58()}`);
 
-      await pRetry(() => bundleAndSend(options, ixs), {
-        onFailedAttempt: ({ message, attemptNumber }) => {
-          logger.error('failed transaction send attempt', { attemptNumber, message });
-        },
-        retries: 3,
-        minTimeout: 2500,
-      });
+        await distributeYield(options, pid);
+
+        // wait interval to ensure transactions from previous steps have landed
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+      }
 
       // post-yield actions
       await addEarners(options);
@@ -113,19 +107,22 @@ async function validation(opt: ParsedOptions) {
   await validateDatabaseData(auth, opt.apiEnvornment);
 }
 
-async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promise<TransactionInstruction[]> {
+async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promise<void> {
   const auth = await EarnAuthority.load(opt.connection, opt.evmClient, programID, logger);
 
   if (auth['global'].claimComplete) {
     logger.info('claim cycle already complete');
-    return [];
+    return;
   }
 
   const ixs: TransactionInstruction[] = [];
 
   // sync index if applicable
   const syncIndexIx = await auth.buildIndexSyncInstruction();
-  if (syncIndexIx) ixs.push(syncIndexIx);
+  if (syncIndexIx) {
+    ixs.push(syncIndexIx);
+    slackMessage.messages.push('Syncing index');
+  }
 
   // build claim instructions if there are any earners
   for (const earner of await auth.getAllEarners()) {
@@ -138,12 +135,7 @@ async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promis
 
   // simulate claims if there are any
   if (ixs.length > 1) {
-    let distributed: BN;
-    if (syncIndexIx) {
-      distributed = await auth.simulateAndValidateClaimIxs(ixs.slice(1), 8, 1, syncIndexIx, opt.signerPubkey);
-    } else {
-      distributed = await auth.simulateAndValidateClaimIxs(ixs, 8, 1, undefined, opt.signerPubkey);
-    }
+    const distributed = await auth.simulateAndValidateClaimIxs(ixs);
 
     logger.info('distributing yield', {
       amount: distributed.toNumber(),
@@ -158,7 +150,12 @@ async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promis
   const completeClaimIx = await auth.buildCompleteClaimCycleInstruction();
   if (completeClaimIx) ixs.push(completeClaimIx);
 
-  return ixs;
+  // send transaction
+  const signature = await buildAndSendTransaction(opt, ixs);
+  logger.info('yield distributed', { signature: signature[0] });
+  slackMessage.messages.push(`Yield updates complete ${signature[0]}`);
+
+  return;
 }
 
 async function addEarners(opt: ParsedOptions) {
@@ -385,7 +382,7 @@ async function bundleAndSend(opt: ParsedOptions, ixs: TransactionInstruction[]) 
     transactions: transactions.map((t) => bs58.encode(t.signatures[0])),
   });
 
-  return [];
+  return;
 }
 
 async function proposeSquadsTransaction(

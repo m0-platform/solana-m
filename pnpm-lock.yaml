@@ -15,45 +15,15 @@ catalogs:
     '@solana/web3.js':
       specifier: ^1.68.0
       version: 1.98.2
-    '@sqds/multisig':
-      specifier: ~2.1.3
-      version: 2.1.3
     '@types/bn.js':
       specifier: ^5.1.2
       version: 5.1.6
-    '@types/bs58':
-      specifier: ^4.0.1
-      version: 4.0.4
-    '@wormhole-foundation/sdk':
-      specifier: 1.16.1
-      version: 1.16.1
-    '@wormhole-foundation/sdk-definitions':
-      specifier: 1.16.1
-      version: 1.16.1
-    '@wormhole-foundation/sdk-evm-ntt':
-      specifier: 0.7.0
-      version: 0.7.0
-    '@wormhole-foundation/sdk-solana':
-      specifier: 1.16.1
-      version: 1.16.1
-    '@wormhole-foundation/sdk-solana-core':
-      specifier: 1.16.1
-      version: 1.16.1
-    '@wormhole-foundation/sdk-solana-ntt':
-      specifier: 0.7.0-multi-transceiver-alpha.1
-      version: 0.7.0-multi-transceiver-alpha.1
     bn.js:
       specifier: ~5.2.1
       version: 5.2.2
     bs58:
       specifier: ^4.0.1
       version: 4.0.1
-    commander:
-      specifier: 13.1.0
-      version: 13.1.0
-    limiter:
-      specifier: ~3.0.0
-      version: 3.0.0
     sha3:
       specifier: ^2.1.4
       version: 2.1.4
@@ -63,15 +33,9 @@ catalogs:
     viem:
       specifier: ~2.23.14
       version: 2.23.15
-    web3:
-      specifier: ~4.16.0
-      version: 4.16.0
     winston:
       specifier: ~3.17.0
       version: 3.17.0
-    winston-loki:
-      specifier: ~6.1.3
-      version: 6.1.3
 
 importers:
 
@@ -240,9 +204,6 @@ importers:
       js-sha256:
         specifier: ^0.11.0
         version: 0.11.0
-      limiter:
-        specifier: 'catalog:'
-        version: 3.0.0
       sha3:
         specifier: 'catalog:'
         version: 2.1.4
@@ -486,9 +447,6 @@ importers:
       limiter:
         specifier: 'catalog:'
         version: 3.0.0
-      p-retry:
-        specifier: ^6.2.1
-        version: 6.2.1
       shared:
         specifier: 'workspace:'
         version: link:../shared
@@ -3407,9 +3365,6 @@ packages:
   '@types/responselike@1.0.3':
     resolution: {integrity: sha512-H/+L+UkTV33uf49PH5pCAUBVPNj2nDBXTN+qS1dOwyyg24l3CcicicCA7ca+HMvJBZcFgl5r8e+RR6elsb4Lyw==}
 
-  '@types/retry@0.12.2':
-    resolution: {integrity: sha512-XISRgDJ2Tc5q4TRqvgJtzsRkFYNJzZrhTdtMoGVBttwzzQJkPnS3WWTFc7kuDRoPtPakl+T+OfdEUjYJj7Jbow==}
-
   '@types/secp256k1@4.0.6':
     resolution: {integrity: sha512-hHxJU6PAEUn0TP4S/ZOzuTUvJWuZ6eIKeNKb5RBpODvSl6hp1Wrw4s7ATY50rklRCScUDpHzVA/DQdSjJ3UoYQ==}
 
@@ -5458,10 +5413,6 @@ packages:
     resolution: {integrity: sha512-E+zBKpQ2t6MEo1VsonYmluk9NxGrbzpeeLC2xIViuO2EjU2xsXsBPwTr3Ykv9l08UYEVEdWeRZNouaZqF6RN0w==}
     engines: {node: '>= 0.4'}
 
-  is-network-error@1.1.0:
-    resolution: {integrity: sha512-tUdRRAnhT+OtCZR/LxZelH/C7QtjtFrTu5tXCA8pl55eTUElUHT+GPYV8MBMBvea/j+NxQqVt3LbWMRir7Gx9g==}
-    engines: {node: '>=16'}
-
   is-node-process@1.2.0:
     resolution: {integrity: sha512-Vg4o6/fqPxIjtxgUH5QLJhwZ7gW5diGCVlXpuUfELC62CuxM1iHcRe51f2W1FDy04Ai4KJkagKjx3XaqyfRKXw==}
 
@@ -6406,10 +6357,6 @@ packages:
     resolution: {integrity: sha512-LaNjtRWUBY++zB5nE/NwcaoMylSPk+S+ZHNB1TzdbMJMny6dynpAGt7X/tl/QYq3TIeE6nxHppbo2LGymrG5Pw==}
     engines: {node: '>=10'}
 
-  p-retry@6.2.1:
-    resolution: {integrity: sha512-hEt02O4hUct5wtwg4H4KcWgDdm+l1bOaEy/hWzd8xtXB9BqxTWBBhb+2ImAtH4Cv4rPjV76xN3Zumqk3k3AhhQ==}
-    engines: {node: '>=16.17'}
-
   p-try@2.2.0:
     resolution: {integrity: sha512-R4nPAVTAU0B9D35/Gk3uJf/7XYbQcyohSKdvAxIRSNghFl4e71hVoGnBNQz9cWaXxO2I10KTC+3jMdvvoKw6dQ==}
     engines: {node: '>=6'}
@@ -6858,10 +6805,6 @@ packages:
 
   responselike@2.0.1:
     resolution: {integrity: sha512-4gl03wn3hj1HP3yzgdI7d3lCkF95F21Pz4BPGvKHinyQzALR5CapwC8yIi0Rh58DEMQ/SguC03wFj2k0M/mHhw==}
-
-  retry@0.13.1:
-    resolution: {integrity: sha512-XQBQ3I8W1Cge0Seh+6gjj03LbmRFWuoszgK9ooCpwYIrhhoO80pfq4cUkU5DkknwfOfFteRwlZ56PYOGYyFWdg==}
-    engines: {node: '>= 4'}
 
   reusify@1.1.0:
     resolution: {integrity: sha512-g6QUff04oZpHs0eG5p83rFLhHeV00ug/Yf9nZM6fLeUrPguBTkTQOdpAWWspMh55TZfVQDPaN3NQJfbVRAxdIw==}
@@ -9633,7 +9576,7 @@ snapshots:
       '@metaplex-foundation/beet': 0.7.1
       '@solana/web3.js': 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       bs58: 5.0.0
-      debug: 4.4.1(supports-color@5.5.0)
+      debug: 4.4.1
     transitivePeerDependencies:
       - bufferutil
       - encoding
@@ -9645,7 +9588,7 @@ snapshots:
     dependencies:
       ansicolors: 0.3.2
       bn.js: 5.2.2
-      debug: 4.4.1(supports-color@5.5.0)
+      debug: 4.4.1
     transitivePeerDependencies:
       - supports-color
 
@@ -12655,8 +12598,6 @@ snapshots:
     dependencies:
       '@types/node': 22.13.17
 
-  '@types/retry@0.12.2': {}
-
   '@types/secp256k1@4.0.6':
     dependencies:
       '@types/node': 22.13.17
@@ -15281,6 +15222,10 @@ snapshots:
     dependencies:
       ms: 2.1.3
 
+  debug@4.4.1:
+    dependencies:
+      ms: 2.1.3
+
   debug@4.4.1(supports-color@5.5.0):
     dependencies:
       ms: 2.1.3
@@ -16204,8 +16149,6 @@ snapshots:
     dependencies:
       call-bind: 1.0.8
       define-properties: 1.2.1
-
-  is-network-error@1.1.0: {}
 
   is-node-process@1.2.0: {}
 
@@ -17353,12 +17296,6 @@ snapshots:
     dependencies:
       p-limit: 3.1.0
 
-  p-retry@6.2.1:
-    dependencies:
-      '@types/retry': 0.12.2
-      is-network-error: 1.1.0
-      retry: 0.13.1
-
   p-try@2.2.0: {}
 
   package-json-from-dist@1.0.1: {}
@@ -17830,8 +17767,6 @@ snapshots:
   responselike@2.0.1:
     dependencies:
       lowercase-keys: 2.0.0
-
-  retry@0.13.1: {}
 
   reusify@1.1.0: {}
 
@@ -18477,7 +18412,7 @@ snapshots:
       cac: 6.7.14
       chokidar: 4.0.3
       consola: 3.4.2
-      debug: 4.4.1(supports-color@5.5.0)
+      debug: 4.4.1
       esbuild: 0.25.5
       fix-dts-default-cjs-exports: 1.0.1
       joycon: 3.1.1

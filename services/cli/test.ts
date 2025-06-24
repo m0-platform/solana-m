@@ -223,52 +223,55 @@ async function main() {
           signature: Array.from(crypto.getRandomValues(new Uint8Array(16)))
             .map((b) => b.toString(16).padStart(2, '0'))
             .join(''),
-          ts: new Date(),
+          ts: new Date(auth['global'].timestamp!.toNumber() * 1000 - 1000),
         };
 
         balanceUpdates.push(transfer);
 
         // create a transaction that matches transfer
         transactions.push({
-          block_height: Math.floor(Math.random() * 1000000),
-          block_time: new Date(),
+          block_height: 100,
+          block_time: new Date(auth['global'].timestamp!.toNumber() * 1000 - 1000),
           // random blockhash
           blockhash: Array.from(crypto.getRandomValues(new Uint8Array(16)))
             .map((b) => b.toString(16).padStart(2, '0'))
             .join(''),
           signature: transfer.signature,
-          slot: Math.floor(Math.random() * 1000000),
+          slot: 100,
         });
       }
 
-      const sig = Array.from(crypto.getRandomValues(new Uint8Array(16)))
-        .map((b) => b.toString(16).padStart(2, '0'))
-        .join('');
-
       // fake index updates
-      const indexUpdates = [
-        {
+      const indexUpdates = [];
+      for (let i = 0; i < 2; i++) {
+        const ts = new Date(auth['global'].timestamp!.toNumber() * 1000 - i * 60000);
+
+        const sig = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('');
+
+        indexUpdates.push({
           event: 'index_update',
-          index: auth['global'].index!.toNumber(),
+          index: auth['global'].index!.toNumber() - i * 1_000_000,
           instruction: 'PropagateIndex',
           max_yield: '0',
           program_id: PROGRAM_ID.toBase58(),
           signature: sig,
           token_supply: 1000000,
-          ts: new Date(),
-        },
-      ];
+          ts,
+        });
 
-      transactions.push({
-        block_height: Math.floor(Math.random() * 1000000),
-        block_time: new Date(),
-        // random blockhash
-        blockhash: Array.from(crypto.getRandomValues(new Uint8Array(16)))
-          .map((b) => b.toString(16).padStart(2, '0'))
-          .join(''),
-        signature: sig,
-        slot: Math.floor(Math.random() * 1000000),
-      });
+        transactions.push({
+          block_height: 100 - i,
+          block_time: ts,
+          // random blockhash
+          blockhash: Array.from(crypto.getRandomValues(new Uint8Array(16)))
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join(''),
+          signature: sig,
+          slot: 100 - i,
+        });
+      }
 
       // load fetched data into MongoDB
       console.log('connecting to mongoDB and writing data');

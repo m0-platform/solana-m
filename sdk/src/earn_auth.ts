@@ -106,7 +106,10 @@ export class EarnAuthority {
     }
 
     if (earner.data.lastClaimIndex.gte(this.global.index!)) {
-      this.logger.warn('Earner already claimed');
+      this.logger.warn('Earner already claimed', {
+        earner: earner.pubkey.toBase58(),
+        tokenAccount: earner.data.userTokenAccount.toBase58(),
+      });
       return null;
     }
 
@@ -137,6 +140,14 @@ export class EarnAuthority {
 
       // update last
       last = current;
+    }
+
+    if (claimYield.lte(new BN(0))) {
+      this.logger.debug('No yield to claim', {
+        earner: earner.pubkey.toBase58(),
+        tokenAccount: earner.data.userTokenAccount.toBase58(),
+      });
+      return null;
     }
 
     // calculate the claim "snapshot" balance from the claim yield and indices
@@ -295,10 +306,30 @@ export class EarnAuthority {
     }
 
     if (this.programID.equals(EXT_PROGRAM_ID)) {
-      return (this.program as Program<ExtEarn>).methods.sync().accounts({}).instruction();
+      return (this.program as Program<ExtEarn>).methods
+        .sync()
+        .accounts({ earnAuthority: this.global.earnAuthority! })
+        .instruction();
     }
 
-    return (this.program as Program<MExt>).methods.sync().accounts({}).instruction();
+    const [mVault] = PublicKey.findProgramAddressSync([Buffer.from('m_vault')], this.programID);
+    const vaultMTokenAccount = spl.getAssociatedTokenAddressSync(
+      this.global.mint,
+      mVault,
+      true,
+      spl.TOKEN_2022_PROGRAM_ID,
+    );
+
+    return (this.program as Program<MExt>).methods
+      .sync()
+      .accounts({
+        earnAuthority: this.global.admin,
+        mVault,
+        vaultMTokenAccount,
+        extMint: this.global.mint,
+        extMintAuthority: this.mintAuth,
+      })
+      .instruction();
   }
 
   private _getRewardAmounts(logs: string[]) {

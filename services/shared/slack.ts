@@ -13,12 +13,12 @@ export async function sendSlackMessage(message: SlackMessage) {
     return;
   }
 
-  const { messages, level, service, devnet, explorer } = message;
+  const { messages, level, service } = message;
 
   const body = {
     service,
     level,
-    message: messages.join('\n') + '\n',
+    message: '• ' + messages.join('\n• ') + '\n',
   };
 
   const response = await fetch(webhookUrl, {

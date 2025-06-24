@@ -144,10 +144,16 @@ async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promis
   const completeClaimIx = await auth.buildCompleteClaimCycleInstruction();
   if (completeClaimIx) ixs.push(completeClaimIx);
 
+  logger.info('distribution instructions', {
+    ixs: ixs.length,
+    hasSync: !!syncIndexIx,
+    hasComplete: !!completeClaimIx,
+  });
+
   // send transaction
   const signature = await buildAndSendTransaction(opt, ixs);
   logger.info('yield distributed', { signature: signature[0] });
-  slackMessage.messages.push(`Yield updates complete ${signature[0]}`);
+  slackMessage.messages.push(`Yield updates complete: ${signature[0]}`);
 
   return;
 }

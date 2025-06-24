@@ -3,8 +3,6 @@ import { Registrar, EarnAuthority, WinstonLogger, PROGRAM_ID, TransactionBuilder
 import {
   ComputeBudgetProgram,
   PublicKey,
-  SendTransactionError,
-  SystemProgram,
   TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
@@ -51,7 +49,6 @@ const programsMainnet = [PROGRAM_ID, new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAV
 const programsDevnet = [
   PROGRAM_ID,
   new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'),
-  new PublicKey('Fb2AsCKmPd4gKhabT6KsremSHMrJ8G2Mopnc6rDQZX9e'),
   new PublicKey('3PskKTHgboCbUSQPMcCAZdZNFHbNvSoZ8zEFYANCdob7'),
 ];
 
@@ -62,8 +59,6 @@ export async function yieldCLI() {
   program
     .command('distribute')
     .option('-d, --dryRun [bool]', 'Build and simulate transactions without sending them', false)
-    .option('-b, --bundle [bool]', 'Use Jito Bundle', false)
-    .option('-t, --tip [number]', 'Tip amount in lamports (min 1000)', '10000')
     .action(async ({ dryRun, bundle, tip }) => {
       const env = getEnv();
 
@@ -85,6 +80,7 @@ export async function yieldCLI() {
 
       // distribute yield for each program
       for (const pid of env.isDevnet ? programsDevnet : programsMainnet) {
+        logger.info('Distributing yield for program', { programID: pid.toBase58() });
         slackMessage.messages.push(`\nDistributing yield for program ${pid.toBase58()}`);
 
         await distributeYield(options, pid);

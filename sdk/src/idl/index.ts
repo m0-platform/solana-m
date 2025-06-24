@@ -20,9 +20,13 @@ export function getExtProgram(connection: Connection): Program<ExtEarn> {
   return new Program<ExtEarn>(EXT_EARN_IDL, provider);
 }
 
-export function getMExtProgram(connection: Connection): Program<MExt> {
+export function getMExtProgram(connection: Connection, programID: PublicKey): Program<MExt> {
+  // IDL the same accross extensions but program ID is different
+  const idl = M_EXT_EARN_IDL;
+  idl.address = programID.toBase58();
+
   const provider = new AnchorProvider(connection, new DummyWallet(), { commitment: connection.commitment });
-  return new Program<MExt>(M_EXT_EARN_IDL, provider);
+  return new Program<MExt>(idl, provider);
 }
 
 export function getProgramFromID(connection: Connection, programID: PublicKey): MProgram {
@@ -31,7 +35,7 @@ export function getProgramFromID(connection: Connection, programID: PublicKey): 
   } else if (programID.equals(EXT_PROGRAM_ID)) {
     return getExtProgram(connection);
   } else {
-    return getMExtProgram(connection);
+    return getMExtProgram(connection, programID);
   }
 }
 

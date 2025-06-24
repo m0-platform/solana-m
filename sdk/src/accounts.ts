@@ -55,7 +55,7 @@ export async function loadGlobal(connection: Connection, program = PROGRAM_ID): 
 
   return {
     admin: new PublicKey(globalData.subarray(8, 40)),
-    underlyingMint: new PublicKey(globalData.subarray(40, 72)),
-    mint: new PublicKey(globalData.subarray(72, 104)),
+    mint: new PublicKey(globalData.subarray(40, 72)),
+    underlyingMint: new PublicKey(globalData.subarray(72, 104)),
   };
 }

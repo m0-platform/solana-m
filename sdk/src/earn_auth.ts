@@ -324,7 +324,7 @@ export class EarnAuthority {
 
     const [mVault] = PublicKey.findProgramAddressSync([Buffer.from('m_vault')], this.programID);
     const vaultMTokenAccount = spl.getAssociatedTokenAddressSync(
-      this.global.mint,
+      this.global.underlyingMint!,
       mVault,
       true,
       spl.TOKEN_2022_PROGRAM_ID,

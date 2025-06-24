@@ -8,7 +8,6 @@ import {
   sendAndConfirmTransaction,
   SystemProgram,
   Transaction,
-  TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
 } from '@solana/web3.js';
@@ -44,7 +43,6 @@ import {
   ETH_MERKLE_TREE_BUILDER,
   ETH_MERKLE_TREE_BUILDER_DEVNET,
 } from '../../sdk/src';
-
 import { createSetEvmAddresses } from '../../tests/test-utils';
 import { createInitializeConfidentialTransferMintInstruction } from './confidential-transfers';
 import { Program, BN } from '@coral-xyz/anchor';

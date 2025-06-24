@@ -223,7 +223,7 @@ async function main() {
           signature: Array.from(crypto.getRandomValues(new Uint8Array(16)))
             .map((b) => b.toString(16).padStart(2, '0'))
             .join(''),
-          ts: new Date().toISOString(),
+          ts: new Date(),
         };
 
         balanceUpdates.push(transfer);
@@ -231,7 +231,7 @@ async function main() {
         // create a transaction that matches transfer
         transactions.push({
           block_height: Math.floor(Math.random() * 1000000),
-          block_time: new Date().toISOString(),
+          block_time: new Date(),
           // random blockhash
           blockhash: Array.from(crypto.getRandomValues(new Uint8Array(16)))
             .map((b) => b.toString(16).padStart(2, '0'))
@@ -255,13 +255,13 @@ async function main() {
           program_id: PROGRAM_ID.toBase58(),
           signature: sig,
           token_supply: 1000000,
-          ts: new Date().toISOString(),
+          ts: new Date(),
         },
       ];
 
       transactions.push({
         block_height: Math.floor(Math.random() * 1000000),
-        block_time: new Date().toISOString(),
+        block_time: new Date(),
         // random blockhash
         blockhash: Array.from(crypto.getRandomValues(new Uint8Array(16)))
           .map((b) => b.toString(16).padStart(2, '0'))

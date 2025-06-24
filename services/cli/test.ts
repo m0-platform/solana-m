@@ -202,44 +202,49 @@ async function main() {
         return;
       }
 
-      // load $M data
-      const auth = await EarnAuthority.load(connection, evmClient, PROGRAM_ID);
-      const earners = await auth.getAllEarners();
-
       // fake transfers
       const balanceUpdates = [];
       const transactions = [];
-      for (const earner of earners) {
-        console.log(`fetching balance for ${earner.data.user.toBase58()}...`);
-        const balance = await connection.getTokenAccountBalance(earner.data.userTokenAccount);
 
-        const transfer = {
-          mint: earner.mint.toBase58(),
-          owner: earner.data.user.toBase58(),
-          post_balance: parseInt(balance.value.amount),
-          pre_balance: 0,
-          pubkey: earner.data.userTokenAccount.toBase58(),
-          // random signature
-          signature: Array.from(crypto.getRandomValues(new Uint8Array(16)))
-            .map((b) => b.toString(16).padStart(2, '0'))
-            .join(''),
-          ts: new Date(auth['global'].timestamp!.toNumber() * 1000 - 1000),
-        };
+      // load token balances for all earners
+      for (const pid of [PROGRAM_ID, EXT_PROGRAM_ID]) {
+        const auth = await EarnAuthority.load(connection, evmClient, pid);
+        const earners = await auth.getAllEarners();
 
-        balanceUpdates.push(transfer);
+        for (const earner of earners) {
+          console.log(`fetching balance for ${earner.data.user.toBase58()}...`);
+          const balance = await connection.getTokenAccountBalance(earner.data.userTokenAccount);
 
-        // create a transaction that matches transfer
-        transactions.push({
-          block_height: 100,
-          block_time: new Date(auth['global'].timestamp!.toNumber() * 1000 - 1000),
-          // random blockhash
-          blockhash: Array.from(crypto.getRandomValues(new Uint8Array(16)))
-            .map((b) => b.toString(16).padStart(2, '0'))
-            .join(''),
-          signature: transfer.signature,
-          slot: 100,
-        });
+          const transfer = {
+            mint: earner.mint.toBase58(),
+            owner: earner.data.user.toBase58(),
+            post_balance: parseInt(balance.value.amount),
+            pre_balance: 0,
+            pubkey: earner.data.userTokenAccount.toBase58(),
+            // random signature
+            signature: Array.from(crypto.getRandomValues(new Uint8Array(16)))
+              .map((b) => b.toString(16).padStart(2, '0'))
+              .join(''),
+            ts: new Date(auth['global'].timestamp!.toNumber() * 1000 - 1000),
+          };
+
+          balanceUpdates.push(transfer);
+
+          // create a transaction that matches transfer
+          transactions.push({
+            block_height: 100,
+            block_time: new Date(auth['global'].timestamp!.toNumber() * 1000 - 1000),
+            // random blockhash
+            blockhash: Array.from(crypto.getRandomValues(new Uint8Array(16)))
+              .map((b) => b.toString(16).padStart(2, '0'))
+              .join(''),
+            signature: transfer.signature,
+            slot: 100,
+          });
+        }
       }
+
+      const auth = await EarnAuthority.load(connection, evmClient, PROGRAM_ID);
 
       // fake index updates
       const indexUpdates = [];

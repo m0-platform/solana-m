@@ -1,4 +1,4 @@
-import { Connection, TransactionInstruction, PublicKey, VersionedTransaction } from '@solana/web3.js';
+import { Connection, TransactionInstruction, PublicKey } from '@solana/web3.js';
 import { PublicClient } from 'viem';
 import { getApiClient, EXT_GLOBAL_ACCOUNT, EXT_PROGRAM_ID, GLOBAL_ACCOUNT, PROGRAM_ID, TransactionBuilder } from '.';
 import { Earner } from './earner';
@@ -20,6 +20,7 @@ export class EarnAuthority {
   private evmClient: PublicClient;
   private program: MProgram;
   private global: GlobalAccountData;
+  private earnGlobal: GlobalAccountData;
   private managerCache: Map<PublicKey, EarnManager> = new Map();
   private mintAuth: PublicKey;
 
@@ -29,6 +30,7 @@ export class EarnAuthority {
     connection: Connection,
     evmClient: PublicClient,
     global: GlobalAccountData,
+    earnGlobal: GlobalAccountData,
     mintAuth: PublicKey,
     program = PROGRAM_ID,
     logger: Logger = new MockLogger(),
@@ -40,6 +42,7 @@ export class EarnAuthority {
     this.programID = program;
     this.program = getProgramFromID(connection, program);
     this.global = global;
+    this.earnGlobal = earnGlobal;
     this.mintAuth = mintAuth;
   }
 
@@ -50,15 +53,22 @@ export class EarnAuthority {
     logger: Logger = new MockLogger(),
   ): Promise<EarnAuthority> {
     let global = await loadGlobal(connection, program);
+    let earnGlobal = global;
+
+    // load earn global if not the earn program
+    if (!program.equals(PROGRAM_ID)) {
+      earnGlobal = await loadGlobal(connection, PROGRAM_ID);
+    }
 
     // get mint multisig
     const mint = await spl.getMint(connection, global.mint, connection.commitment, spl.TOKEN_2022_PROGRAM_ID);
 
-    return new EarnAuthority(connection, evmClient, global, mint.mintAuthority!, program, logger);
+    return new EarnAuthority(connection, evmClient, global, earnGlobal!, mint.mintAuthority!, program, logger);
   }
 
   async refresh(): Promise<void> {
-    this.global = await loadGlobal(this.connection, this.programID);
+    const updated = await EarnAuthority.load(this.connection, this.evmClient, this.programID, this.logger);
+    Object.assign(this, updated);
   }
 
   public get latestIndex(): BN | undefined {
@@ -105,7 +115,7 @@ export class EarnAuthority {
       return null;
     }
 
-    if (earner.data.lastClaimIndex.gte(this.global.index!)) {
+    if (earner.data.lastClaimIndex.gte(this.earnGlobal.index!)) {
       this.logger.warn('Earner already claimed', {
         earner: earner.pubkey.toBase58(),
         tokenAccount: earner.data.userTokenAccount.toBase58(),
@@ -116,7 +126,7 @@ export class EarnAuthority {
     // get the index updates from the earner's last claim to the current index
     const { updates: steps } = await getApiClient().events.indexUpdates({
       fromTime: earner.data.lastClaimTimestamp.toNumber(),
-      toTime: this.global.timestamp!.toNumber() + 1, // include current index
+      toTime: this.earnGlobal.timestamp!.toNumber() + 1, // include current index
     });
 
     // iterate through the steps and calculate the pending yield for the earner
@@ -154,7 +164,7 @@ export class EarnAuthority {
     // b* = y / ((I_n / I_l) - 1) = y * I_l / (I_n - I_l)
     const claimBalance = claimYield
       .mul(earner.data.lastClaimIndex)
-      .div(this.global.index!.sub(earner.data.lastClaimIndex));
+      .div(this.earnGlobal.index!.sub(earner.data.lastClaimIndex));
 
     // PDAs
     const [earnerAccount] = PublicKey.findProgramAddressSync(

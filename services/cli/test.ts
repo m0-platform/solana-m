@@ -1,9 +1,10 @@
 import { ComputeBudgetProgram, Connection, Keypair, PublicKey, Transaction } from '@solana/web3.js';
+import { Db, MongoClient } from 'mongodb';
 import { signSendWait, UniversalAddress } from '@wormhole-foundation/sdk';
 import { Command } from 'commander';
 import * as multisig from '@sqds/multisig';
 import { anchorProvider, keysFromEnv, NttManager } from './utils';
-import { EXT_GLOBAL_ACCOUNT, EXT_PROGRAM_ID } from '../../sdk/src';
+import { createPublicClient, EarnAuthority, EXT_PROGRAM_ID, http, PROGRAM_ID } from '../../sdk/src';
 import {
   createAssociatedTokenAccountInstruction,
   createTransferCheckedInstruction,
@@ -17,18 +18,18 @@ const EXT_EARN_IDL = require('../../sdk/src/idl/ext_earn.json');
 
 async function main() {
   const program = new Command();
+  const connection = new Connection(process.env.RPC_URL!);
+  const evmClient = createPublicClient({ transport: http(process.env.ETH_RPC_URL!) });
 
   program
     .command('wrap-m')
     .description('Wrap M to wM')
     .argument('[number]', 'amount', '100000') // 0.1 M
     .action(async (amount) => {
-      const connection = new Connection(process.env.RPC_URL ?? '');
       const [sender, m, wM] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR', 'WM_MINT_KEYPAIR']);
-      const program = new Program<ExtEarn>(EXT_EARN_IDL, EXT_PROGRAM_ID, anchorProvider(connection, sender));
+      const program = new Program<ExtEarn>(EXT_EARN_IDL, anchorProvider(connection, sender));
 
       const mVault = PublicKey.findProgramAddressSync([Buffer.from('m_vault')], EXT_PROGRAM_ID)[0];
-      const extMintAuthority = PublicKey.findProgramAddressSync([Buffer.from('mint_authority')], EXT_PROGRAM_ID)[0];
 
       const atas: PublicKey[] = [];
       for (const [mint, owner] of [
@@ -56,15 +57,8 @@ async function main() {
         .wrap(amount)
         .accounts({
           signer: sender.publicKey,
-          mMint: m.publicKey,
-          extMint: wM.publicKey,
-          globalAccount: EXT_GLOBAL_ACCOUNT,
-          mVault,
-          extMintAuthority,
           fromMTokenAccount,
-          vaultMTokenAccount,
           toExtTokenAccount,
-          token2022: TOKEN_2022_PROGRAM_ID,
         })
         .signers([sender])
         .rpc({ commitment: 'processed' });
@@ -78,7 +72,6 @@ async function main() {
     .argument('[string]', 'recipient evm address', '0x12b1A4226ba7D9Ad492779c924b0fC00BDCb6217')
     .argument('[number]', 'amount', '100000')
     .action(async (receiver, amount) => {
-      const connection = new Connection(process.env.RPC_URL ?? '');
       const [owner, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
       const { ctx, ntt, sender, signer } = NttManager(connection, owner, mint.publicKey);
 
@@ -102,7 +95,6 @@ async function main() {
     .command('create-squads-multisig')
     .description('create a squads multisig')
     .action(async () => {
-      const connection = new Connection(process.env.RPC_URL ?? '');
       const [owner, squadsProposer] = keysFromEnv(['PAYER_KEYPAIR', 'SQUADS_PROPOSER']);
       const createKey = Keypair.generate();
 
@@ -141,9 +133,8 @@ async function main() {
     .command('distribute-tokens')
     .description('distribute wM to random users')
     .action(async () => {
-      const connection = new Connection(process.env.RPC_URL ?? '');
       const [owner, mint] = keysFromEnv(['PAYER_KEYPAIR', 'WM_MINT_KEYPAIR']);
-      const program = new Program<ExtEarn>(EXT_EARN_IDL, EXT_PROGRAM_ID, anchorProvider(connection, owner));
+      const program = new Program<ExtEarn>(EXT_EARN_IDL, anchorProvider(connection, owner));
 
       for (let i = 0; i < 25; i++) {
         const user = Keypair.generate();
@@ -183,24 +174,12 @@ async function main() {
           ),
         );
 
-        const [earnManagerAccount] = PublicKey.findProgramAddressSync(
-          [Buffer.from('earn_manager'), owner.publicKey.toBytes()],
-          EXT_PROGRAM_ID,
-        );
-        const [earnerAccount] = PublicKey.findProgramAddressSync(
-          [Buffer.from('earner'), associatedToken.toBytes()],
-          EXT_PROGRAM_ID,
-        );
-
         // register them as earners
         ixs.push(
           await program.methods
             .addEarner(user.publicKey)
             .accounts({
-              globalAccount: EXT_GLOBAL_ACCOUNT,
-              earnManagerAccount,
               userTokenAccount: associatedToken,
-              earnerAccount,
               signer: owner.publicKey,
             })
             .instruction(),
@@ -212,6 +191,105 @@ async function main() {
 
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
+    });
+
+  program
+    .command('populate-database')
+    .description('fetch and load recent onchain data into the database')
+    .action(async () => {
+      if (process.env.NETWORK !== 'devnet') {
+        console.error('This command is only available on devnet');
+        return;
+      }
+
+      // load $M data
+      const auth = await EarnAuthority.load(connection, evmClient, PROGRAM_ID);
+      const earners = await auth.getAllEarners();
+
+      // fake transfers
+      const balanceUpdates = [];
+      const transactions = [];
+      for (const earner of earners) {
+        console.log(`fetching balance for ${earner.data.user.toBase58()}...`);
+        const balance = await connection.getTokenAccountBalance(earner.data.userTokenAccount);
+
+        const transfer = {
+          mint: earner.mint.toBase58(),
+          owner: earner.data.user.toBase58(),
+          post_balance: parseInt(balance.value.amount),
+          pre_balance: 0,
+          pubkey: earner.data.userTokenAccount.toBase58(),
+          // random signature
+          signature: Array.from(crypto.getRandomValues(new Uint8Array(16)))
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join(''),
+          ts: new Date().toISOString(),
+        };
+
+        balanceUpdates.push(transfer);
+
+        // create a transaction that matches transfer
+        transactions.push({
+          block_height: Math.floor(Math.random() * 1000000),
+          block_time: new Date().toISOString(),
+          // random blockhash
+          blockhash: Array.from(crypto.getRandomValues(new Uint8Array(16)))
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join(''),
+          signature: transfer.signature,
+          slot: Math.floor(Math.random() * 1000000),
+        });
+      }
+
+      const sig = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+
+      // fake index updates
+      const indexUpdates = [
+        {
+          event: 'index_update',
+          index: auth['global'].index!.toNumber(),
+          instruction: 'PropagateIndex',
+          max_yield: '0',
+          program_id: PROGRAM_ID.toBase58(),
+          signature: sig,
+          token_supply: 1000000,
+          ts: new Date().toISOString(),
+        },
+      ];
+
+      transactions.push({
+        block_height: Math.floor(Math.random() * 1000000),
+        block_time: new Date().toISOString(),
+        // random blockhash
+        blockhash: Array.from(crypto.getRandomValues(new Uint8Array(16)))
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join(''),
+        signature: sig,
+        slot: Math.floor(Math.random() * 1000000),
+      });
+
+      // load fetched data into MongoDB
+      console.log('connecting to mongoDB and writing data');
+      const client = await MongoClient.connect(process.env.MONGO_CONNECTION_STRING!);
+
+      // make sure this isn't a production database
+      const config = await client.db('config').collection('environment').find({}).toArray();
+      if (config[0].environment !== 'development') {
+        console.error('This is not a devnet database, aborting operation');
+        return;
+      }
+
+      // drop database and recreate it
+      const db = client.db('solana-m-substream');
+      await db.dropDatabase();
+
+      await db.collection('transactions').insertMany(transactions);
+      await db.collection('events').insertMany(indexUpdates);
+      await db.collection('balance_updates').insertMany(balanceUpdates);
+
+      client.close();
     });
 
   await program.parseAsync(process.argv);

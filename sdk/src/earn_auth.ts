@@ -129,12 +129,6 @@ export class EarnAuthority {
       toTime: this.earnGlobal.timestamp!.toNumber() + 1, // include current index
     });
 
-    this.logger.debug('Index updates loaded', {
-      steps: steps.length,
-      fromTime: earner.data.lastClaimTimestamp.toNumber(),
-      toTime: this.earnGlobal.timestamp!.toNumber(),
-    });
-
     // iterate through the steps and calculate the pending yield for the earner
     let claimYield: BN = new BN(0);
     steps.reverse();

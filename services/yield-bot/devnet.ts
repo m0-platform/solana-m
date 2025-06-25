@@ -1,4 +1,4 @@
-import { EarnAuthority, Logger, PROGRAM_ID } from '@m0-foundation/solana-m-sdk';
+import { EarnAuthority, EXT_PROGRAM_ID, Logger, PROGRAM_ID } from '@m0-foundation/solana-m-sdk';
 import { MongoClient } from 'mongodb';
 import { ParsedOptions } from './main';
 import { PublicKey } from '@solana/web3.js';
@@ -6,6 +6,9 @@ import { PublicKey } from '@solana/web3.js';
 export async function persistDevnetIndex(opt: ParsedOptions, logger: Logger, pid: PublicKey) {
   if (!opt.isDevnet) {
     throw new Error('This function should only be called on devnet');
+  }
+  if (!pid.equals(PROGRAM_ID) && !pid.equals(EXT_PROGRAM_ID)) {
+    return;
   }
 
   const auth = await EarnAuthority.load(opt.connection, opt.evmClient, pid, logger);
@@ -52,6 +55,7 @@ export async function persistDevnetIndex(opt: ParsedOptions, logger: Logger, pid
   const client = await MongoClient.connect(process.env.MONGO_CONNECTION_STRING!);
   const db = client.db('solana-m-substream');
   await db.collection('events').deleteMany({ event: 'index_update' });
+  await db.collection('transactions').deleteMany({ slot: { $lte: 10 } });
   await db.collection('transactions').insertMany(transactions);
   await db.collection('events').insertMany(indexUpdates);
 }

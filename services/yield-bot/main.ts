@@ -48,9 +48,9 @@ export interface ParsedOptions extends EnvOptions {
 const programsMainnet = [PROGRAM_ID, new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko')];
 
 const programsDevnet = [
-  // PROGRAM_ID,
+  PROGRAM_ID,
   new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'),
-  // new PublicKey('3PskKTHgboCbUSQPMcCAZdZNFHbNvSoZ8zEFYANCdob7'),
+  new PublicKey('3PskKTHgboCbUSQPMcCAZdZNFHbNvSoZ8zEFYANCdob7'),
 ];
 
 // entrypoint for the yield bot command
@@ -136,17 +136,19 @@ async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promis
     if (ix) ixs.push(ix);
   }
 
+  const claimIxs = ixs.length - Number(syncIndexIx !== null);
+
   // simulate claims if there are any
-  if (ixs.length > 1) {
+  if (claimIxs > 0) {
     const distributed = await auth.simulateAndValidateClaimIxs(ixs);
+
+    const amountDec = distributed.toNumber() / 1e6;
+    slackMessage.messages.push(`Distributed ${distributed} ($${amountDec.toFixed(0)}) to ${claimIxs} earners`);
 
     logger.info('distributing yield', {
       amount: distributed.toNumber(),
-      claims: ixs.length - 1,
+      amountDec: amountDec.toFixed(2),
     });
-
-    const amountDec = distributed.toNumber() / 1e6;
-    slackMessage.messages.push(`Distributed ${amountDec.toFixed(2)} to ${ixs.length - 1} earners`);
   }
 
   // complete cycle after distribution if applicable
@@ -154,14 +156,13 @@ async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promis
   if (completeClaimIx) ixs.push(completeClaimIx);
 
   logger.info('distribution instructions', {
-    ixs: ixs.length,
+    claimIxs,
     hasSync: !!syncIndexIx,
     hasComplete: !!completeClaimIx,
   });
 
   // send transaction
   const signature = await buildAndSendTransaction(opt, ixs);
-  logger.info('yield distributed', { signature: signature[0] });
   slackMessage.messages.push(`Yield updates complete: ${signature[0]}\n`);
 
   return;

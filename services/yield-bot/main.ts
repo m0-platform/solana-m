@@ -81,7 +81,7 @@ export async function yieldCLI() {
 
         // distribute yield for each program
         for (const pid of env.isDevnet ? programsDevnet : programsMainnet) {
-          logger.info('Distributing yield for program', { programID: pid.toBase58() });
+          logger.addMetaField('programId', pid.toBase58());
           slackMessage.messages.push(`Distributing yield for program ${pid.toBase58()}`);
 
           // fetch latest index based on last claims

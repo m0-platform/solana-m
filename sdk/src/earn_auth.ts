@@ -159,7 +159,7 @@ export class EarnAuthority {
       .div(this.earnGlobal.index!.sub(earner.data.lastClaimIndex));
 
     if (claimBalance.lte(new BN(0))) {
-      this.logger.debug('No yield to claim', {
+      this.logger.info('No yield to claim', {
         earner: earner.pubkey.toBase58(),
         tokenAccount: earner.data.userTokenAccount.toBase58(),
       });
@@ -241,7 +241,7 @@ export class EarnAuthority {
     // simulate transaction
     const result = await this.connection.simulateTransaction(txn, { sigVerify: false, replaceRecentBlockhash: true });
     if (result.value.err) {
-      this.logger.error('Claim batch simulation failed', {
+      this.logger.error('claim batch simulation failed', {
         logs: result.value.logs,
         err: result.value.err.toString(),
         b64: Buffer.from(txn.serialize()).toString('base64'),
@@ -253,7 +253,7 @@ export class EarnAuthority {
     let totalRewards = new BN(0);
 
     for (const reward of this._getRewardAmounts(result.value.logs!)) {
-      this.logger.debug('Claim for earner', {
+      this.logger.info('claim for earner', {
         tokenAccount: reward.tokenAccount.toString(),
         rewards: reward.user.toString(),
         fee: reward.fee.toString(),
@@ -297,7 +297,7 @@ export class EarnAuthority {
       const collateral = new BN(tokenAccountInfo.amount.toString());
 
       if (new BN(mint.supply.toString()).add(totalRewards).gt(collateral)) {
-        this.logger.error('Error simulating claims', {
+        this.logger.error('error simulating claims', {
           error: 'Claim amount exceeds max claimable rewards',
           mintSupply: mint.supply.toString(),
           totalRewards: totalRewards.toString(),

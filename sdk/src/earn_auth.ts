@@ -129,6 +129,12 @@ export class EarnAuthority {
       toTime: this.earnGlobal.timestamp!.toNumber() + 1, // include current index
     });
 
+    this.logger.debug('Index updates loaded', {
+      steps: steps.length,
+      fromTime: earner.data.lastClaimTimestamp.toNumber(),
+      toTime: this.earnGlobal.timestamp!.toNumber(),
+    });
+
     // iterate through the steps and calculate the pending yield for the earner
     let claimYield: BN = new BN(0);
     steps.reverse();
@@ -152,19 +158,19 @@ export class EarnAuthority {
       last = current;
     }
 
-    if (claimYield.lte(new BN(0))) {
+    // calculate the claim "snapshot" balance from the claim yield and indices
+    // b* = y / ((I_n / I_l) - 1) = y * I_l / (I_n - I_l)
+    const claimBalance = claimYield
+      .mul(earner.data.lastClaimIndex)
+      .div(this.earnGlobal.index!.sub(earner.data.lastClaimIndex));
+
+    if (claimBalance.lte(new BN(0))) {
       this.logger.debug('No yield to claim', {
         earner: earner.pubkey.toBase58(),
         tokenAccount: earner.data.userTokenAccount.toBase58(),
       });
       return null;
     }
-
-    // calculate the claim "snapshot" balance from the claim yield and indices
-    // b* = y / ((I_n / I_l) - 1) = y * I_l / (I_n - I_l)
-    const claimBalance = claimYield
-      .mul(earner.data.lastClaimIndex)
-      .div(this.earnGlobal.index!.sub(earner.data.lastClaimIndex));
 
     // PDAs
     const [earnerAccount] = PublicKey.findProgramAddressSync(

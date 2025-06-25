@@ -1,10 +1,9 @@
 import { ComputeBudgetProgram, Connection, Keypair, PublicKey, Transaction } from '@solana/web3.js';
-import { Db, MongoClient } from 'mongodb';
 import { signSendWait, UniversalAddress } from '@wormhole-foundation/sdk';
 import { Command } from 'commander';
 import * as multisig from '@sqds/multisig';
 import { anchorProvider, keysFromEnv, NttManager } from './utils';
-import { createPublicClient, EarnAuthority, EXT_PROGRAM_ID, http, PROGRAM_ID } from '../../sdk/src';
+import { EXT_PROGRAM_ID } from '../../sdk/src';
 import {
   createAssociatedTokenAccountInstruction,
   createTransferCheckedInstruction,
@@ -19,7 +18,6 @@ const EXT_EARN_IDL = require('../../sdk/src/idl/ext_earn.json');
 async function main() {
   const program = new Command();
   const connection = new Connection(process.env.RPC_URL!);
-  const evmClient = createPublicClient({ transport: http(process.env.ETH_RPC_URL!) });
 
   program
     .command('wrap-m')
@@ -191,113 +189,6 @@ async function main() {
 
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
-    });
-
-  program
-    .command('populate-database')
-    .description('fetch and load recent onchain data into the database')
-    .action(async () => {
-      if (process.env.NETWORK !== 'devnet') {
-        console.error('This command is only available on devnet');
-        return;
-      }
-
-      // fake transfers
-      const balanceUpdates = [];
-      const transactions = [];
-
-      // load token balances for all earners
-      for (const pid of [PROGRAM_ID, EXT_PROGRAM_ID]) {
-        const auth = await EarnAuthority.load(connection, evmClient, pid);
-        const earners = await auth.getAllEarners();
-
-        for (const earner of earners) {
-          console.log(`fetching balance for ${earner.data.user.toBase58()}...`);
-          const balance = await connection.getTokenAccountBalance(earner.data.userTokenAccount);
-
-          const transfer = {
-            mint: earner.mint.toBase58(),
-            owner: earner.data.user.toBase58(),
-            post_balance: parseInt(balance.value.amount),
-            pre_balance: 0,
-            pubkey: earner.data.userTokenAccount.toBase58(),
-            // random signature
-            signature: Array.from(crypto.getRandomValues(new Uint8Array(16)))
-              .map((b) => b.toString(16).padStart(2, '0'))
-              .join(''),
-            ts: new Date(auth['global'].timestamp!.toNumber() * 1000 - 1000),
-          };
-
-          balanceUpdates.push(transfer);
-
-          // create a transaction that matches transfer
-          transactions.push({
-            block_height: 100,
-            block_time: new Date(auth['global'].timestamp!.toNumber() * 1000 - 1000),
-            // random blockhash
-            blockhash: Array.from(crypto.getRandomValues(new Uint8Array(16)))
-              .map((b) => b.toString(16).padStart(2, '0'))
-              .join(''),
-            signature: transfer.signature,
-            slot: 100,
-          });
-        }
-      }
-
-      const auth = await EarnAuthority.load(connection, evmClient, PROGRAM_ID);
-
-      // fake index updates
-      const indexUpdates = [];
-      for (let i = 0; i < 2; i++) {
-        const ts = new Date(auth['global'].timestamp!.toNumber() * 1000 - i * 60000);
-
-        const sig = Array.from(crypto.getRandomValues(new Uint8Array(16)))
-          .map((b) => b.toString(16).padStart(2, '0'))
-          .join('');
-
-        indexUpdates.push({
-          event: 'index_update',
-          index: auth['global'].index!.toNumber() - i * 1_000_000,
-          instruction: 'PropagateIndex',
-          max_yield: '0',
-          program_id: PROGRAM_ID.toBase58(),
-          signature: sig,
-          token_supply: 1000000,
-          ts,
-        });
-
-        transactions.push({
-          block_height: 100 - i,
-          block_time: ts,
-          // random blockhash
-          blockhash: Array.from(crypto.getRandomValues(new Uint8Array(16)))
-            .map((b) => b.toString(16).padStart(2, '0'))
-            .join(''),
-          signature: sig,
-          slot: 100 - i,
-        });
-      }
-
-      // load fetched data into MongoDB
-      console.log('connecting to mongoDB and writing data');
-      const client = await MongoClient.connect(process.env.MONGO_CONNECTION_STRING!);
-
-      // make sure this isn't a production database
-      const config = await client.db('config').collection('environment').find({}).toArray();
-      if (config[0].environment !== 'development') {
-        console.error('This is not a devnet database, aborting operation');
-        return;
-      }
-
-      // drop database and recreate it
-      const db = client.db('solana-m-substream');
-      await db.dropDatabase();
-
-      await db.collection('transactions').insertMany(transactions);
-      await db.collection('events').insertMany(indexUpdates);
-      await db.collection('balance_updates').insertMany(balanceUpdates);
-
-      client.close();
     });
 
   await program.parseAsync(process.argv);

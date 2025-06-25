@@ -16,6 +16,7 @@ import LokiTransport from 'winston-loki';
 import winston from 'winston';
 import { validateDatabaseData } from 'shared/validation';
 import { EnvOptions, getEnv } from 'shared/environment';
+import { persistDevnetIndex } from './devnet';
 
 // logger used by bot and passed to SDK
 const logger = new WinstonLogger('yield-bot', { imageBuild: process.env.BUILD_TIME ?? '' }, true);
@@ -36,7 +37,7 @@ let slackMessage: SlackMessage = {
   level: 'info',
 };
 
-interface ParsedOptions extends EnvOptions {
+export interface ParsedOptions extends EnvOptions {
   builder: TransactionBuilder;
   dryRun: boolean;
   bundle: true;
@@ -47,9 +48,9 @@ interface ParsedOptions extends EnvOptions {
 const programsMainnet = [PROGRAM_ID, new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko')];
 
 const programsDevnet = [
-  PROGRAM_ID,
+  // PROGRAM_ID,
   new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'),
-  new PublicKey('3PskKTHgboCbUSQPMcCAZdZNFHbNvSoZ8zEFYANCdob7'),
+  // new PublicKey('3PskKTHgboCbUSQPMcCAZdZNFHbNvSoZ8zEFYANCdob7'),
 ];
 
 // entrypoint for the yield bot command
@@ -60,37 +61,45 @@ export async function yieldCLI() {
     .command('distribute')
     .option('-d, --dryRun [bool]', 'Build and simulate transactions without sending them', false)
     .action(async ({ dryRun, bundle, tip }) => {
-      const env = getEnv();
+      try {
+        const env = getEnv();
 
-      await logBlockchainBalance('solana', env.connection.rpcEndpoint, env.signerPubkey.toBase58(), logger);
+        await logBlockchainBalance('solana', env.connection.rpcEndpoint, env.signerPubkey.toBase58(), logger);
 
-      const options: ParsedOptions = {
-        ...env,
-        builder: new TransactionBuilder(env.connection, logger),
-        dryRun,
-        bundle,
-        tip: Number.parseInt(tip, 10),
-      };
+        const options: ParsedOptions = {
+          ...env,
+          builder: new TransactionBuilder(env.connection, logger),
+          dryRun,
+          bundle,
+          tip: Number.parseInt(tip, 10),
+        };
 
-      // make sure data is up-to-date
-      if (!options.isDevnet) await validation(options);
+        if (!options.isDevnet) await validation(options);
 
-      // pre-yield actions
-      await removeEarners(options);
+        // pre-yield actions
+        await removeEarners(options);
 
-      // distribute yield for each program
-      for (const pid of env.isDevnet ? programsDevnet : programsMainnet) {
-        logger.info('Distributing yield for program', { programID: pid.toBase58() });
-        slackMessage.messages.push(`\nDistributing yield for program ${pid.toBase58()}`);
+        // distribute yield for each program
+        for (const pid of env.isDevnet ? programsDevnet : programsMainnet) {
+          logger.info('Distributing yield for program', { programID: pid.toBase58() });
+          slackMessage.messages.push(`Distributing yield for program ${pid.toBase58()}`);
 
-        await distributeYield(options, pid);
+          // fetch latest index based on last claims
+          if (options.isDevnet) await persistDevnetIndex(options, logger, pid);
 
-        // wait interval to ensure transactions from previous steps have landed
-        await new Promise((resolve) => setTimeout(resolve, 5000));
+          await distributeYield(options, pid);
+
+          // wait interval to ensure transactions from previous steps have landed
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+        }
+
+        // post-yield actions
+        await addEarners(options);
+      } catch (error: any) {
+        logger.error(error);
+        slackMessage.level = 'error';
+        slackMessage.messages.push(`${error}`);
       }
-
-      // post-yield actions
-      await addEarners(options);
     });
 
   await program.parseAsync(process.argv);
@@ -153,7 +162,7 @@ async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promis
   // send transaction
   const signature = await buildAndSendTransaction(opt, ixs);
   logger.info('yield distributed', { signature: signature[0] });
-  slackMessage.messages.push(`Yield updates complete: ${signature[0]}`);
+  slackMessage.messages.push(`Yield updates complete: ${signature[0]}\n`);
 
   return;
 }
@@ -378,18 +387,12 @@ function getLokiTransport(host: string, logger: winston.Logger) {
 
 // do not run the cli if this is being imported by jest
 if (!process.argv[1].endsWith('jest.js')) {
-  yieldCLI()
-    .catch((error) => {
-      logger.error(error);
-      slackMessage.level = 'error';
-      slackMessage.messages.push(`${error}`);
-    })
-    .finally(async () => {
-      if (slackMessage?.messages.length === 0) {
-        slackMessage?.messages.push('No actions taken');
-      }
-      await lokiTransport?.flush();
-      await sendSlackMessage(slackMessage);
-      process.exit(0);
-    });
+  yieldCLI().finally(async () => {
+    if (slackMessage?.messages.length === 0) {
+      slackMessage?.messages.push('No actions taken');
+    }
+    await lokiTransport?.flush();
+    await sendSlackMessage(slackMessage);
+    process.exit(0);
+  });
 }

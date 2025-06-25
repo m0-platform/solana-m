@@ -52,6 +52,7 @@ build-test-swap-program:
 yield-bot-devnet:
 	@RPC_URL=$(shell op read "op://Solana Dev/Helius/dev rpc") \
 		DEVNET=true \
+		MONGO_CONNECTION_STRING=$(shell op read "op://Solana Dev/Mongo Read Access/devnet-connection-string") \
 		EVM_RPC_URL=$(shell op read "op://Solana Dev/Alchemy/sepolia") \
 		KEYPAIR=$(shell op read "op://Solana Dev/Solana Program Keys/devnet-authority") \
 		pnpm --silent ts-node services/yield-bot/main.ts distribute --dryRun
@@ -145,8 +146,7 @@ define deploy-yield-bot
 	railway environment $(1)
 	docker build --build-arg now="$$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --platform linux/amd64 -t ghcr.io/m0-foundation/solana-m:yield-bot -f services/yield-bot/Dockerfile .
 	docker push ghcr.io/m0-foundation/solana-m:yield-bot
-	railway redeploy --service "yield bot - M" --yes
-	railway redeploy --service "yield bot - wM" --yes
+	railway redeploy --service "yield bot" --yes
 endef
 
 define deploy-index-bot

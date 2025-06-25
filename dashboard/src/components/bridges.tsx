@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { NETWORK } from '../services/rpc';
 import { ApiClient } from '../services/sdk';
+import { PublicKey } from '@solana/web3.js';
 
 export const chainIcons: { [key: string]: string } = {
   Ethereum: 'https://s2.coinmarketcap.com/static/img/coins/64x64/1027.png',
@@ -13,7 +14,7 @@ export const chainIcons: { [key: string]: string } = {
 };
 
 export const Bridges = () => {
-  const { data } = useQuery({ queryKey: ['bridges'], queryFn: () => ApiClient.events.bridges({ limit: 10 }) });
+  const { data } = useQuery({ queryKey: ['bridge-events'], queryFn: () => ApiClient.events.bridges({ limit: 10 }) });
 
   return (
     <div>
@@ -45,28 +46,33 @@ export const Bridges = () => {
               <td className="px-2 py-2">
                 <div className="flex items-center gap-2">
                   <img
-                    src={event.from.toString().startsWith('0x') ? chainIcons[event.chain] : chainIcons.Solana}
+                    src={event.amount > 0 ? chainIcons[event.chain] : chainIcons.Solana}
                     className="w-5 h-5 rounded-full"
                   />
-                  <span className="hidden sm:inline">{formatString(event.from.toString())}</span>
+                  <span className="hidden sm:inline">{formatAddress(event.from, event.amount < 0)}</span>
                 </div>
               </td>
               <td className="px-2 py-2">
                 <div className="flex items-center gap-2">
                   <img
-                    src={event.to.toString().startsWith('0x') ? chainIcons[event.chain] : chainIcons.Solana}
+                    src={event.amount < 0 ? chainIcons[event.chain] : chainIcons.Solana}
                     className="w-5 h-5 rounded-full"
                   />
-                  <span className="hidden sm:inline">{formatString(event.to.toString())}</span>
+                  <span className="hidden sm:inline">{formatAddress(event.to, event.amount > 0)}</span>
                 </div>
               </td>
-              <td className="px-2 py-4">M {Math.abs(event.amount).toFixed(2)}</td>
+              <td className="px-2 py-4">{Math.abs(event.amount / 1e6).toFixed(2)}</td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
   );
+};
+
+const formatAddress = (address: string, isSVM: boolean) => {
+  const bin = Buffer.from(address, 'base64');
+  return formatString(isSVM ? new PublicKey(bin).toBase58() : '0x' + bin.subarray(12).toString('hex'));
 };
 
 const formatString = (addressOrSig: string, chars = 6) => {

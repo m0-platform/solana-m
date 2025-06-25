@@ -1,8 +1,14 @@
 import { createPublicClient, Earner, EvmCaller, Graph, http, TOKEN_2022_ID } from '@m0-foundation/solana-m-sdk';
+import { M0SolanaApiClient, M0SolanaApiEnvironment } from '@m0-foundation/solana-m-api-sdk';
 import { connection } from './rpc';
 import { PublicKey } from '@solana/web3.js';
 import { getAccount } from '@solana/spl-token';
 import Decimal from 'decimal.js';
+
+export const ApiClient = new M0SolanaApiClient({
+  environment:
+    import.meta.env.VITE_NETWORK === 'devnet' ? M0SolanaApiEnvironment.Devnet : M0SolanaApiEnvironment.Mainnet,
+});
 
 const evmClient = createPublicClient({ transport: http(import.meta.env.VITE_EVM_RPC_URL ?? '') });
 const graphClient = new Graph(import.meta.env.VITE_GRAPH_KEY, import.meta.env.VITE_SUBGRAPH_URL.split('/').pop());

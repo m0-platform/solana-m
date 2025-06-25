@@ -1,7 +1,6 @@
-import { bridgeEvents } from '../services/subgraph';
-import bs58 from 'bs58';
 import { useQuery } from '@tanstack/react-query';
 import { NETWORK } from '../services/rpc';
+import { ApiClient } from '../services/sdk';
 
 export const chainIcons: { [key: string]: string } = {
   Ethereum: 'https://s2.coinmarketcap.com/static/img/coins/64x64/1027.png',
@@ -14,7 +13,7 @@ export const chainIcons: { [key: string]: string } = {
 };
 
 export const Bridges = () => {
-  const { data } = useQuery({ queryKey: ['bridges'], queryFn: () => bridgeEvents(5) });
+  const { data } = useQuery({ queryKey: ['bridges'], queryFn: () => ApiClient.events.bridges({ limit: 10 }) });
 
   return (
     <div>
@@ -30,17 +29,17 @@ export const Bridges = () => {
           </tr>
         </thead>
         <tbody>
-          {data?.events.map((event) => (
-            <tr key={event.ts} className="border-b border-gray-200">
-              <td className="px-2 py-4">{new Date(event.ts * 1000).toLocaleString()}</td>
+          {data?.bridges?.map((event) => (
+            <tr key={event.signature} className="border-b border-gray-200">
+              <td className="px-2 py-4">{event.ts.toLocaleString()}</td>
               <td className="px-2 py-4">
                 <a
-                  href={`https://solscan.io/tx/${bs58.encode(event.signature)}?cluster=${NETWORK}`}
+                  href={`https://solscan.io/tx/${event.signature}?cluster=${NETWORK}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:underline"
                 >
-                  {formatString(bs58.encode(event.signature))}
+                  {formatString(event.signature)}
                 </a>
               </td>
               <td className="px-2 py-2">
@@ -61,7 +60,7 @@ export const Bridges = () => {
                   <span className="hidden sm:inline">{formatString(event.to.toString())}</span>
                 </div>
               </td>
-              <td className="px-2 py-4">M {event.amount.abs().toFixed(2)}</td>
+              <td className="px-2 py-4">M {Math.abs(event.amount).toFixed(2)}</td>
             </tr>
           ))}
         </tbody>

@@ -18,7 +18,7 @@ import {
   TOKEN_2022_PROGRAM_ID,
   unpackMint,
 } from '@solana/spl-token';
-import { EXT_EARN_PROGRAM_ID, M_MINT, PORTAL, wM_MINT } from './consts';
+import { EXT_EARN_PROGRAM_ID, MINTS, PORTAL } from './consts';
 import { type Provider } from '@reown/appkit-adapter-solana/react';
 import Decimal from 'decimal.js';
 import { getU64Encoder } from '@solana/codecs';
@@ -35,20 +35,15 @@ import { wormhole } from '@wormhole-foundation/sdk';
 export const NETWORK: 'devnet' | 'mainnet' = import.meta.env.VITE_NETWORK;
 export const connection = new Connection(import.meta.env.VITE_RPC_URL);
 
-export const MINT_ADDRESSES: Record<string, PublicKey> = {
-  M: M_MINT,
-  wM: wM_MINT,
-};
-
 export const getMintsRPC = async (): Promise<Record<string, Mint>> => {
   const data: Record<string, Mint> = {};
 
   try {
-    const accountInfos = await connection.getMultipleAccountsInfo(Object.values(MINT_ADDRESSES));
+    const accountInfos = await connection.getMultipleAccountsInfo(Object.values(MINTS));
 
     for (const [index, accountInfo] of accountInfos.entries()) {
-      const mint = unpackMint(Object.values(MINT_ADDRESSES)[index], accountInfo, TOKEN_2022_PROGRAM_ID);
-      data[Object.keys(MINT_ADDRESSES)[index]] = mint;
+      const mint = unpackMint(Object.values(MINTS)[index], accountInfo, TOKEN_2022_PROGRAM_ID);
+      data[Object.keys(MINTS)[index]] = mint;
     }
   } catch (error) {
     console.error('Failed to get mints:', error);
@@ -108,13 +103,13 @@ export const wrapOrUnwrap = async (
   }
 
   const userTokenAccount = getAssociatedTokenAddressSync(
-    M_MINT,
+    MINTS.M,
     walletProvider.publicKey,
     false,
     TOKEN_2022_PROGRAM_ID,
   );
   const userwMTokenAccount = getAssociatedTokenAddressSync(
-    wM_MINT,
+    MINTS.wM,
     walletProvider.publicKey,
     false,
     TOKEN_2022_PROGRAM_ID,
@@ -131,7 +126,7 @@ export const wrapOrUnwrap = async (
           walletProvider.publicKey,
           userwMTokenAccount,
           walletProvider.publicKey,
-          wM_MINT,
+          MINTS.wM,
           TOKEN_2022_PROGRAM_ID,
         ),
       );
@@ -139,7 +134,7 @@ export const wrapOrUnwrap = async (
   }
 
   const mVault = PublicKey.findProgramAddressSync([Buffer.from('m_vault')], EXT_EARN_PROGRAM_ID)[0];
-  const vaultTokenAccount = getAssociatedTokenAddressSync(M_MINT, mVault, true, TOKEN_2022_PROGRAM_ID);
+  const vaultTokenAccount = getAssociatedTokenAddressSync(MINTS.M, mVault, true, TOKEN_2022_PROGRAM_ID);
 
   const keys = [
     {
@@ -148,12 +143,12 @@ export const wrapOrUnwrap = async (
       isWritable: true,
     },
     {
-      pubkey: M_MINT,
+      pubkey: MINTS.M,
       isSigner: false,
       isWritable: false,
     },
     {
-      pubkey: wM_MINT,
+      pubkey: MINTS.wM,
       isSigner: false,
       isWritable: true,
     },
@@ -241,7 +236,7 @@ export const bridgeFromSolana = async (
   toChain: string,
   noncePubkey?: PublicKey,
 ) => {
-  const ntt = NttManager(connection, M_MINT);
+  const ntt = NttManager(connection, MINTS.M);
 
   if (!walletProvider.publicKey) {
     throw new Error('Wallet not connected');
@@ -342,6 +337,7 @@ export const bridgeFromSolana = async (
 };
 
 export const bridgeFromEvm = async (
+  // @ts-ignore
   sendTransaction: SendTransactionMutate<Config>,
   address: string | undefined,
   amount: Decimal,

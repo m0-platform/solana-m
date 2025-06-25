@@ -1,7 +1,7 @@
 import { useAppKitAccount } from '@reown/appkit/react';
 import { Connection, PublicKey } from '@solana/web3.js';
 import Decimal from 'decimal.js';
-import { M_MINT, wM_MINT } from '../services/consts';
+import { MINTS } from '../services/consts';
 import { getBalance } from '@wagmi/core';
 import { wagmiAdapter } from '../main';
 import { useQuery } from '@tanstack/react-query';
@@ -37,10 +37,10 @@ export const useAccount = () => {
       const tokenMint = account.account.data.parsed.info.mint;
       const tokenAmount = account.account.data.parsed.info.tokenAmount.uiAmount.toString();
 
-      if (tokenMint === M_MINT.toBase58()) {
+      if (tokenMint === MINTS.M.toBase58()) {
         solanaBalances.M = new Decimal(tokenAmount);
       }
-      if (tokenMint === wM_MINT.toBase58()) {
+      if (tokenMint === MINTS.wM.toBase58()) {
         solanaBalances.wM = new Decimal(tokenAmount);
       }
     }

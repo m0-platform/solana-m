@@ -1,4 +1,4 @@
-import { M_MINT, wM_MINT } from '../services/consts';
+import { MINTS } from '../services/consts';
 import { NETWORK } from '../services/rpc';
 
 type LinkItem = {
@@ -13,8 +13,8 @@ const programLinks: LinkItem[] = [
 ];
 
 const mintLinks: LinkItem[] = [
-  { name: 'M by M0', address: M_MINT.toBase58() },
-  { name: 'WrappedM by M0', address: wM_MINT.toBase58() },
+  { name: 'M by M0', address: MINTS.M.toBase58() },
+  { name: 'WrappedM by M0', address: MINTS.wM.toBase58() },
 ];
 
 export const Links = () => {

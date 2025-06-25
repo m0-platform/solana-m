@@ -1,14 +1,14 @@
 import { gql, GraphQLClient } from 'graphql-request';
 import { PublicKey } from '@solana/web3.js';
 import Decimal from 'decimal.js';
-import { M_MINT } from './consts';
+import { MINTS } from './consts';
 
 const client = new GraphQLClient(import.meta.env.VITE_SUBGRAPH_URL, {
   headers: { Authorization: `Bearer ${import.meta.env.VITE_GRAPH_KEY}` },
 });
 
 export const tokenHolders = async (
-  mint = M_MINT,
+  mint = MINTS.M,
   limit = 10,
   skip = 0,
 ): Promise<{ user: PublicKey; balance: number }[]> => {

@@ -1,6 +1,6 @@
 import { getMintsRPC } from '../services/rpc';
 import { claimStats } from '../services/subgraph';
-import { EARN_PROGRAM_ID } from '../services/consts';
+import { EARN_PROGRAM_ID, MINTS } from '../services/consts';
 import { formatAmount } from '../services/utils';
 import { LoadingSkeleton } from './loading';
 import { useQuery } from '@tanstack/react-query';
@@ -17,7 +17,6 @@ export const StatsBar = () => {
       <div className="max-w-6xl mx-auto flex items-center space-x-10">
         <Stat title="$M supply" value={formatAmount(mintData?.M?.supply)} isLoading={mintLoading} />
         <Stat title="$M yield" value={formatAmount(claimData?.totalClaimed)} isLoading={claimLoading} />
-        <Stat title="$wM supply" value={formatAmount(mintData?.wM?.supply)} isLoading={mintLoading} />
       </div>
     </div>
   );

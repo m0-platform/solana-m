@@ -1,31 +1,32 @@
 import { tokenHolders } from '../services/subgraph';
 import { PublicKey } from '@solana/web3.js';
-import { getMintsRPC, MINT_ADDRESSES } from '../services/rpc';
+import { getMintsRPC } from '../services/rpc';
 import Decimal from 'decimal.js';
 import { useQuery } from '@tanstack/react-query';
 import { NavLink } from 'react-router-dom';
+import { MINTS } from '../services/consts';
 
 const labels: { [key: string]: string } = {
   '8vtsGdu4ErjK2skhV7FfPQwXdae6myWjgWJ8gRMnXi2K': 'wM Vault',
 };
 
-export const Holders = ({ token }: { token: 'M' | 'wM' }) => {
+export const Vaults = () => {
   const { data: mintData } = useQuery({ queryKey: ['mints'], queryFn: getMintsRPC });
   const { data: holderData } = useQuery({
-    queryKey: ['holders:subgraph', token],
-    queryFn: () => tokenHolders(MINT_ADDRESSES[token]),
+    queryKey: ['holders:subgraph', 'M'],
+    queryFn: () => tokenHolders(MINTS.M),
   });
 
   // use total supply to calc percentage
   const toPercentage = (balance: number) => {
-    const supply = mintData?.[token]?.supply.toString();
+    const supply = mintData?.M?.supply.toString();
     if (!supply) return 1;
     return new Decimal(balance).div(new Decimal(supply).div(1e6)).toNumber();
   };
 
   return (
     <div>
-      <div className="text-2xl">${token} Holders</div>
+      <div className="text-2xl">$M Vaults</div>
       <table className="w-full text-sm text-left rtl:text-right text-xs">
         <thead className="border-b border-gray-200">
           <tr>
@@ -39,15 +40,13 @@ export const Holders = ({ token }: { token: 'M' | 'wM' }) => {
             <tr key={holder.user.toString()} className="border-b border-gray-200">
               <td className="px-2 py-4">
                 <NavLink
-                  to={`/earner/${token}/${holder.user.toBase58()}`}
+                  to={`/earner/M/${holder.user.toBase58()}`}
                   className={`hover:underline ${labels[holder.user.toBase58()] ? 'bg-gray-100 py-1 px-2' : ''}`}
                 >
                   {labels[holder.user.toBase58()] || formatAddress(holder.user)}
                 </NavLink>
               </td>
-              <td className="px-2 py-4">
-                {token} {formatAmount(holder.balance)}
-              </td>
+              <td className="px-2 py-4">{formatAmount(holder.balance)}</td>
               <td className="px-2 py-4">
                 <ProgressBar percentage={toPercentage(holder.balance)} />
               </td>
@@ -76,6 +75,6 @@ const formatAddress = (address: PublicKey, chars = 6) => {
   return `${str.slice(0, chars)}...${str.slice(-chars)}`;
 };
 
-const formatAmount = (amount: number, decimals = 4) => {
+const formatAmount = (amount: number, decimals = 2) => {
   return amount.toFixed(decimals);
 };

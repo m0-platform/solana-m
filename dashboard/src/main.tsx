@@ -23,12 +23,12 @@ import {
 } from '@reown/appkit/networks';
 import { Wrap } from './components/wrap';
 import { Simulate } from './components/simulate';
-import './index.css';
 import { Bridge } from './components/bridge';
 import { Links } from './components/links';
+import { EarnerDetails } from './components/earner';
 import { IndexUpdates } from './components/index-updates';
 import { WagmiProvider } from 'wagmi';
-import { EarnerDetails } from './components/earner';
+import './index.css';
 
 console.table(
   Object.entries(import.meta.env).reduce((acc, [key, value]) => {
@@ -45,12 +45,13 @@ const queryClient = new QueryClient({
   },
 });
 
-const SVM_NETWORKS: AppKitNetwork[] = [import.meta.env.VITE_NETWORK === 'devnet' ? solanaDevnet : solana];
+const SVM_NETWORKS = [import.meta.env.VITE_NETWORK === 'devnet' ? solanaDevnet : solana] as AppKitNetwork[];
 
-const EVM_NETWORKS: AppKitNetwork[] =
+const EVM_NETWORKS = (
   import.meta.env.VITE_NETWORK === 'devnet'
     ? [sepolia, arbitrumSepolia, optimismSepolia]
-    : [mainnet, arbitrum, optimism];
+    : [mainnet, arbitrum, optimism]
+) as AppKitNetwork[];
 
 export const wagmiAdapter = new WagmiAdapter({
   ssr: false,

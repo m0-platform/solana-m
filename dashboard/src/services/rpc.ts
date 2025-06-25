@@ -27,11 +27,10 @@ import { SolanaNtt } from '@wormhole-foundation/sdk-solana-ntt';
 import { EvmNtt } from '@wormhole-foundation/sdk-evm-ntt';
 import { SolanaPlatform } from '@wormhole-foundation/sdk-solana';
 import { SendTransactionMutate } from 'wagmi/query';
-import { Config } from 'wagmi';
+import { Config, useReadContract } from 'wagmi';
 import { JsonRpcProvider } from 'ethers';
 import evm from '@wormhole-foundation/sdk/evm';
 import { wormhole } from '@wormhole-foundation/sdk';
-import { getContract, createPublicClient, http } from 'viem';
 
 export const NETWORK: 'devnet' | 'mainnet' = import.meta.env.VITE_NETWORK;
 export const connection = new Connection(import.meta.env.VITE_RPC_URL);
@@ -475,13 +474,12 @@ export const erc20Abi = [
 ] as const;
 
 export async function checkERC20Allowance(ownerAddress: `0x${string}`): Promise<bigint> {
-  const evmClient = createPublicClient({ transport: http(import.meta.env.VITE_EVM_RPC_URL ?? '') });
-
-  const tokenContract = getContract({
+  const { data: allowance } = useReadContract({
     address: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b',
     abi: erc20Abi,
-    client: evmClient,
+    functionName: 'allowance',
+    args: [ownerAddress, '0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd'],
   });
 
-  return await tokenContract.read.allowance([ownerAddress, '0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd']);
+  return allowance ?? 0n;
 }

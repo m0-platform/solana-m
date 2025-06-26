@@ -1,0 +1,86 @@
+import { ExtensionsService } from '../generated/api/resources/extensions/service/ExtensionsService';
+import { Address, createSolanaRpc, isSome } from '@solana/kit';
+import {
+  fetchMint,
+  fetchToken,
+  findAssociatedTokenPda,
+  isExtension,
+  TOKEN_2022_PROGRAM_ADDRESS,
+} from '@solana-program/token-2022';
+
+const rpc = createSolanaRpc(process.env.SVM_RPC!);
+const isDevnet = process.env.SVM_RPC?.includes('devnet') ?? false;
+
+const extensionData = [
+  {
+    name: 'Wrapped $M by M0',
+    mint: 'mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp',
+    programId: 'wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko',
+    symbol: 'wM',
+    icon: 'https://gistcdn.githack.com/SC4RECOIN/a729afb77aa15a4aa6b1b46c3afa1b52/raw/209da531ed46c1aaef0b1d3d7b67b3a5cec257f3/M_Symbol_512.svg',
+    mVault: '8vtsGdu4ErjK2skhV7FfPQwXdae6myWjgWJ8gRMnXi2K',
+    mVaultBalance: 0,
+    tokenSupply: 0,
+    uiMultiplier: 1,
+  },
+];
+
+let mMint = 'mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo' as Address;
+
+if (isDevnet) {
+  mMint = 'mzeroZRGCah3j5xEWp2Nih3GDejSBbH1rbHoxDg8By6' as Address;
+
+  extensionData.push({
+    name: 'Kast USD',
+    mint: 'usdkbee86pkLyRmxfFCdkyySpxRb5ndCxVsK2BkRXwX',
+    programId: 'Fb2AsCKmPd4gKhabT6KsremSHMrJ8G2Mopnc6rDQZX9e',
+    symbol: 'USDK',
+    icon: 'https://cdn-icons-png.freepik.com/512/6681/6681925.png',
+    mVault: '3jjzuwuYxzHRn39D26KWDtGQCWMc12uXK41jBB3njEqi',
+    mVaultBalance: 0,
+    tokenSupply: 0,
+    uiMultiplier: 1,
+  });
+
+  extensionData.push({
+    name: 'Kast USDY',
+    mint: 'usdkyPPxgV7sfNyKb8eDz66ogPrkRXG3wS2FVb6LLUf',
+    programId: '3PskKTHgboCbUSQPMcCAZdZNFHbNvSoZ8zEFYANCdob7',
+    symbol: 'USDKY',
+    icon: 'https://cdn-icons-png.freepik.com/512/6681/6681925.png',
+    mVault: '93rkP7LJx47fn3AckRcvyiAZBCoSkpcTnCcTtQGGPCGJ',
+    mVaultBalance: 0,
+    tokenSupply: 0,
+    uiMultiplier: 1,
+  });
+}
+
+export const extensions = new ExtensionsService({
+  extensions: async (req, res, next) => {
+    for (const ext of extensionData) {
+      const mint = await fetchMint(rpc, ext.mint as Address);
+      ext.tokenSupply = Number(mint.data.supply);
+
+      // get vault balance
+      const [associatedTokenAddress] = await findAssociatedTokenPda({
+        mint: mMint,
+        owner: ext.mVault as Address,
+        tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
+      });
+
+      const ataDetails = await fetchToken(rpc, associatedTokenAddress);
+      ext.mVaultBalance = Number(ataDetails.data.amount);
+
+      // check for mint extensions
+      if (isSome(mint.data.extensions)) {
+        for (const type of mint.data.extensions.value) {
+          if (isExtension('ScaledUiAmountConfig', type)) {
+            ext.uiMultiplier = type.multiplier;
+          }
+        }
+      }
+    }
+
+    res.send({ extensions: extensionData });
+  },
+});

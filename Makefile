@@ -254,5 +254,6 @@ build-api-server:
 run-api-locally:
 	@export MONGO_CONNECTION_STRING="$(shell op read "op://Solana Dev/Mongo Read Access/connection string")" && \
 	export EVM_RPC="$(shell op read "op://Solana Dev/Alchemy/mainnet")" && \
+	export SVM_RPC="$(shell op read "op://Solana Dev/Helius/prod rpc")" && \
 	export DISABLE_CACHE=true && \
 	cd services/api/server && pnpm run dev

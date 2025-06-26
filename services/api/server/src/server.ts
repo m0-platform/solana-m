@@ -7,6 +7,7 @@ import { configureLogger } from './logger';
 import { events } from './events';
 import { connectToDatabase } from './db';
 import { tokenAccount } from './tokenAccount';
+import { extensions } from './extensions';
 
 const PORT = process.env.PORT ?? 5500;
 
@@ -36,7 +37,7 @@ connectToDatabase()
 app.use('/docs', docs);
 
 // register all services implementation in api spec
-register(app, { events, tokenAccount });
+register(app, { events, tokenAccount, extensions });
 
 app.listen(PORT);
 logger.info('Server is running', { port: `${PORT}` });

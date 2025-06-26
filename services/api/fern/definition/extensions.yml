@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+
+service:
+  auth: false
+  base-path: /extensions
+  endpoints:
+    extensions:
+      docs: Get all extensions
+      method: GET
+      path: /
+      response: Extensions
+      request:
+        name: GetExtensionsRequest
+      examples:
+        - response:
+            body:
+              extensions:
+                - mint: mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp
+                  programId: wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko
+                  symbol: wM
+                  name: Wrapped $M by M0
+                  icon: https://gistcdn.githack.com/SC4RECOIN/a729afb77aa15a4aa6b1b46c3afa1b52/raw/209da531ed46c1aaef0b1d3d7b67b3a5cec257f3/M_Symbol_512.svg
+                  mVault: 8vtsGdu4ErjK2skhV7FfPQwXdae6myWjgWJ8gRMnXi2K
+                  mVaultBalance: 5500000000
+                  tokenSupply: 5500000000
+                  uiMultiplier: 1000000
+
+types:
+  Extensions:
+    properties:
+      extensions: list<Extension>
+
+  Extension:
+    properties:
+      mint: string
+      programId: string
+      symbol: string
+      name: string
+      icon: string
+      mVault: string
+      mVaultBalance: double
+      tokenSupply: double
+      uiMultiplier: double

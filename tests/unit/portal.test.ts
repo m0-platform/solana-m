@@ -44,8 +44,10 @@ import { Earn } from '../../target/types/earn';
 import { sha256 } from '@noble/hashes/sha256';
 import { SYSTEM_PROGRAM_ID } from '@coral-xyz/anchor/dist/cjs/native/system';
 import { ExtSwap } from '../programs/ext_swap';
+import { ExtEarn } from '../../target/types/ext_earn';
 const EARN_IDL = require('../../target/idl/earn.json');
 const SWAP_IDL = require('../programs/ext_swap.json');
+const EXT_EARN_IDL = require('../../target/idl/ext_earn.json');
 
 const TOKEN_PROGRAM = spl.TOKEN_2022_PROGRAM_ID;
 export const WORMHOLE_SOLANA = new PublicKey('worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth');
@@ -132,6 +134,10 @@ describe('Portal unit tests', () => {
   const connection = provider.connection;
   const earn = new Program<Earn>(EARN_IDL, provider);
 
+  // Programs for testing bridging to extension
+  const swapProgram = new Program<ExtSwap>(SWAP_IDL, provider);
+  const extEarn = new Program<ExtEarn>(EXT_EARN_IDL, provider);
+
   const { ctx, ...wc } = getWormholeContext(connection);
 
   beforeAll(async () => {
@@ -144,6 +150,10 @@ describe('Portal unit tests', () => {
       const mintLen = spl.getMintLen([]);
       const lamports = await connection.getMinimumBalanceForRentExemption(mintLen);
 
+      const mintAuth = m.publicKey.equals(mint.publicKey)
+        ? owner.publicKey
+        : PublicKey.findProgramAddressSync([Buffer.from('mint_authority')], config.EXT_EARN_PROGRAM)[0];
+
       const tx = new Transaction().add(
         SystemProgram.createAccount({
           fromPubkey: payer.publicKey,
@@ -152,7 +162,7 @@ describe('Portal unit tests', () => {
           lamports,
           programId: TOKEN_PROGRAM,
         }),
-        spl.createInitializeMintInstruction(m.publicKey, 9, owner.publicKey, null, TOKEN_PROGRAM),
+        spl.createInitializeMintInstruction(m.publicKey, 9, mintAuth, null, TOKEN_PROGRAM),
       );
 
       await provider.sendAndConfirm!(tx, [payer, m]);
@@ -192,21 +202,6 @@ describe('Portal unit tests', () => {
       },
       '3.0.0',
     );
-
-    // Initialize swap program
-    const swapProgram = new Program<ExtSwap>(SWAP_IDL, provider);
-
-    await swapProgram.methods
-      .initializeGlobal(mint.publicKey)
-      .accounts({ admin: admin.publicKey })
-      .signers([admin])
-      .rpc();
-
-    await swapProgram.methods
-      .whitelistExtension(config.EXT_EARN_PROGRAM)
-      .accounts({ admin: admin.publicKey })
-      .signers([admin])
-      .rpc();
   });
 
   describe('Initialize', () => {
@@ -284,6 +279,49 @@ describe('Portal unit tests', () => {
         .signers([admin])
         .rpc();
     });
+    test('initialize extension and swap program', async () => {
+      await swapProgram.methods
+        .initializeGlobal(mint.publicKey)
+        .accounts({ admin: admin.publicKey })
+        .signers([admin])
+        .rpc();
+
+      await swapProgram.methods
+        .whitelistExtension(config.EXT_EARN_PROGRAM)
+        .accounts({ admin: admin.publicKey })
+        .signers([admin])
+        .rpc();
+
+      await extEarn.methods
+        .initialize(admin.publicKey)
+        .accounts({
+          admin: admin.publicKey,
+          mMint: mint.publicKey,
+          extMint: extMint.publicKey,
+        })
+        .signers([admin])
+        .rpc();
+
+      // Add Portal program as wrap authority
+      await extEarn.methods
+        .addWrapAuthority(
+          PublicKey.findProgramAddressSync([Buffer.from('token_authority')], config.PORTAL_PROGRAM_ID)[0],
+        )
+        .accounts({ admin: admin.publicKey })
+        .signers([admin])
+        .rpc();
+
+      await spl.getOrCreateAssociatedTokenAccount(
+        connection,
+        payer,
+        mint.publicKey,
+        PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_EARN_PROGRAM)[0],
+        true,
+        undefined,
+        undefined,
+        TOKEN_PROGRAM,
+      );
+    });
   });
 
   describe('Sending', () => {
@@ -330,12 +368,26 @@ describe('Portal unit tests', () => {
 
       const outboxItem = Keypair.generate();
 
-      const xferTxs = ntt.transfer(
-        sender,
-        amount,
-        receiver,
-        { queue: false, automatic: false, gasDropoff: 0n },
-        outboxItem,
+      // init token accounts
+      const { address: mAta } = await spl.getOrCreateAssociatedTokenAccount(
+        connection,
+        payer,
+        mint.publicKey,
+        payer.publicKey,
+        true,
+        undefined,
+        undefined,
+        TOKEN_PROGRAM,
+      );
+      const { address: extAta } = await spl.getOrCreateAssociatedTokenAccount(
+        connection,
+        payer,
+        extMint.publicKey,
+        payer.publicKey,
+        true,
+        undefined,
+        undefined,
+        TOKEN_PROGRAM,
       );
 
       // update generator to return transfer_extension instruction
@@ -348,6 +400,8 @@ describe('Portal unit tests', () => {
             outboxItem.publicKey,
             mint.publicKey,
             extMint.publicKey,
+            mAta,
+            extAta,
           ),
         );
         tx.feePayer = payer.publicKey;
@@ -594,9 +648,9 @@ function buildTransferExtensionIx(
   outboxItem: PublicKey,
   mMint: PublicKey,
   extMint: PublicKey,
+  mAta: PublicKey,
+  extAta: PublicKey,
 ): TransactionInstruction {
-  const mAta = getAssociatedTokenAddressSync(mMint, new PublicKey(signer), true, TOKEN_PROGRAM);
-
   return new TransactionInstruction({
     programId: config.PORTAL_PROGRAM_ID,
     keys: [
@@ -649,25 +703,30 @@ function buildTransferExtensionIx(
       },
       {
         // ext token account
-        pubkey: new PublicKey(signer), // TODO
+        pubkey: extAta,
         isSigner: false,
         isWritable: true,
       },
       {
         // ext m vault
-        pubkey: new PublicKey(signer), // TODO
+        pubkey: getAssociatedTokenAddressSync(
+          mMint,
+          PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_EARN_PROGRAM)[0],
+          true,
+          TOKEN_PROGRAM,
+        ),
         isSigner: false,
         isWritable: true,
       },
       {
         // ext m vault auth
-        pubkey: new PublicKey(signer), // TODO
+        pubkey: PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_EARN_PROGRAM)[0],
         isSigner: false,
         isWritable: false,
       },
       {
         // ext mint auth
-        pubkey: new PublicKey(signer), // TODO
+        pubkey: PublicKey.findProgramAddressSync([Buffer.from('mint_authority')], config.EXT_EARN_PROGRAM)[0],
         isSigner: false,
         isWritable: false,
       },

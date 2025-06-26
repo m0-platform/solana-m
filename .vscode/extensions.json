@@ -3,7 +3,6 @@
     "rust-lang.rust-analyzer",
     "tamasfe.even-better-toml",
     "battlelinegames.assemblyscript-lang",
-    "graphql.vscode-graphql",
     "mikestead.dotenv"
   ],
   "unwantedRecommendations": []

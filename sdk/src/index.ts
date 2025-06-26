@@ -1,3 +1,4 @@
+import { M0SolanaApiClient, M0SolanaApiEnvironment } from '@m0-foundation/solana-m-api-sdk';
 import { PublicKey } from '@solana/web3.js';
 
 // Solana program IDs
@@ -17,10 +18,6 @@ export const ETH_M_ADDRESS: `0x${string}` = '0x866A2BF4E572CbcF37D5071A7a58503Bf
 export const ETH_MERKLE_TREE_BUILDER: `0x${string}` = '0xCab755D715f312AD946d6982b8778BFAD7E322d7';
 export const ETH_MERKLE_TREE_BUILDER_DEVNET: `0x${string}` = '0x050258e4761650ad774b5090a5DA0e204348Eb48';
 
-// Graph IDs
-export const MAINNET_GRAPH_ID = 'bgd3AFHw9bcSox1mfU39W9NbYUeSY53fr4kaVzmkPjC';
-export const DEVNET_GRAPH_ID = 'Exir1TE2og5jCPjAM5485NTHtgT6oAEHTevYhvpU8UFL';
-
 // Re-export the viem PublicClient type
 export { type PublicClient, createPublicClient, createTestClient, http } from 'viem';
 
@@ -28,7 +25,14 @@ export { EarnAuthority } from './earn_auth';
 export { EarnManager } from './earn_manager';
 export { Earner } from './earner';
 export { EvmCaller } from './evm_caller';
-export { Graph } from './graph';
 export { Registrar } from './registrar';
 export * from './logger';
 export * from './transaction';
+
+export const getApiClient = () => {
+  let apiEnv: M0SolanaApiEnvironment = M0SolanaApiEnvironment.Mainnet;
+  if (process.env.DEVNET === 'true') apiEnv = M0SolanaApiEnvironment.Devnet;
+  if (process.env.LOCALNET === 'true') apiEnv = M0SolanaApiEnvironment.Localnet;
+  return new M0SolanaApiClient({ environment: apiEnv });
+};
+export { M0SolanaApiClient, M0SolanaApiEnvironment } from '@m0-foundation/solana-m-api-sdk';

@@ -1,0 +1,100 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+
+service:
+  auth: false
+  base-path: /token-account/{pubkey}/{mint}
+  path-parameters:
+    pubkey: string
+    mint: string
+  endpoints:
+    claims:
+      docs: Get claim events
+      method: GET
+      path: /claims
+      errors:
+        - InvalidMint
+      response: Claims
+      request:
+        name: GetClaimsRequest
+        query-parameters:
+          skip: optional<integer>
+          limit: optional<integer>
+      examples:
+        - path-parameters:
+            pubkey: AnuF2dWsdSKJZXCb1cCqTbe6gvp2g3xuDQFd2JjUyWYq
+            mint: mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp
+          response:
+            body:
+              claims:
+                - amount: 1717708827
+                  index: 1042706510795
+                  programId: 'wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'
+                  tokenAccount: 'AnuF2dWsdSKJZXCb1cCqTbe6gvp2g3xuDQFd2JjUyWYq'
+                  recipientTokenAccount: 'AnuF2dWsdSKJZXCb1cCqTbe6gvp2g3xuDQFd2JjUyWYq'
+                  signature: '2FFi5nSYXgLizQcP8PiPe8QVTyVQsWYUUYL9TFgyKVeC4LRJoHdxUP1BMscYZqHxA7oXjdUdGnBBcAgpa6HmN9K8'
+                  ts: 2025-04-25T17:27:37.000Z
+
+    transfers:
+      docs: Get token balance updates
+      method: GET
+      path: /transfers
+      errors:
+        - InvalidMint
+      response: BalanceUpdates
+      request:
+        name: BalanceUpdatesRequest
+        query-parameters:
+          skip: optional<integer>
+          limit: optional<integer>
+          from_time: optional<integer>
+          to_time: optional<integer>
+      examples:
+        - path-parameters:
+            pubkey: 88FHCznZEXoBNfCFPb6GtztKZEtvkrd4s3sUUGmbxHtU
+            mint: mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo
+          response:
+            body:
+              transfers:
+                - preBalance: 0
+                  postBalance: 1000000
+                  tokenAccount: 'AnuF2dWsdSKJZXCb1cCqTbe6gvp2g3xuDQFd2JjUyWYq'
+                  owner: 'D76ySoHPwD8U2nnTTDqXeUJQg5UkD9UD1PUE1rnvPAGm'
+                  signature: '3yYF2LiXZjQ7oT4nVRJxe7198LFzAwJTxEuXA5zQNdiipbhemyJKJAzE8HJCGqzNnR65c9yG5D78TgGEc2JRitW6'
+                  ts: 2025-04-25T17:27:37.000Z
+
+types:
+  Claims:
+    properties:
+      claims: list<Claim>
+
+  Claim:
+    properties:
+      amount: double
+      index: double
+      programId: string
+      tokenAccount: string
+      recipientTokenAccount: string
+      signature: string
+      ts: datetime
+
+  BalanceUpdates:
+    properties:
+      transfers: list<BalanceUpdate>
+
+  BalanceUpdate:
+    properties:
+      preBalance: double
+      postBalance: double
+      tokenAccount: string
+      owner: string
+      signature: string
+      ts: datetime
+
+  RequestError:
+    properties:
+      message: string
+
+errors:
+  InvalidMint:
+    status-code: 404
+    type: RequestError

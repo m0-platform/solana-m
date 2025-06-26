@@ -1,4 +1,4 @@
-.PHONY: test-yield-bot yield-bot-devnet test-local-validator test-sdk build-devnet upgrade-earn-devnet upgrade-portal-devnet upgrade-ext-earn-devnet deploy-yield-bot deploy-subgraph-mainnet deploy-subgraph-devnet deploy-dashboard-devnet deploy-dashboard-mainnet
+.PHONY: test-yield-bot yield-bot-devnet test-local-validator test-sdk build-devnet upgrade-earn-devnet upgrade-portal-devnet upgrade-ext-earn-devnet deploy-yield-bot deploy-dashboard-devnet deploy-dashboard-mainnet
 
 
 #
@@ -40,6 +40,11 @@ test-local-validator:
 	kill $$pid \ 
 	exit $$e
 
+build-test-swap-program:
+	@cd ../solana-extensions && anchor build -p ext_swap
+	@cp -f ../solana-extensions/target/deploy/ext_swap.so tests/programs/ext_swap.so
+	@cp -f ../solana-extensions/target/idl/ext_swap.json tests/programs/ext_swap.json
+	@cp -f ../solana-extensions/target/types/ext_swap.ts tests/programs/ext_swap.ts
 
 #
 # Devnet commands
@@ -48,7 +53,6 @@ yield-bot-devnet:
 	@RPC_URL=$(shell op read "op://Solana Dev/Helius/dev rpc") \
 		EVM_RPC_URL=$(shell op read "op://Solana Dev/Alchemy/sepolia") \
 		KEYPAIR=$(shell op read "op://Solana Dev/Solana Program Keys/devnet-authority") \
-		GRAPH_KEY=$(shell op read "op://Solana Dev/The Graph/credential") \
 		pnpm --silent ts-node services/yield-bot/main.ts distribute \
 		--programID wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko \
 		--dryRun
@@ -56,12 +60,12 @@ yield-bot-devnet:
 yield-bot-mainnet:
 	@RPC_URL=$(shell op read "op://Solana Dev/Helius/prod rpc") \
 		EVM_RPC_URL=$(shell op read "op://Solana Dev/Alchemy/mainnet") \
-		GRAPH_KEY=$(shell op read "op://Solana Dev/The Graph/credential") \
 		TURNKEY_PUBKEY=5FFDpVvjVPEVGb9SgN9V5HNC6gkrPdVqdX6CxXBVwZV \
 		TURNKEY_API_PUBLIC_KEY=$(shell op read "op://Solana Secure/Turnkey API keys/public-key-prod") \
 		TURNKEY_API_PRIVATE_KEY=$(shell op read "op://Solana Secure/Turnkey API keys/private-key-prod") \
 		pnpm --silent ts-node services/yield-bot/main.ts distribute \
-		--programID wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko 
+		--claimThreshold 100000 \
+		--programID wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko \
 		--dryRun
 
 #
@@ -185,12 +189,10 @@ deploy-dashboard-mainnet:
 	$(call deploy-dashboard,production,.env.prod.template)
 
 #
-# Subgraphs
+# Substreams
 #
 DEVNET_STARTING_BLOCK := 364230817
-MAINNET_STARTING_BLOCK := 335213628
-DEVNET_TARGET_VERSION := v0.0.2 
-MAINNET_TARGET_VERSION := v0.0.4
+MAINNET_STARTING_BLOCK := 339967540
 
 define build-substream
 	@cd substreams/graph && \
@@ -200,21 +202,6 @@ define build-substream
 	sed -i '' 's/name: map_transfer_events.*/name: $(4)/' substreams.yaml && \
 	substreams build
 endef
-
-define deploy-subgraph
-	@cd substreams/graph/subgraph && \
-	sed -i '' 's/network: solana[-a-z]*/network: $(1)/' subgraph.yaml && \
-	npm run generate && npm run build && \
-	graph deploy $(2) --version-label $(3)
-endef
-
-deploy-subgraph-mainnet:
-	$(call build-substream,solana-mainnet-beta,$(MAINNET_STARTING_BLOCK),transfers.v1.TokenTransactions,map_transfer_events)
-	$(call deploy-subgraph,solana-mainnet-beta,solana-m,$(MAINNET_TARGET_VERSION))
-
-deploy-subgraph-devnet:
-	$(call build-substream,solana-devnet,$(DEVNET_STARTING_BLOCK),transfers.v1.TokenTransactions,map_transfer_events)
-	$(call deploy-subgraph,solana-devnet,solana-m-devnet,$(DEVNET_TARGET_VERSION))
 
 define deploy-substream-mongo
 	$(call build-substream,$(1),$(3),sf.substreams.sink.database.v1.DatabaseChanges,map_transfer_events_to_db)
@@ -233,7 +220,7 @@ deploy-substream-mongo-mainnet:
 	$(call deploy-substream-mongo,solana-mainnet-beta,mainnet,$(MAINNET_STARTING_BLOCK))
 
 #
-# SDK
+# SDKs
 #
 publish-sdk:
 	@cd sdk && \
@@ -241,3 +228,31 @@ publish-sdk:
 	echo "//registry.npmjs.org/:_authToken=$(shell op read "op://Web3/NPM Publish Token m0-foundation/credential")" > .npmrc && \
 	npm publish && \
 	rm .npmrc
+
+publish-api-sdk:
+	@cd services/api/sdk && \
+	pnpm build && \
+	echo "//registry.npmjs.org/:_authToken=$(shell op read "op://Web3/NPM Publish Token m0-foundation/credential")" > .npmrc && \
+	npm publish && \
+	rm .npmrc
+
+#
+# API
+#
+generate-api-code: 
+	@cd services/api && \
+	fern generate --local --keepDocker --force
+	@sed -i '' 's/Object.entries(object)/Object.entries(object as any)/g' services/api/server/generated/core/schemas/utils/entries.ts
+	@sed -i '' 's/Object.keys(object)/Object.keys(object as any)/g' services/api/server/generated/core/schemas/utils/keys.ts
+	@sed -i '' 's/Object.entries(obj)/Object.entries(obj as any)/g' services/api/server/generated/core/schemas/utils/filterObject.ts
+	@sed -i '' 's/\(acc, \[\)key, value\(\]\)/\1key, value\2: [string, any]/g' services/api/server/generated/core/schemas/utils/filterObject.ts
+
+build-api-server:
+	docker build --platform linux/amd64 -t ghcr.io/m0-foundation/solana-m:api -f services/api/server/Dockerfile .
+	docker push ghcr.io/m0-foundation/solana-m:api
+
+run-api-locally:
+	@export MONGO_CONNECTION_STRING="$(shell op read "op://Solana Dev/Mongo Read Access/connection string")" && \
+	export EVM_RPC="$(shell op read "op://Solana Dev/Alchemy/mainnet")" && \
+	export DISABLE_CACHE=true && \
+	cd services/api/server && pnpm run dev

@@ -14,6 +14,7 @@
   "balance_updates": {
     "pre_balance": "double",
     "post_balance": "double",
-    "amount": "double"
+    "amount": "double",
+    "ts": "timestamp"
   }
 }

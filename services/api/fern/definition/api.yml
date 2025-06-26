@@ -1,0 +1,13 @@
+name: solana-api
+environments:
+  mainnet:
+    url: https://api-production-0046.up.railway.app
+  localnet:
+    url: http://localhost:5500
+  devnet:
+    url: https://api-development-065b.up.railway.app
+default-environment: mainnet
+docs: |
+  This API provides data for the M token and its extensions
+error-discrimination:
+  strategy: status-code

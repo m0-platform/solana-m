@@ -7,14 +7,18 @@ import {
   TransactionMessage,
   VersionedTransaction,
 } from '@solana/web3.js';
-import { EARN_ADDRESS_TABLE, EARN_ADDRESS_TABLE_DEVNET } from '.';
+import { ConsoleLogger, EARN_ADDRESS_TABLE, EARN_ADDRESS_TABLE_DEVNET, Logger } from '.';
+
+const DEFAULT_COMPUTE_BUDGET = 500_000;
 
 export class TransactionBuilder {
   private connection: Connection;
+  private logger: Logger;
   private luts: AddressLookupTableAccount[];
 
-  constructor(connection: Connection) {
+  constructor(connection: Connection, logger: Logger = new ConsoleLogger()) {
     this.connection = connection;
+    this.logger = logger;
     this.luts = [];
   }
 
@@ -32,17 +36,24 @@ export class TransactionBuilder {
     const transaction = new VersionedTransaction(message.compileToV0Message(tables));
 
     // simulate to get correct compute budget
-    const simulation = await this.connection.simulateTransaction(transaction, {
-      commitment: this.connection.commitment,
-      sigVerify: false,
-    });
+    let unitsConsumed = DEFAULT_COMPUTE_BUDGET;
+    try {
+      const simulation = await this.connection.simulateTransaction(transaction, {
+        commitment: this.connection.commitment,
+        replaceRecentBlockhash: true,
+        sigVerify: false,
+      });
+      if (simulation.value.unitsConsumed) {
+        unitsConsumed = Math.floor(simulation.value.unitsConsumed * 1.1);
+      }
+    } catch (e) {
+      this.logger.error('simulation error for compute', e);
+    }
 
     // add compute budget ixs
     message.instructions.unshift(
       ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priorityFee }),
-      ComputeBudgetProgram.setComputeUnitLimit({
-        units: Math.floor((simulation.value.unitsConsumed || 300_000) * 1.1),
-      }),
+      ComputeBudgetProgram.setComputeUnitLimit({ units: unitsConsumed }),
     );
 
     // return versioned transaction with lookup table and compute budget ixs

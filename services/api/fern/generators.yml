@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://schema.buildwithfern.dev/generators-yml.json
+default-group: local
+groups:
+  local:
+    generators:
+      - name: fernapi/fern-typescript-node-sdk
+        config:
+          outputSourceFiles: true
+          defaultTimeoutInSeconds: 30
+        output:
+          location: local-file-system
+          path: ../sdk/generated
+        version: 0.51.5
+      - name: fernapi/fern-typescript-express
+        config:
+          outputSourceFiles: true
+        output:
+          location: local-file-system
+          path: ../server/generated
+        version: 0.17.6
+      - name: fernapi/fern-openapi
+        output:
+          location: local-file-system
+          path: ../server/openapi
+        config:
+          format: json
+        version: 0.1.7

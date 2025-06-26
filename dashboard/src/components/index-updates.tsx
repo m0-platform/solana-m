@@ -1,17 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
-import { indexUpdates } from '../services/subgraph';
-import bs58 from 'bs58';
 import { NETWORK } from '../services/rpc';
 import { LoadingSkeleton } from './loading';
 import { ResponsiveContainer, CartesianGrid, YAxis, XAxis, Tooltip, BarChart, Bar } from 'recharts';
+import { ApiClient } from '../services/sdk';
 
 export const IndexUpdates = () => {
-  const { data } = useQuery({ queryKey: ['indexUpdates'], queryFn: () => indexUpdates(10) });
+  const { data } = useQuery({
+    queryKey: ['index-events'],
+    queryFn: () => ApiClient.events.indexUpdates({ limit: 50 }),
+  });
 
   return (
     <div>
       <div className="text-2xl">Recent Index Updates</div>
-      <UpdatesGraph data={data ?? []} isLoading={!data} />
+      <UpdatesGraph data={data?.updates ?? []} isLoading={!data} />
       <table className="w-full text-sm text-left rtl:text-right text-xs">
         <thead className="border-b border-gray-200">
           <tr>
@@ -21,18 +23,18 @@ export const IndexUpdates = () => {
           </tr>
         </thead>
         <tbody>
-          {data?.slice(0, 5).map((update) => (
-            <tr key={update.ts} className="border-b border-gray-200">
-              <td className="px-2 py-4">{new Date(update.ts * 1000).toLocaleString()}</td>
+          {data?.updates.slice(0, 5).map((update) => (
+            <tr key={update.ts.toISOString()} className="border-b border-gray-200">
+              <td className="px-2 py-4">{update.ts.toLocaleString()}</td>
               <td className="px-2 py-4">{update.index}</td>
               <td className="px-2 py-4">
                 <a
-                  href={`https://solscan.io/tx/${bs58.encode(update.signature)}?cluster=${NETWORK}`}
+                  href={`https://solscan.io/tx/${update.signature}?cluster=${NETWORK}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:underline"
                 >
-                  {formatString(bs58.encode(update.signature))}
+                  {formatString(update.signature)}
                 </a>
               </td>
             </tr>
@@ -53,8 +55,7 @@ const UpdatesGraph = ({
 }: {
   data: {
     index: number;
-    ts: number;
-    signature: Buffer<ArrayBuffer>;
+    ts: Date;
   }[];
   isLoading?: boolean;
 }) => {
@@ -62,7 +63,7 @@ const UpdatesGraph = ({
     return <LoadingSkeleton h={60} />;
   }
 
-  const events = data.map(({ ts, index }) => ({ ts, index: index / 1e12 })).reverse() ?? [];
+  const events = data.map(({ ts, index }) => ({ ts: ts.getTime() / 1000, index: index / 1e12 })).reverse() ?? [];
 
   return (
     <div className="w-full h-70">

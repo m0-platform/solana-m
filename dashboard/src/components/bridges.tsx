@@ -14,7 +14,7 @@ export const chainIcons: { [key: string]: string } = {
 };
 
 export const Bridges = () => {
-  const { data } = useQuery({ queryKey: ['bridge-events'], queryFn: () => ApiClient.events.bridges({ limit: 10 }) });
+  const { data } = useQuery({ queryKey: ['bridge-events'], queryFn: () => ApiClient.events.bridges({ limit: 100 }) });
 
   return (
     <div>
@@ -30,7 +30,7 @@ export const Bridges = () => {
           </tr>
         </thead>
         <tbody>
-          {data?.bridges?.map((event) => (
+          {data?.bridges?.slice(0, 10).map((event) => (
             <tr key={event.signature} className="border-b border-gray-200">
               <td className="px-2 py-4">{event.ts.toLocaleString()}</td>
               <td className="px-2 py-4">

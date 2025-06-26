@@ -1,6 +1,6 @@
 import { getMintsRPC } from '../services/rpc';
 import { claimStats } from '../services/subgraph';
-import { EARN_PROGRAM_ID, MINTS } from '../services/consts';
+import { EARN_PROGRAM_ID } from '../services/consts';
 import { formatAmount } from '../services/utils';
 import { LoadingSkeleton } from './loading';
 import { useQuery } from '@tanstack/react-query';

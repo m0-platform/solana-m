@@ -18,25 +18,10 @@ catalogs:
     '@sqds/multisig':
       specifier: ~2.1.3
       version: 2.1.3
-    '@types/bn.js':
-      specifier: ^5.1.2
-      version: 5.1.6
-    '@types/bs58':
-      specifier: ^4.0.1
-      version: 4.0.4
     '@wormhole-foundation/sdk':
       specifier: 1.16.1
       version: 1.16.1
-    '@wormhole-foundation/sdk-definitions':
-      specifier: 1.16.1
-      version: 1.16.1
-    '@wormhole-foundation/sdk-evm-ntt':
-      specifier: 0.7.0
-      version: 0.7.0
     '@wormhole-foundation/sdk-solana':
-      specifier: 1.16.1
-      version: 1.16.1
-    '@wormhole-foundation/sdk-solana-core':
       specifier: 1.16.1
       version: 1.16.1
     '@wormhole-foundation/sdk-solana-ntt':
@@ -45,33 +30,9 @@ catalogs:
     bn.js:
       specifier: ~5.2.1
       version: 5.2.2
-    bs58:
-      specifier: ^4.0.1
-      version: 4.0.1
     commander:
       specifier: 13.1.0
       version: 13.1.0
-    limiter:
-      specifier: ~3.0.0
-      version: 3.0.0
-    sha3:
-      specifier: ^2.1.4
-      version: 2.1.4
-    typescript:
-      specifier: '5'
-      version: 5.8.3
-    viem:
-      specifier: ~2.23.14
-      version: 2.23.15
-    web3:
-      specifier: ~4.16.0
-      version: 4.16.0
-    winston:
-      specifier: ~3.17.0
-      version: 3.17.0
-    winston-loki:
-      specifier: ~6.1.3
-      version: 6.1.3
 
 importers:
 
@@ -240,9 +201,6 @@ importers:
       js-sha256:
         specifier: ^0.11.0
         version: 0.11.0
-      limiter:
-        specifier: 'catalog:'
-        version: 3.0.0
       sha3:
         specifier: 'catalog:'
         version: 2.1.4
@@ -489,6 +447,9 @@ importers:
       limiter:
         specifier: 'catalog:'
         version: 3.0.0
+      mongodb:
+        specifier: ^6.17.0
+        version: 6.17.0(snappy@7.2.2)(socks@2.8.5)
       shared:
         specifier: 'workspace:'
         version: link:../shared
@@ -8076,7 +8037,7 @@ snapshots:
       '@aptos-labs/aptos-cli': 1.0.2
       '@aptos-labs/aptos-client': 1.2.0(axios@1.9.0)(got@11.8.6)
       '@aptos-labs/script-composer-pack': 0.0.9
-      '@noble/curves': 1.9.1
+      '@noble/curves': 1.9.2
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
@@ -8845,13 +8806,13 @@ snapshots:
   '@hpke/dhkem-x25519@1.6.2':
     dependencies:
       '@hpke/common': 1.7.3
-      '@noble/curves': 1.9.1
+      '@noble/curves': 1.9.2
       '@noble/hashes': 1.8.0
 
   '@hpke/dhkem-x448@1.6.2':
     dependencies:
       '@hpke/common': 1.7.3
-      '@noble/curves': 1.9.1
+      '@noble/curves': 1.9.2
       '@noble/hashes': 1.8.0
 
   '@humanfs/core@0.19.1': {}
@@ -9025,7 +8986,7 @@ snapshots:
       '@injectivelabs/ts-types': 1.15.30
       '@injectivelabs/utils': 1.15.30
       '@metamask/eth-sig-util': 8.2.0
-      '@noble/curves': 1.9.1
+      '@noble/curves': 1.9.2
       '@noble/hashes': 1.8.0
       '@scure/base': 1.2.6
       axios: 1.9.0
@@ -9526,7 +9487,7 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@scure/base': 1.2.6
       '@types/debug': 4.1.12
-      debug: 4.4.1(supports-color@5.5.0)
+      debug: 4.4.1
       pony-cause: 2.1.11
       semver: 7.7.2
       uuid: 9.0.1
@@ -9576,7 +9537,7 @@ snapshots:
       '@metaplex-foundation/beet': 0.7.1
       '@solana/web3.js': 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       bs58: 5.0.0
-      debug: 4.4.1(supports-color@5.5.0)
+      debug: 4.4.1
     transitivePeerDependencies:
       - bufferutil
       - encoding
@@ -9588,7 +9549,7 @@ snapshots:
     dependencies:
       ansicolors: 0.3.2
       bn.js: 5.2.2
-      debug: 4.4.1(supports-color@5.5.0)
+      debug: 4.4.1
     transitivePeerDependencies:
       - supports-color
 
@@ -9621,7 +9582,7 @@ snapshots:
       '@graphql-typed-document-node/core': 3.2.0(graphql@16.11.0)
       '@mysten/bcs': 1.6.3
       '@mysten/utils': 0.1.0
-      '@noble/curves': 1.9.1
+      '@noble/curves': 1.9.2
       '@noble/hashes': 1.8.0
       '@scure/base': 1.2.6
       '@scure/bip32': 1.7.0
@@ -12319,7 +12280,7 @@ snapshots:
 
   '@turnkey/api-key-stamper@0.4.4':
     dependencies:
-      '@noble/curves': 1.9.1
+      '@noble/curves': 1.9.2
       '@turnkey/encoding': 0.4.0
       sha256-uint8array: 0.10.7
 
@@ -12414,7 +12375,7 @@ snapshots:
       '@turnkey/crypto': 2.3.1
       '@turnkey/encoding': 0.4.0
     optionalDependencies:
-      viem: 2.23.15(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.67)
+      viem: 2.31.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.67)
     transitivePeerDependencies:
       - bufferutil
       - typescript
@@ -14121,7 +14082,7 @@ snapshots:
 
   '@wormhole-foundation/sdk-definitions@1.16.1':
     dependencies:
-      '@noble/curves': 1.9.1
+      '@noble/curves': 1.9.2
       '@noble/hashes': 1.8.0
       '@wormhole-foundation/sdk-base': 1.16.1
 
@@ -15238,6 +15199,10 @@ snapshots:
     dependencies:
       ms: 2.1.3
 
+  debug@4.4.1:
+    dependencies:
+      ms: 2.1.3
+
   debug@4.4.1(supports-color@5.5.0):
     dependencies:
       ms: 2.1.3
@@ -15357,7 +15322,7 @@ snapshots:
     dependencies:
       '@ecies/ciphers': 0.2.3(@noble/ciphers@1.3.0)
       '@noble/ciphers': 1.3.0
-      '@noble/curves': 1.9.1
+      '@noble/curves': 1.9.2
       '@noble/hashes': 1.8.0
 
   ee-first@1.1.1: {}
@@ -17197,11 +17162,11 @@ snapshots:
 
   ox@0.6.7(typescript@5.8.3)(zod@3.25.67):
     dependencies:
-      '@adraffy/ens-normalize': 1.10.1
-      '@noble/curves': 1.9.1
+      '@adraffy/ens-normalize': 1.11.0
+      '@noble/curves': 1.9.2
       '@noble/hashes': 1.8.0
-      '@scure/bip32': 1.6.2
-      '@scure/bip39': 1.5.4
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
       abitype: 1.0.8(typescript@5.8.3)(zod@3.25.67)
       eventemitter3: 5.0.1
     optionalDependencies:
@@ -17211,11 +17176,11 @@ snapshots:
 
   ox@0.6.9(typescript@5.8.3)(zod@3.25.67):
     dependencies:
-      '@adraffy/ens-normalize': 1.10.1
-      '@noble/curves': 1.9.1
+      '@adraffy/ens-normalize': 1.11.0
+      '@noble/curves': 1.9.2
       '@noble/hashes': 1.8.0
-      '@scure/bip32': 1.6.2
-      '@scure/bip39': 1.5.4
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
       abitype: 1.0.8(typescript@5.8.3)(zod@3.25.67)
       eventemitter3: 5.0.1
     optionalDependencies:
@@ -17225,7 +17190,7 @@ snapshots:
 
   ox@0.7.1(typescript@5.8.3)(zod@3.25.67):
     dependencies:
-      '@adraffy/ens-normalize': 1.10.1
+      '@adraffy/ens-normalize': 1.11.0
       '@noble/ciphers': 1.3.0
       '@noble/curves': 1.9.2
       '@noble/hashes': 1.8.0
@@ -17784,7 +17749,7 @@ snapshots:
 
   ripple-keypairs@2.0.0(bufferutil@4.0.9)(utf-8-validate@5.0.10):
     dependencies:
-      '@noble/curves': 1.9.1
+      '@noble/curves': 1.9.2
       '@xrplf/isomorphic': 1.0.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       ripple-address-codec: 5.0.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
@@ -18825,7 +18790,7 @@ snapshots:
 
   web3-eth-ens@4.4.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.67):
     dependencies:
-      '@adraffy/ens-normalize': 1.10.1
+      '@adraffy/ens-normalize': 1.11.0
       web3-core: 4.7.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       web3-errors: 1.3.1
       web3-eth: 4.11.1(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.67)

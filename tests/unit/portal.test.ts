@@ -45,13 +45,14 @@ import { sha256 } from '@coral-xyz/anchor/dist/cjs/utils';
 const EARN_IDL = require('../../target/idl/earn.json');
 
 const TOKEN_PROGRAM = spl.TOKEN_2022_PROGRAM_ID;
+export const WORMHOLE_SOLANA = new PublicKey('worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth');
 
 const config = {
   GUARDIAN_KEY: 'cfb12303a19cde580bb4dd771639b0d26bc68353645571a8cff516ab2ee113a0',
-  CORE_BRIDGE_ADDRESS: 'worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth',
+  CORE_BRIDGE_ADDRESS: WORMHOLE_SOLANA,
   PORTAL_PROGRAM_ID: new PublicKey('mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY'),
   EARN_PROGRAM: new PublicKey('MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c'),
-  WORMHOLE_PID: new PublicKey('worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth'),
+  WORMHOLE_PID: WORMHOLE_SOLANA,
   WORMHOLE_BRIDGE_CONFIG: new PublicKey('2yVjuQwpsvdsrywzsJJVs9Ueh4zayyo5DYJbBNc3DDpn'),
   WORMHOLE_BRIDGE_FEE_COLLECTOR: new PublicKey('9bFNrXNb2WTx8fMHXCheaZqkLZ3YCCaiqTftHxeintHy'),
   EVM_M: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b',
@@ -63,7 +64,7 @@ const config = {
 };
 
 describe('Portal unit tests', () => {
-  let ntt: SolanaNtt<'Devnet', 'Solana'>;
+  let ntt: SolanaNtt<'Mainnet', 'Solana'>;
   let signer: Signer;
   let sender: AccountAddress<'Solana'>;
   let multisig = Keypair.generate();
@@ -164,7 +165,7 @@ describe('Portal unit tests', () => {
 
     // contract client
     ntt = new SolanaNtt(
-      'Devnet',
+      'Mainnet',
       'Solana',
       connection,
       {
@@ -176,6 +177,7 @@ describe('Portal unit tests', () => {
             wormhole: config.PORTAL_PROGRAM_ID.toBase58(),
           },
         },
+        coreBridge: config.CORE_BRIDGE_ADDRESS.toBase58(),
       },
       '3.0.0',
     );
@@ -220,7 +222,7 @@ describe('Portal unit tests', () => {
       });
       // TODO: creating the LUT throws an error due to recent slot checks
       async function* onlyInit() {
-        yield (await initTxs.next()).value as SolanaUnsignedTransaction<'Devnet', 'Solana'>;
+        yield (await initTxs.next()).value as SolanaUnsignedTransaction<'Mainnet', 'Solana'>;
       }
       await ssw(ctx, onlyInit(), signer);
 
@@ -313,6 +315,9 @@ describe('Portal unit tests', () => {
       // update generator to return transfer_extension instruction
       async function* tranferExtension() {
         const tx = new Transaction().add(buildTransferExtensionIx(100_000, signer.address()));
+        tx.feePayer = payer.publicKey;
+        tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
         yield ntt.createUnsignedTx({ transaction: tx }, 'Ntt.Redeem');
       }
 
@@ -445,9 +450,11 @@ describe('Portal unit tests', () => {
 
       const txIds = await ssw(ctx, getRedeemTxns(), signer);
       const logs = await fetchTransactionLogs(provider, txIds[txIds.length - 1].txid);
+
+      console.debug(logs.filter((l) => l.startsWith('Program data: ')));
       expect(logs).toContain(
         // bridge event log
-        'Program data: bEUUGiR+tFmghgEAAAAAAOAPlwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+s4GuMrJWH+VN3VKYLnupK10TITmkAVIVRaGiXwYoEbZEgIA',
+        'Program data: bEUUGiR+tFmghgEAAAAAAICWmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+s4GuMrJWH+VN3VKYLnupK10TITmkAVIVRaGiXwYoEbZEgIA',
       );
       expect(logs).toContain('Program log: Index update: 1000000000001 | root update: false');
 

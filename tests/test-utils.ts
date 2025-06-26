@@ -22,6 +22,7 @@ import { NTT } from '@wormhole-foundation/sdk-solana-ntt';
 import { SolanaWormholeCore } from '@wormhole-foundation/sdk-solana-core';
 import { SolanaPlatform } from '@wormhole-foundation/sdk-solana';
 import { Wormhole, encoding } from '@wormhole-foundation/sdk';
+import { WORMHOLE_SOLANA } from './unit/portal.test';
 
 export function loadKeypair(filePath: string): Keypair {
   const fullPath = path.resolve(filePath);
@@ -129,8 +130,8 @@ export function createSetEvmAddresses(pid: PublicKey, admin: PublicKey, M: strin
 }
 
 export function getWormholeContext(connection: Connection) {
-  const w = new Wormhole('Devnet', [SolanaPlatform], {
-    chains: { Solana: { contracts: { coreBridge: 'worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth' } } },
+  const w = new Wormhole('Mainnet', [SolanaPlatform], {
+    chains: { Solana: { contracts: { coreBridge: WORMHOLE_SOLANA.toBase58() } } },
   });
   const remoteXcvr: ChainAddress = {
     chain: 'Ethereum',
@@ -142,8 +143,8 @@ export function getWormholeContext(connection: Connection) {
   };
   const ctx = w.getPlatform('Solana').getChain('Solana', connection);
 
-  const coreBridge = new SolanaWormholeCore('Devnet', 'Solana', connection, {
-    coreBridge: 'worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth',
+  const coreBridge = new SolanaWormholeCore('Mainnet', 'Solana', connection, {
+    coreBridge: WORMHOLE_SOLANA.toBase58(),
   });
   return { ctx, coreBridge, remoteXcvr, remoteMgr };
 }

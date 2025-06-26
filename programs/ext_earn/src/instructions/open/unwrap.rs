@@ -32,7 +32,7 @@ pub struct Unwrap<'info> {
     pub global_account: Account<'info, ExtGlobal>,
 
     /// CHECK: Only added to conform to unwrap interface
-    pub _m_earner_account: Option<AccountInfo<'info>>,
+    pub _m_earn_global_account: Option<AccountInfo<'info>>,
 
     /// CHECK: This account is validated by the seed, it stores no data
     #[account(

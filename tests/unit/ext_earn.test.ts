@@ -22,7 +22,6 @@ import {
   ExtensionType,
 } from '@solana/spl-token';
 import { randomInt } from 'crypto';
-
 import { loadKeypair } from '../test-utils';
 import { Earn } from '../../target/types/earn';
 import { ExtEarn } from '../../target/types/ext_earn';

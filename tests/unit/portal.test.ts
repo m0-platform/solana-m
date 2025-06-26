@@ -41,8 +41,11 @@ import NodeWallet from '@coral-xyz/anchor/dist/cjs/nodewallet';
 import { utils } from 'web3';
 import { BN, Program } from '@coral-xyz/anchor';
 import { Earn } from '../../target/types/earn';
-import { sha256 } from '@coral-xyz/anchor/dist/cjs/utils';
+import { sha256 } from '@noble/hashes/sha256';
+import { SYSTEM_PROGRAM_ID } from '@coral-xyz/anchor/dist/cjs/native/system';
+import { ExtSwap } from '../programs/ext_swap';
 const EARN_IDL = require('../../target/idl/earn.json');
+const SWAP_IDL = require('../programs/ext_swap.json');
 
 const TOKEN_PROGRAM = spl.TOKEN_2022_PROGRAM_ID;
 export const WORMHOLE_SOLANA = new PublicKey('worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth');
@@ -52,6 +55,7 @@ const config = {
   CORE_BRIDGE_ADDRESS: WORMHOLE_SOLANA,
   PORTAL_PROGRAM_ID: new PublicKey('mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY'),
   EARN_PROGRAM: new PublicKey('MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c'),
+  EXT_EARN_PROGRAM: new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'),
   WORMHOLE_PID: WORMHOLE_SOLANA,
   WORMHOLE_BRIDGE_CONFIG: new PublicKey('2yVjuQwpsvdsrywzsJJVs9Ueh4zayyo5DYJbBNc3DDpn'),
   WORMHOLE_BRIDGE_FEE_COLLECTOR: new PublicKey('9bFNrXNb2WTx8fMHXCheaZqkLZ3YCCaiqTftHxeintHy'),
@@ -61,6 +65,7 @@ const config = {
     [Buffer.from('global')],
     new PublicKey('MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c'),
   )[0],
+  SWAP_PROGRAM: new PublicKey('MSwapi3WhNKMUGm9YrxGhypgUEt7wYQH3ZgG32XoWzH'),
 };
 
 describe('Portal unit tests', () => {
@@ -72,6 +77,7 @@ describe('Portal unit tests', () => {
   let tokenAccount: PublicKey;
   const mint = loadKeypair('keys/mint.json');
   const tokenAddress = mint.publicKey.toBase58();
+  const extMint = Keypair.generate();
 
   const payer = loadKeypair('keys/user.json');
   const admin = loadKeypair('keys/admin.json');
@@ -81,6 +87,9 @@ describe('Portal unit tests', () => {
 
   // Wormhole program
   svm.addProgramFromFile(config.WORMHOLE_PID, 'programs/core_bridge.so');
+
+  // Swap program for wrapping
+  svm.addProgramFromFile(config.SWAP_PROGRAM, 'programs/ext_swap.so');
 
   // Add necessary wormhole accounts
   svm.setAccount(config.WORMHOLE_BRIDGE_CONFIG, {
@@ -131,21 +140,23 @@ describe('Portal unit tests', () => {
     signer = new SolanaSendSigner(connection, 'Solana', payer, false, {});
     sender = Wormhole.parseAddress('Solana', signer.address());
 
-    const mintLen = spl.getMintLen([]);
-    const lamports = await connection.getMinimumBalanceForRentExemption(mintLen);
+    for (const m of [mint, extMint]) {
+      const mintLen = spl.getMintLen([]);
+      const lamports = await connection.getMinimumBalanceForRentExemption(mintLen);
 
-    const tx = new Transaction().add(
-      SystemProgram.createAccount({
-        fromPubkey: payer.publicKey,
-        newAccountPubkey: mint.publicKey,
-        space: mintLen,
-        lamports,
-        programId: TOKEN_PROGRAM,
-      }),
-      spl.createInitializeMintInstruction(mint.publicKey, 9, owner.publicKey, null, TOKEN_PROGRAM),
-    );
+      const tx = new Transaction().add(
+        SystemProgram.createAccount({
+          fromPubkey: payer.publicKey,
+          newAccountPubkey: m.publicKey,
+          space: mintLen,
+          lamports,
+          programId: TOKEN_PROGRAM,
+        }),
+        spl.createInitializeMintInstruction(m.publicKey, 9, owner.publicKey, null, TOKEN_PROGRAM),
+      );
 
-    await provider.sendAndConfirm!(tx, [payer, mint]);
+      await provider.sendAndConfirm!(tx, [payer, m]);
+    }
 
     tokenAccount = spl.getAssociatedTokenAddressSync(mint.publicKey, payer.publicKey, false, TOKEN_PROGRAM);
 
@@ -181,6 +192,21 @@ describe('Portal unit tests', () => {
       },
       '3.0.0',
     );
+
+    // Initialize swap program
+    const swapProgram = new Program<ExtSwap>(SWAP_IDL, provider);
+
+    await swapProgram.methods
+      .initializeGlobal(mint.publicKey)
+      .accounts({ admin: admin.publicKey })
+      .signers([admin])
+      .rpc();
+
+    await swapProgram.methods
+      .whitelistExtension(config.EXT_EARN_PROGRAM)
+      .accounts({ admin: admin.publicKey })
+      .signers([admin])
+      .rpc();
   });
 
   describe('Initialize', () => {
@@ -314,11 +340,20 @@ describe('Portal unit tests', () => {
 
       // update generator to return transfer_extension instruction
       async function* tranferExtension() {
-        const tx = new Transaction().add(buildTransferExtensionIx(100_000, signer.address()));
+        const tx = new Transaction().add(
+          buildTransferExtensionIx(
+            ntt,
+            100_000,
+            signer.address(),
+            outboxItem.publicKey,
+            mint.publicKey,
+            extMint.publicKey,
+          ),
+        );
         tx.feePayer = payer.publicKey;
         tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
 
-        yield ntt.createUnsignedTx({ transaction: tx }, 'Ntt.Redeem');
+        yield ntt.createUnsignedTx({ transaction: tx }, 'Ntt.Transfer');
       }
 
       await ssw(ctx, tranferExtension(), signer);
@@ -552,7 +587,16 @@ describe('Portal unit tests', () => {
   });
 });
 
-function buildTransferExtensionIx(amount: number, signer: string): TransactionInstruction {
+function buildTransferExtensionIx(
+  ntt: SolanaNtt<'Mainnet', 'Solana'>,
+  amount: number,
+  signer: string,
+  outboxItem: PublicKey,
+  mMint: PublicKey,
+  extMint: PublicKey,
+): TransactionInstruction {
+  const mAta = getAssociatedTokenAddressSync(mMint, new PublicKey(signer), true, TOKEN_PROGRAM);
+
   return new TransactionInstruction({
     programId: config.PORTAL_PROGRAM_ID,
     keys: [
@@ -561,9 +605,141 @@ function buildTransferExtensionIx(amount: number, signer: string): TransactionIn
         isSigner: true,
         isWritable: true,
       },
+      {
+        // config
+        pubkey: ntt.pdas.configAccount(),
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // m mint
+        pubkey: mMint,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // ext mint
+        pubkey: extMint,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // swap global
+        pubkey: PublicKey.findProgramAddressSync([Buffer.from('global')], config.SWAP_PROGRAM)[0],
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // m global
+        pubkey: config.EARN_GLOBAL_ACCOUNT,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // ext global
+        pubkey: PublicKey.findProgramAddressSync([Buffer.from('global')], config.EXT_EARN_PROGRAM)[0],
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // m token account
+        pubkey: mAta,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // ext token account
+        pubkey: new PublicKey(signer), // TODO
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // ext m vault
+        pubkey: new PublicKey(signer), // TODO
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // ext m vault auth
+        pubkey: new PublicKey(signer), // TODO
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // ext mint auth
+        pubkey: new PublicKey(signer), // TODO
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // token auth
+        pubkey: PublicKey.findProgramAddressSync([Buffer.from('token_authority')], config.PORTAL_PROGRAM_ID)[0],
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // outbox item
+        pubkey: outboxItem,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // outbox rate limit
+        pubkey: ntt.pdas.outboxRateLimitAccount(),
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // inbox rate limit
+        pubkey: ntt.pdas.inboxRateLimitAccount('Ethereum'),
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // peer
+        pubkey: ntt.pdas.peerAccount('Ethereum'),
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // ext program
+        pubkey: config.EXT_EARN_PROGRAM,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // swap program
+        pubkey: config.SWAP_PROGRAM,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // ext token program
+        pubkey: TOKEN_PROGRAM,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // m token program
+        pubkey: TOKEN_PROGRAM,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // ata program
+        pubkey: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // system program
+        pubkey: SYSTEM_PROGRAM_ID,
+        isSigner: false,
+        isWritable: false,
+      },
     ],
     data: Buffer.concat([
-      Buffer.from(sha256.hash('global:transfer_extension_burn')).subarray(0, 8),
+      Buffer.from(sha256('global:transfer_extension_burn').subarray(0, 8)),
       new BN(amount).toArrayLike(Buffer, 'le', 8), // amount
       new BN(2).toArrayLike(Buffer, 'le', 2), // chain: ethereum
       Buffer.alloc(32), // recipient_address

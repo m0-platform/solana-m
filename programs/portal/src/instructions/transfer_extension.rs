@@ -3,7 +3,7 @@ use anchor_spl::{
     associated_token::AssociatedToken,
     token_interface::{burn, Burn, Mint, TokenAccount, TokenInterface},
 };
-use earn::state::{Earner, EARNER_SEED};
+use earn::state::Global;
 use ext_swap::{
     program::ExtSwap,
     state::{SwapGlobal, GLOBAL_SEED},
@@ -47,6 +47,13 @@ pub struct TransferExtensionBurn<'info> {
     pub swap_global: Box<Account<'info, SwapGlobal>>,
 
     #[account(
+        seeds = [GLOBAL_SEED],
+        seeds::program = earn::ID,
+        bump = m_global.bump,
+    )]
+    pub m_global: Box<Account<'info, Global>>,
+
+    #[account(
         mut,
         seeds = [GLOBAL_SEED],
         seeds::program = ext_program.key(),
@@ -54,13 +61,6 @@ pub struct TransferExtensionBurn<'info> {
     )]
     /// CHECK: CPI will validate the account
     pub ext_global: AccountInfo<'info>,
-
-    #[account(
-        seeds = [EARNER_SEED, ext_m_vault.key().as_ref()],
-        seeds::program = earn::ID,
-        bump = ext_m_earner.bump,
-    )]
-    pub ext_m_earner: Box<Account<'info, Earner>>,
 
     /// Account the receives M on unwrap before it gets burned
     #[account(
@@ -168,7 +168,7 @@ pub fn transfer_extension_burn<'info>(
                 unwrap_authority: Some(accs.token_authority.to_account_info()),
                 swap_global: accs.swap_global.to_account_info(),
                 from_global: accs.ext_global.to_account_info(),
-                m_earner_account: accs.ext_m_earner.to_account_info(),
+                m_global: accs.m_global.to_account_info(),
                 from_mint: accs.ext_mint.to_account_info(),
                 m_mint: accs.m_mint.to_account_info(),
                 m_token_account: accs.m_token_account.to_account_info(),

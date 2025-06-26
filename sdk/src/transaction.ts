@@ -22,7 +22,12 @@ export class TransactionBuilder {
     this.luts = [];
   }
 
-  async buildTransaction(instructions: TransactionInstruction[], payer: PublicKey, priorityFee: number) {
+  async buildTransaction(
+    instructions: TransactionInstruction[],
+    payer: PublicKey,
+    priorityFee: number,
+    simulate = true,
+  ) {
     // fetch address tables
     const tables = await this._getAddressLookupTables();
 
@@ -37,17 +42,19 @@ export class TransactionBuilder {
 
     // simulate to get correct compute budget
     let unitsConsumed = DEFAULT_COMPUTE_BUDGET;
-    try {
-      const simulation = await this.connection.simulateTransaction(transaction, {
-        commitment: this.connection.commitment,
-        replaceRecentBlockhash: true,
-        sigVerify: false,
-      });
-      if (simulation.value.unitsConsumed) {
-        unitsConsumed = Math.floor(simulation.value.unitsConsumed * 1.1);
+    if (simulate) {
+      try {
+        const simulation = await this.connection.simulateTransaction(transaction, {
+          commitment: this.connection.commitment,
+          replaceRecentBlockhash: true,
+          sigVerify: false,
+        });
+        if (simulation.value.unitsConsumed) {
+          unitsConsumed = Math.floor(simulation.value.unitsConsumed * 1.1);
+        }
+      } catch (e) {
+        this.logger.error('simulation error for compute', e);
       }
-    } catch (e) {
-      this.logger.error('simulation error for compute', e);
     }
 
     // add compute budget ixs

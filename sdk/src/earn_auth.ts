@@ -1,4 +1,4 @@
-import { Connection, TransactionInstruction, PublicKey, VersionedTransaction } from '@solana/web3.js';
+import { Connection, TransactionInstruction, PublicKey } from '@solana/web3.js';
 import { PublicClient } from 'viem';
 import { getApiClient, EXT_GLOBAL_ACCOUNT, EXT_PROGRAM_ID, GLOBAL_ACCOUNT, PROGRAM_ID, TransactionBuilder } from '.';
 import { Earner } from './earner';
@@ -6,20 +6,21 @@ import { EarnManager } from './earn_manager';
 import { GlobalAccountData, loadGlobal } from './accounts';
 import * as spl from '@solana/spl-token';
 import { BN, Program } from '@coral-xyz/anchor';
-import { getExtProgram, getProgram } from './idl';
+import { getProgramFromID, MProgram } from './idl';
 import { Earn } from './idl/earn';
 import { ExtEarn } from './idl/ext_earn';
 import { MockLogger, Logger } from './logger';
-import { RateLimiter } from 'limiter';
 import { getBalanceAt } from './tokenBalance';
+import { MExt } from './idl/m_ext';
 
 export class EarnAuthority {
   private logger: Logger;
   private connection: Connection;
   private builder: TransactionBuilder;
   private evmClient: PublicClient;
-  private program: Program<Earn> | Program<ExtEarn>;
+  private program: MProgram;
   private global: GlobalAccountData;
+  private earnGlobal: GlobalAccountData;
   private managerCache: Map<PublicKey, EarnManager> = new Map();
   private mintAuth: PublicKey;
 
@@ -29,6 +30,7 @@ export class EarnAuthority {
     connection: Connection,
     evmClient: PublicClient,
     global: GlobalAccountData,
+    earnGlobal: GlobalAccountData,
     mintAuth: PublicKey,
     program = PROGRAM_ID,
     logger: Logger = new MockLogger(),
@@ -38,8 +40,9 @@ export class EarnAuthority {
     this.builder = new TransactionBuilder(connection);
     this.evmClient = evmClient;
     this.programID = program;
-    this.program = program.equals(PROGRAM_ID) ? getProgram(connection) : getExtProgram(connection);
+    this.program = getProgramFromID(connection, program);
     this.global = global;
+    this.earnGlobal = earnGlobal;
     this.mintAuth = mintAuth;
   }
 
@@ -50,18 +53,25 @@ export class EarnAuthority {
     logger: Logger = new MockLogger(),
   ): Promise<EarnAuthority> {
     let global = await loadGlobal(connection, program);
+    let earnGlobal = global;
+
+    // load earn global if not the earn program
+    if (!program.equals(PROGRAM_ID)) {
+      earnGlobal = await loadGlobal(connection, PROGRAM_ID);
+    }
 
     // get mint multisig
     const mint = await spl.getMint(connection, global.mint, connection.commitment, spl.TOKEN_2022_PROGRAM_ID);
 
-    return new EarnAuthority(connection, evmClient, global, mint.mintAuthority!, program, logger);
+    return new EarnAuthority(connection, evmClient, global, earnGlobal!, mint.mintAuthority!, program, logger);
   }
 
   async refresh(): Promise<void> {
-    this.global = await loadGlobal(this.connection, this.programID);
+    const updated = await EarnAuthority.load(this.connection, this.evmClient, this.programID, this.logger);
+    Object.assign(this, updated);
   }
 
-  public get latestIndex(): BN {
+  public get latestIndex(): BN | undefined {
     return this.global.index;
   }
 
@@ -70,11 +80,17 @@ export class EarnAuthority {
   }
 
   async getAllEarners(): Promise<Earner[]> {
+    // extensions do not have earners
+    if (!this.programID.equals(PROGRAM_ID) && !this.programID.equals(EXT_PROGRAM_ID)) {
+      return [];
+    }
+
     const accounts = await this.program.account.earner.all();
     return accounts.map((a) => new Earner(this.connection, this.evmClient, a.publicKey, a.account, this.global.mint));
   }
 
   async buildCompleteClaimCycleInstruction(): Promise<TransactionInstruction | null> {
+    // only valid for $M
     if (!this.programID.equals(PROGRAM_ID)) {
       return null;
     }
@@ -87,7 +103,7 @@ export class EarnAuthority {
     return await (this.program as Program<Earn>).methods
       .completeClaims()
       .accounts({
-        earnAuthority: new PublicKey(this.global.earnAuthority),
+        earnAuthority: new PublicKey(this.global.earnAuthority!),
         globalAccount: PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAM_ID)[0],
       })
       .instruction();
@@ -99,15 +115,18 @@ export class EarnAuthority {
       return null;
     }
 
-    if (earner.data.lastClaimIndex.gte(this.global.index)) {
-      this.logger.warn('Earner already claimed');
+    if (earner.data.lastClaimIndex.gte(this.earnGlobal.index!)) {
+      this.logger.warn('Earner already claimed', {
+        earner: earner.pubkey.toBase58(),
+        tokenAccount: earner.data.userTokenAccount.toBase58(),
+      });
       return null;
     }
 
     // get the index updates from the earner's last claim to the current index
     const { updates: steps } = await getApiClient().events.indexUpdates({
       fromTime: earner.data.lastClaimTimestamp.toNumber(),
-      toTime: this.global.timestamp.toNumber() + 1, // include current index
+      toTime: this.earnGlobal.timestamp!.toNumber() + 1, // include current index
     });
 
     // iterate through the steps and calculate the pending yield for the earner
@@ -137,7 +156,15 @@ export class EarnAuthority {
     // b* = y / ((I_n / I_l) - 1) = y * I_l / (I_n - I_l)
     const claimBalance = claimYield
       .mul(earner.data.lastClaimIndex)
-      .div(this.global.index.sub(earner.data.lastClaimIndex));
+      .div(this.earnGlobal.index!.sub(earner.data.lastClaimIndex));
+
+    if (claimBalance.lte(new BN(0))) {
+      this.logger.info('No yield to claim', {
+        earner: earner.pubkey.toBase58(),
+        tokenAccount: earner.data.userTokenAccount.toBase58(),
+      });
+      return null;
+    }
 
     // PDAs
     const [earnerAccount] = PublicKey.findProgramAddressSync(
@@ -190,7 +217,7 @@ export class EarnAuthority {
       return (this.program as Program<Earn>).methods
         .claimFor(claimBalance)
         .accountsPartial({
-          earnAuthority: new PublicKey(this.global.earnAuthority),
+          earnAuthority: new PublicKey(this.global.earnAuthority!),
           globalAccount: GLOBAL_ACCOUNT,
           mint: new PublicKey(this.global.mint),
           tokenAuthorityAccount,
@@ -203,50 +230,36 @@ export class EarnAuthority {
     }
   }
 
-  async simulateAndValidateClaimIxs(
-    ixs: TransactionInstruction[],
-    batchSize = 10,
-    claimSizeThreshold = new BN(100000), // $0.10
-    rps = 1, // batches per second
-  ): Promise<[TransactionInstruction[], BN]> {
-    const limiter = new RateLimiter({ tokensPerInterval: rps, interval: 1000 });
-
+  async simulateAndValidateClaimIxs(ixs: TransactionInstruction[]): Promise<BN> {
     if (this.global.claimComplete) {
       throw new Error('No active claim cycle');
     }
 
+    const feePayer = new PublicKey(this.global.earnAuthority!);
+    const txn = await this.builder.buildTransaction([...ixs], feePayer, 250_000);
+
+    // simulate transaction
+    const result = await this.connection.simulateTransaction(txn, { sigVerify: false, replaceRecentBlockhash: true });
+    if (result.value.err) {
+      this.logger.error('claim batch simulation failed', {
+        logs: result.value.logs,
+        err: result.value.err.toString(),
+        b64: Buffer.from(txn.serialize()).toString('base64'),
+      });
+      throw new Error(`Claim batch simulation failed: ${JSON.stringify(result.value.err)}`);
+    }
+
+    // add up rewards
     let totalRewards = new BN(0);
-    const filteredTxns: TransactionInstruction[] = [];
 
-    for (const [i, txn] of (await this._buildTransactions(ixs, batchSize)).entries()) {
-      // throttle requests
-      await limiter.removeTokens(1);
+    for (const reward of this._getRewardAmounts(result.value.logs!)) {
+      this.logger.info('claim for earner', {
+        tokenAccount: reward.tokenAccount.toString(),
+        rewards: reward.user.toString(),
+        fee: reward.fee.toString(),
+      });
 
-      // simulate transaction
-      const result = await this.connection.simulateTransaction(txn, { sigVerify: false, replaceRecentBlockhash: true });
-      if (result.value.err) {
-        this.logger.error('Claim batch simulation failed', {
-          logs: result.value.logs,
-          err: result.value.err.toString(),
-          b64: Buffer.from(txn.serialize()).toString('base64'),
-        });
-        throw new Error(`Claim batch simulation failed: ${JSON.stringify(result.value.err)}`);
-      }
-
-      // add up rewards
-      const batchRewards = this._getRewardAmounts(result.value.logs!);
-      for (const [index, reward] of batchRewards.entries()) {
-        this.logger.debug('Claim for earner', {
-          tokenAccount: reward.tokenAccount.toString(),
-          rewards: reward.user.toString(),
-          fee: reward.fee.toString(),
-        });
-
-        if (reward.user.gt(claimSizeThreshold)) {
-          totalRewards = totalRewards.add(reward.user).add(reward.fee);
-          filteredTxns.push(ixs[i * batchSize + index]);
-        }
-      }
+      totalRewards = totalRewards.add(reward.user).add(reward.fee);
     }
 
     // validate rewards is not higher than max claimable rewards
@@ -259,7 +272,7 @@ export class EarnAuthority {
         });
         throw new Error('Claim amount exceeds max claimable rewards');
       }
-    } else {
+    } else if (this.programID.equals(EXT_PROGRAM_ID)) {
       // total supply
       const mint = await spl.getMint(
         this.connection,
@@ -284,7 +297,7 @@ export class EarnAuthority {
       const collateral = new BN(tokenAccountInfo.amount.toString());
 
       if (new BN(mint.supply.toString()).add(totalRewards).gt(collateral)) {
-        this.logger.error('Error simulating claims', {
+        this.logger.error('error simulating claims', {
           error: 'Claim amount exceeds max claimable rewards',
           mintSupply: mint.supply.toString(),
           totalRewards: totalRewards.toString(),
@@ -294,7 +307,7 @@ export class EarnAuthority {
       }
     }
 
-    return [filteredTxns, totalRewards];
+    return totalRewards;
   }
 
   async buildIndexSyncInstruction(): Promise<TransactionInstruction | null> {
@@ -302,12 +315,29 @@ export class EarnAuthority {
       return null;
     }
 
-    return (this.program as Program<ExtEarn>).methods
+    if (this.programID.equals(EXT_PROGRAM_ID)) {
+      return (this.program as Program<ExtEarn>).methods
+        .sync()
+        .accounts({ earnAuthority: this.global.earnAuthority! })
+        .instruction();
+    }
+
+    const [mVault] = PublicKey.findProgramAddressSync([Buffer.from('m_vault')], this.programID);
+    const vaultMTokenAccount = spl.getAssociatedTokenAddressSync(
+      this.global.underlyingMint!,
+      mVault,
+      true,
+      spl.TOKEN_2022_PROGRAM_ID,
+    );
+
+    return (this.program as Program<MExt>).methods
       .sync()
       .accounts({
-        earnAuthority: this.global.earnAuthority,
-        globalAccount: EXT_GLOBAL_ACCOUNT,
-        mEarnGlobalAccount: GLOBAL_ACCOUNT,
+        earnAuthority: this.global.admin,
+        mVault,
+        vaultMTokenAccount,
+        extMint: this.global.mint,
+        extMintAuthority: this.mintAuth,
       })
       .instruction();
   }
@@ -330,24 +360,6 @@ export class EarnAuthority {
     }
 
     return rewards;
-  }
-
-  private async _buildTransactions(
-    ixs: TransactionInstruction[],
-    batchSize = 10,
-    priorityFee = 250_000,
-  ): Promise<VersionedTransaction[]> {
-    const feePayer = new PublicKey(this.global.earnAuthority);
-
-    // split instructions into batches
-    const transactions: VersionedTransaction[] = [];
-
-    for (let i = 0; i < ixs.length; i += batchSize) {
-      const batchIxs = ixs.slice(i, i + batchSize);
-      transactions.push(await this.builder.buildTransaction(batchIxs, feePayer, priorityFee));
-    }
-
-    return transactions;
   }
 }
 

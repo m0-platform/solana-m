@@ -19,4 +19,4 @@ ARG now
 ENV NODE_ENV=production
 ENV BUILD_TIME=$now
 
-CMD ["sh", "-c", "ts-node ./services/yield-bot/main.ts distribute --programID \"$PROGRAM_ID\" --claimThreshold \"$CLAIM_THRESHOLD\""]
+CMD ["sh", "-c", "ts-node ./services/yield-bot/main.ts distribute"]

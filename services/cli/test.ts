@@ -3,7 +3,7 @@ import { signSendWait, UniversalAddress } from '@wormhole-foundation/sdk';
 import { Command } from 'commander';
 import * as multisig from '@sqds/multisig';
 import { anchorProvider, keysFromEnv, NttManager } from './utils';
-import { EXT_GLOBAL_ACCOUNT, EXT_PROGRAM_ID } from '../../sdk/src';
+import { EXT_PROGRAM_ID } from '../../sdk/src';
 import {
   createAssociatedTokenAccountInstruction,
   createTransferCheckedInstruction,
@@ -17,18 +17,17 @@ const EXT_EARN_IDL = require('../../sdk/src/idl/ext_earn.json');
 
 async function main() {
   const program = new Command();
+  const connection = new Connection(process.env.RPC_URL!);
 
   program
     .command('wrap-m')
     .description('Wrap M to wM')
     .argument('[number]', 'amount', '100000') // 0.1 M
     .action(async (amount) => {
-      const connection = new Connection(process.env.RPC_URL ?? '');
       const [sender, m, wM] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR', 'WM_MINT_KEYPAIR']);
-      const program = new Program<ExtEarn>(EXT_EARN_IDL, EXT_PROGRAM_ID, anchorProvider(connection, sender));
+      const program = new Program<ExtEarn>(EXT_EARN_IDL, anchorProvider(connection, sender));
 
       const mVault = PublicKey.findProgramAddressSync([Buffer.from('m_vault')], EXT_PROGRAM_ID)[0];
-      const extMintAuthority = PublicKey.findProgramAddressSync([Buffer.from('mint_authority')], EXT_PROGRAM_ID)[0];
 
       const atas: PublicKey[] = [];
       for (const [mint, owner] of [
@@ -56,15 +55,8 @@ async function main() {
         .wrap(amount)
         .accounts({
           signer: sender.publicKey,
-          mMint: m.publicKey,
-          extMint: wM.publicKey,
-          globalAccount: EXT_GLOBAL_ACCOUNT,
-          mVault,
-          extMintAuthority,
           fromMTokenAccount,
-          vaultMTokenAccount,
           toExtTokenAccount,
-          token2022: TOKEN_2022_PROGRAM_ID,
         })
         .signers([sender])
         .rpc({ commitment: 'processed' });
@@ -78,7 +70,6 @@ async function main() {
     .argument('[string]', 'recipient evm address', '0x12b1A4226ba7D9Ad492779c924b0fC00BDCb6217')
     .argument('[number]', 'amount', '100000')
     .action(async (receiver, amount) => {
-      const connection = new Connection(process.env.RPC_URL ?? '');
       const [owner, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
       const { ctx, ntt, sender, signer } = NttManager(connection, owner, mint.publicKey);
 
@@ -102,7 +93,6 @@ async function main() {
     .command('create-squads-multisig')
     .description('create a squads multisig')
     .action(async () => {
-      const connection = new Connection(process.env.RPC_URL ?? '');
       const [owner, squadsProposer] = keysFromEnv(['PAYER_KEYPAIR', 'SQUADS_PROPOSER']);
       const createKey = Keypair.generate();
 
@@ -141,9 +131,8 @@ async function main() {
     .command('distribute-tokens')
     .description('distribute wM to random users')
     .action(async () => {
-      const connection = new Connection(process.env.RPC_URL ?? '');
       const [owner, mint] = keysFromEnv(['PAYER_KEYPAIR', 'WM_MINT_KEYPAIR']);
-      const program = new Program<ExtEarn>(EXT_EARN_IDL, EXT_PROGRAM_ID, anchorProvider(connection, owner));
+      const program = new Program<ExtEarn>(EXT_EARN_IDL, anchorProvider(connection, owner));
 
       for (let i = 0; i < 25; i++) {
         const user = Keypair.generate();
@@ -183,24 +172,12 @@ async function main() {
           ),
         );
 
-        const [earnManagerAccount] = PublicKey.findProgramAddressSync(
-          [Buffer.from('earn_manager'), owner.publicKey.toBytes()],
-          EXT_PROGRAM_ID,
-        );
-        const [earnerAccount] = PublicKey.findProgramAddressSync(
-          [Buffer.from('earner'), associatedToken.toBytes()],
-          EXT_PROGRAM_ID,
-        );
-
         // register them as earners
         ixs.push(
           await program.methods
             .addEarner(user.publicKey)
             .accounts({
-              globalAccount: EXT_GLOBAL_ACCOUNT,
-              earnManagerAccount,
               userTokenAccount: associatedToken,
-              earnerAccount,
               signer: owner.publicKey,
             })
             .instruction(),

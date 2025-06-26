@@ -33,6 +33,7 @@ runs:
         path: |
           ~/.cache/solana/
           ~/.local/share/solana/
+          ~/.config/solana
         key: solana-cli-${{ inputs.solana-version }}
 
     - name: Install Solana CLI

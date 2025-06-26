@@ -62,7 +62,6 @@ export async function indexCLI() {
 
       slackMessage = {
         messages: [],
-        mint: 'M',
         service: 'index-bot',
         level: 'info',
         devnet: env.isDevnet,

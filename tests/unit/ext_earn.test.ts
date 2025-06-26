@@ -26,10 +26,12 @@ import { randomInt } from 'crypto';
 import { loadKeypair } from '../test-utils';
 import { Earn } from '../../target/types/earn';
 import { ExtEarn } from '../../target/types/ext_earn';
+import { ExtSwap } from '../programs/ext_swap';
 import { MerkleTree, ProofElement } from '../../sdk/src/merkle';
 
 const EARN_IDL = require('../../target/idl/earn.json');
 const EXT_EARN_IDL = require('../../target/idl/ext_earn.json');
+const SWAP_IDL = require('../programs/ext_swap.json');
 
 const EARN_PROGRAM_ID = new PublicKey('MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c');
 const EXT_EARN_PROGRAM_ID = new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko');
@@ -60,6 +62,7 @@ let provider: LiteSVMProvider;
 let accounts: Record<string, PublicKey | null> = {};
 let earn: Program<Earn>;
 let extEarn: Program<ExtEarn>;
+let swapProgram: Program<ExtSwap>;
 
 // Start parameters
 const initialSupply = new BN(100_000_000); // 100 tokens with 6 decimals
@@ -675,6 +678,11 @@ const initializeExt = async (earnAuthority: PublicKey) => {
     .signers([admin])
     .rpc();
 
+  // Whitelist wrap authorities
+  for (const auth of [admin, earnerOne, earnerTwo, nonEarnerOne]) {
+    await extEarn.methods.addWrapAuthority(auth.publicKey).accounts({ admin: admin.publicKey }).signers([admin]).rpc();
+  }
+
   return globalAccount;
 };
 
@@ -1005,10 +1013,12 @@ const prepWrap = async (
 
   // Populate accounts
   accounts = {};
-  accounts.signer = signer.publicKey;
+  accounts.tokenAuthority = signer.publicKey;
+  accounts.programAuthority = extEarn.programId;
   accounts.mMint = mMint.publicKey;
   accounts.extMint = extMint.publicKey;
   accounts.globalAccount = getExtGlobalAccount();
+  accounts.mEarnerAccount = extEarn.programId;
   accounts.mVault = mVault;
   accounts.extMintAuthority = getExtMintAuthority();
   accounts.fromMTokenAccount = fromMTokenAccount ?? (await getATA(mMint.publicKey, signer.publicKey));
@@ -1048,10 +1058,12 @@ const prepUnwrap = async (
 
   // Populate accounts
   accounts = {};
-  accounts.signer = signer.publicKey;
+  accounts.tokenAuthority = signer.publicKey;
+  accounts.programAuthority = extEarn.programId;
   accounts.mMint = mMint.publicKey;
   accounts.extMint = extMint.publicKey;
   accounts.globalAccount = getExtGlobalAccount();
+  accounts.mEarnerAccount = extEarn.programId;
   accounts.mVault = mVault;
   accounts.extMintAuthority = getExtMintAuthority();
   accounts.toMTokenAccount = toMTokenAccount ?? (await getATA(mMint.publicKey, signer.publicKey));
@@ -1116,6 +1128,9 @@ describe('ExtEarn unit tests', () => {
     // Create program instances
     earn = new Program<Earn>(EARN_IDL, provider);
     extEarn = new Program<ExtEarn>(EXT_EARN_IDL, provider);
+    swapProgram = new Program<ExtSwap>(SWAP_IDL, provider);
+
+    svm.addProgramFromFile(swapProgram.programId, 'programs/ext_swap.so');
 
     // Fund the wallets
     svm.airdrop(admin.publicKey, BigInt(10 * LAMPORTS_PER_SOL));
@@ -1560,6 +1575,109 @@ describe('ExtEarn unit tests', () => {
         expectEarnManagerState(earnManagerAccount, {
           isActive: false,
         });
+      });
+    });
+
+    describe('add_wrap_authority tests', () => {
+      const randomWrapAuthority = new Keypair().publicKey;
+
+      beforeEach(async () => {
+        await initializeExt(earnAuthority.publicKey);
+      });
+
+      test('whitelist - success', async () => {
+        await extEarn.methods
+          .addWrapAuthority(randomWrapAuthority)
+          .accounts({ admin: admin.publicKey })
+          .signers([admin])
+          .rpc();
+
+        const global = await extEarn.account.extGlobal.fetch(getExtGlobalAccount());
+        expect(global.wrapAuthorities[global.wrapAuthorities.length - 1].toBase58()).toBe(
+          randomWrapAuthority.toBase58(),
+        );
+      });
+
+      test('whitelisted item does not exist - revert', async () => {
+        await expectAnchorError(
+          extEarn.methods
+            .removeWrapAuthority(randomWrapAuthority)
+            .accounts({ admin: admin.publicKey })
+            .signers([admin])
+            .rpc(),
+          'InvalidParam',
+        );
+      });
+
+      test('remove whitelisted item - success', async () => {
+        await extEarn.methods
+          .addWrapAuthority(randomWrapAuthority)
+          .accounts({ admin: admin.publicKey })
+          .signers([admin])
+          .rpc();
+
+        await extEarn.methods
+          .removeWrapAuthority(randomWrapAuthority)
+          .accounts({ admin: admin.publicKey })
+          .signers([admin])
+          .rpc();
+
+        const global = await extEarn.account.extGlobal.fetch(getExtGlobalAccount());
+        expect(global.wrapAuthorities[global.wrapAuthorities.length - 1].toBase58()).not.toBe(
+          randomWrapAuthority.toBase58(),
+        );
+      });
+
+      test('whitelist from previous config layout - success', async () => {
+        const randomWrapAuthority = new Keypair().publicKey;
+
+        // Global account from devent without whitelisted authorities support
+        const data = Buffer.from(
+          'nT0aSBDxU4yz3HtcE1xihhozJWJpdvNsPnG5FAKFUFeJ7wZJIrxP9iO8K5T0ASjYhJ0tk6FGBzNvB/wA8HJXQK2ngVbIwAUqC4a+ZrwfmLR9IKO+YVpJBagluCaGTioPTJSEZ9M+5wkLhr5mv860wdfpJ7zE0BS+Dyhjq534X9phCFG2Tb0K5eRoMAbaMvJBTyQcLMmsnaDkH0FwZa+QwkrYCQghj/MV7VA90usAAAARsjxoAAAAAP/+/A==',
+          'base64',
+        );
+
+        // Set admin (first 32 bytes after discriminator)
+        admin.publicKey.toBuffer().copy(data, 8);
+
+        svm.setAccount(getExtGlobalAccount(), {
+          executable: false,
+          owner: extEarn.programId,
+          lamports: 2192400,
+          data,
+        });
+
+        // Account should fail to parse
+        await expectAnchorError(
+          extEarn.methods
+            .removeWrapAuthority(new Keypair().publicKey)
+            .accounts({ admin: admin.publicKey })
+            .signers([admin])
+            .rpc(),
+          'AccountDidNotDeserialize',
+        );
+
+        // Add authority and fix account layout
+        await extEarn.methods
+          .addWrapAuthority(randomWrapAuthority)
+          .accounts({ admin: admin.publicKey })
+          .signers([admin])
+          .rpc();
+
+        let global = await extEarn.account.extGlobal.fetch(getExtGlobalAccount());
+        expect(global.wrapAuthorities[global.wrapAuthorities.length - 1].toBase58()).toBe(
+          randomWrapAuthority.toBase58(),
+        );
+
+        // Can now call removeWrapAuthority
+        await extEarn.methods
+          .removeWrapAuthority(randomWrapAuthority)
+          .accounts({ admin: admin.publicKey })
+          .signers([admin])
+          .rpc();
+
+        global = await extEarn.account.extGlobal.fetch(getExtGlobalAccount());
+        expect(global.wrapAuthorities.length).toBe(0);
       });
     });
   });
@@ -3361,13 +3479,12 @@ describe('ExtEarn unit tests', () => {
 
         // Attempt to send the transaction
         // Expect revert with TokenOwner error
-        await expectAnchorError(
+        await expectSystemError(
           extEarn.methods
             .wrap(mintAmount)
             .accountsPartial({ ...accounts })
             .signers([earnerOne])
             .rpc(),
-          'ConstraintTokenOwner',
         );
       });
 
@@ -3940,6 +4057,69 @@ describe('ExtEarn unit tests', () => {
 
         // Verify the earner account was closed
         expectAccountEmpty(earnerAccount);
+      });
+    });
+
+    describe('test against swap program', () => {
+      test('wrap and unwrap', async () => {
+        // Initialize the swap program and add the extension
+        await swapProgram.methods
+          .initializeGlobal(mMint.publicKey)
+          .accounts({ admin: admin.publicKey })
+          .signers([admin])
+          .rpc();
+
+        await swapProgram.methods
+          .whitelistExtension(extEarn.programId)
+          .accounts({ admin: admin.publicKey })
+          .signers([admin])
+          .rpc();
+
+        // Add swap program as authority
+        await extEarn.methods
+          .addWrapAuthority(PublicKey.findProgramAddressSync([Buffer.from('global')], swapProgram.programId)[0])
+          .accounts({ admin: admin.publicKey })
+          .signers([admin])
+          .rpc();
+
+        await mintM(earnerOne.publicKey, new BN(1000));
+
+        // Wrap
+        await swapProgram.methods
+          .wrap(new BN(100))
+          .accountsPartial({
+            signer: earnerOne.publicKey,
+            wrapAuthority: admin.publicKey,
+            toMint: extMint.publicKey,
+            toTokenProgram: TOKEN_2022_PROGRAM_ID,
+            mTokenProgram: TOKEN_2022_PROGRAM_ID,
+            toExtProgram: extEarn.programId,
+            mMint: mMint.publicKey,
+          })
+          .signers([earnerOne, admin])
+          .rpc();
+
+        // Allow earnerOne to unwrap
+        await swapProgram.methods
+          .whitelistUnwrapper(earnerOne.publicKey)
+          .accounts({ admin: admin.publicKey })
+          .signers([admin])
+          .rpc();
+
+        // Unwrap
+        await swapProgram.methods
+          .unwrap(new BN(100))
+          .accountsPartial({
+            signer: earnerOne.publicKey,
+            unwrapAuthority: admin.publicKey,
+            fromMint: extMint.publicKey,
+            fromTokenProgram: TOKEN_2022_PROGRAM_ID,
+            mTokenProgram: TOKEN_2022_PROGRAM_ID,
+            fromExtProgram: extEarn.programId,
+            mMint: mMint.publicKey,
+          })
+          .signers([earnerOne, admin])
+          .rpc();
       });
     });
   });

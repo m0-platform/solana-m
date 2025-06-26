@@ -13,3 +13,6 @@ substreams/graph/subgraph/build
 dist
 services/**/*.js
 .npmrc
+services/api/sdk/generated
+services/api/server/generated
+services/api/server/openapi

@@ -59,6 +59,20 @@ pub mod ext_earn {
         instructions::admin::remove_earn_manager::handler(ctx)
     }
 
+    pub fn add_wrap_authority(
+        ctx: Context<AddWrapAuthority>,
+        new_wrap_authority: Pubkey,
+    ) -> Result<()> {
+        instructions::admin::add_wrap_authority::handler(ctx, new_wrap_authority)
+    }
+
+    pub fn remove_wrap_authority(
+        ctx: Context<RemoveWrapAuthority>,
+        wrap_authority: Pubkey,
+    ) -> Result<()> {
+        instructions::admin::remove_wrap_authority::handler(ctx, wrap_authority)
+    }
+
     // Earn authority instructions
 
     pub fn claim_for(ctx: Context<ClaimFor>, snapshot_balance: u64) -> Result<()> {

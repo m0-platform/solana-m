@@ -1,5 +1,7 @@
-import { PublicKey } from '@solana/web3.js';
+import { Connection, PublicKey } from '@solana/web3.js';
 import BN from 'bn.js';
+import { PROGRAM_ID } from '.';
+import { getProgram, getExtProgram } from './idl';
 
 export interface EarnManagerData {
   isActive: boolean;
@@ -30,4 +32,15 @@ export interface EarnerData {
   userTokenAccount: PublicKey;
   earnManager?: PublicKey | null;
   recipientTokenAccount?: PublicKey | null;
+}
+
+export async function loadGlobal(connection: Connection, program = PROGRAM_ID): Promise<GlobalAccountData> {
+  const [globalAccount] = PublicKey.findProgramAddressSync([Buffer.from('global')], program);
+
+  if (program.equals(PROGRAM_ID)) {
+    return await getProgram(connection).account.global.fetch(globalAccount);
+  } else {
+    const extGlobal = await getExtProgram(connection).account.extGlobal.fetch(globalAccount);
+    return { ...extGlobal, mint: extGlobal.extMint, underlyingMint: extGlobal.mMint };
+  }
 }

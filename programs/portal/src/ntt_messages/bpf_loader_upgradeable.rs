@@ -1,5 +1,8 @@
-use anchor_lang::{prelude::*, solana_program::instruction::Instruction};
-pub use solana_program::bpf_loader_upgradeable::{self, id, ID};
+pub use anchor_lang::solana_program::bpf_loader_upgradeable::{self, id, ID};
+use anchor_lang::{
+    prelude::*,
+    solana_program::{instruction::Instruction, program::invoke_signed},
+};
 
 #[derive(Debug, Clone)]
 pub struct BpfLoaderUpgradeable;
@@ -23,8 +26,7 @@ fn invoke_with_context<'info, A>(
 where
     A: ToAccountMetas + ToAccountInfos<'info>,
 {
-    solana_program::program::invoke_signed(ix, &ctx.to_account_infos(), ctx.signer_seeds)
-        .map_err(Into::into)
+    invoke_signed(ix, &ctx.to_account_infos(), ctx.signer_seeds).map_err(Into::into)
 }
 
 mod __private {

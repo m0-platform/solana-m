@@ -1,0 +1,36 @@
+{
+  "name": "solana-m-api",
+  "scripts": {
+    "build": "tsup",
+    "server": "ts-node src/server.ts",
+    "dev": "nodemon src/server.ts"
+  },
+  "tsup": {
+    "entry": [
+      "src/server.ts"
+    ],
+    "format": "cjs",
+    "splitting": false,
+    "clean": true,
+    "outDir": "dist"
+  },
+  "dependencies": {
+    "apicache": "^1.6.3",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "express-winston": "^4.2.0",
+    "mongodb": "^6.16.0",
+    "viem": "catalog:",
+    "winston": "catalog:",
+    "winston-loki": "catalog:"
+  },
+  "devDependencies": {
+    "@types/apicache": "^1.6.7",
+    "@types/cors": "^2.8.18",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.5.0",
+    "nodemon": "^3.1.10",
+    "tsup": "^8.4.0",
+    "typescript": "catalog:"
+  }
+}

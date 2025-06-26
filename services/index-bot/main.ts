@@ -1,7 +1,5 @@
 import { Command } from 'commander';
-import { Connection } from '@solana/web3.js';
-import { createWalletClient, getContract, http, Hex } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
+import { getContract } from 'viem';
 import { GLOBAL_ACCOUNT, WinstonLogger } from '@m0-foundation/solana-m-sdk';
 import { sendSlackMessage, SlackMessage } from 'shared/slack';
 import { logBlockchainBalance } from 'shared/balances';

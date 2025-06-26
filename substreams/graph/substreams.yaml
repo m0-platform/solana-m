@@ -27,7 +27,7 @@ binaries:
 modules:
   - name: map_filtered_transactions
     use: solana:map_block_with_filtered_transactions
-    initialBlock: 335213628
+    initialBlock: 339967540
 
   - name: map_transfer_events_to_db
     kind: map

@@ -637,57 +637,18 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< proto-193-add-swap-router-support-to-portal
 name = "earn"
 version = "0.1.0"
-source = "git+https://github.com/m0-foundation/solana-m?branch=develop#fb96d0521d4a187b33874936b21b22bb16505fec"
+source = "git+https://github.com/m0-foundation/solana-m?rev=7cfcac4#7cfcac4988e613298e893be2cc41de6b2e92a908"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
  "cfg-if",
- "solana-program",
  "solana-security-txt",
  "spl-token-2022 7.0.0",
 ]
 
 [[package]]
-name = "ed25519"
-version = "1.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91cff35c70bba8a626e3185d8cd48cc11b5437e1a5bcd15b9b5fa3c64b6dfee7"
-dependencies = [
- "signature",
-]
-
-[[package]]
-name = "ed25519-dalek"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c762bae6dcaf24c4c84667b8579785430908723d5c889f469d76a41d59cc7a9d"
-dependencies = [
- "curve25519-dalek 3.2.0",
- "ed25519",
- "rand 0.7.3",
- "serde",
- "sha2 0.9.9",
- "zeroize",
-]
-
-[[package]]
-name = "ed25519-dalek-bip32"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d2be62a4061b872c8c0873ee4fc6f101ce7b889d039f019c5fa2af471a59908"
-dependencies = [
- "derivation-path",
- "ed25519-dalek",
- "hmac 0.12.1",
- "sha2 0.10.9",
-]
-
-[[package]]
-=======
->>>>>>> develop
 name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -706,12 +667,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "cfg-if",
-<<<<<<< proto-193-add-swap-router-support-to-portal
  "earn 0.1.0",
- "solana-program",
-=======
- "earn",
->>>>>>> develop
  "solana-security-txt",
  "spl-token-2022 7.0.0",
 ]
@@ -722,7 +678,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
- "earn 0.1.0 (git+https://github.com/m0-foundation/solana-m?branch=develop)",
+ "earn 0.1.0 (git+https://github.com/m0-foundation/solana-m?rev=7cfcac4)",
  "m_ext",
  "solana-security-txt",
 ]
@@ -970,7 +926,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "cfg-if",
- "earn 0.1.0 (git+https://github.com/m0-foundation/solana-m?branch=develop)",
+ "earn 0.1.0 (git+https://github.com/m0-foundation/solana-m?rev=7cfcac4)",
  "solana-security-txt",
  "spl-token-2022 7.0.0",
 ]
@@ -1156,13 +1112,8 @@ dependencies = [
  "anchor-spl",
  "bitmaps",
  "cfg-if",
-<<<<<<< proto-193-add-swap-router-support-to-portal
  "earn 0.1.0",
  "ext_swap",
- "solana-program",
-=======
- "earn",
->>>>>>> develop
  "solana-security-txt",
  "spl-token-2022 7.0.0",
  "wormhole-anchor-sdk",

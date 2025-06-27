@@ -1,6 +1,5 @@
 .PHONY: test-yield-bot yield-bot-devnet test-local-validator test-sdk build-devnet upgrade-earn-devnet upgrade-portal-devnet upgrade-ext-earn-devnet deploy-yield-bot deploy-dashboard-devnet deploy-dashboard-mainnet
 
-
 #
 # Test commands
 #
@@ -246,7 +245,7 @@ update-switchboard-feed-mainnet:
 
 simulate-switchboard-jobs:
 	$(call run-switchboard,simulate-jobs,dev)
-=======
+
 publish-api-sdk:
 	@cd services/api/sdk && \
 	pnpm build && \

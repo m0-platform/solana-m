@@ -35,7 +35,14 @@ import {
   TokenMetadata,
 } from '@solana/spl-token-metadata';
 import { Chain, ChainAddress, UniversalAddress, assertChain, signSendWait } from '@wormhole-foundation/sdk';
-import { createPublicClient, EXT_MINT, http, EarnAuthority } from '../../sdk/src';
+import {
+  createPublicClient,
+  EXT_MINT,
+  http,
+  EarnAuthority,
+  ETH_MERKLE_TREE_BUILDER,
+  ETH_MERKLE_TREE_BUILDER_DEVNET,
+} from '../../sdk/src';
 import { createSetEvmAddresses } from '../../tests/test-utils';
 import { createInitializeConfidentialTransferMintInstruction } from './confidential-transfers';
 import { Program, BN } from '@coral-xyz/anchor';
@@ -456,13 +463,13 @@ async function main() {
 
       // PDAs
       const [globalAccount] = PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAMS.earn);
-      const [earnerAccount] = PublicKey.findProgramAddressSync(
-        [Buffer.from('earner'), earnerATA.toBuffer()],
-        PROGRAMS.earn,
-      );
 
-      // fetch registrar earners from mainnet
-      const evmCaller = new EvmCaller(evmClient);
+      // fetch registrar earners
+      const evmCaller = new EvmCaller(
+        evmClient,
+        undefined,
+        process.env.NETWORK === 'devnet' ? ETH_MERKLE_TREE_BUILDER_DEVNET : ETH_MERKLE_TREE_BUILDER,
+      );
       const earners = await evmCaller.getEarners();
 
       console.log(`earners on registrar: ${earners.map((e) => e.toBase58())}`);

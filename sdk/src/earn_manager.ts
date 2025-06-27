@@ -3,7 +3,7 @@ import BN from 'bn.js';
 import * as spl from '@solana/spl-token';
 import { PublicClient } from 'viem';
 
-import { EXT_GLOBAL_ACCOUNT, EXT_MINT, EXT_PROGRAM_ID } from '.';
+import { EXT_MINT, EXT_PROGRAM_ID } from '.';
 import { Earner } from './earner';
 import { Program } from '@coral-xyz/anchor';
 import { getExtProgram } from './idl';
@@ -98,6 +98,18 @@ export class EarnManager {
     );
 
     return ixs;
+  }
+
+  async buildRemoveEarnerInstruction(earner: PublicKey): Promise<TransactionInstruction[]> {
+    return [
+      await this.program.methods
+        .removeEarner()
+        .accountsPartial({
+          signer: this.manager,
+          earnerAccount: earner,
+        })
+        .instruction(),
+    ];
   }
 
   async getEarners(): Promise<Earner[]> {

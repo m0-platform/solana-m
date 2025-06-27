@@ -25,7 +25,7 @@ import { EarnAuthority, EarnManager, Earner } from '@m0-foundation/solana-m-sdk'
 import { Earn } from '@m0-foundation/solana-m-sdk/src/idl/earn';
 import { ExtEarn } from '@m0-foundation/solana-m-sdk/src/idl/ext_earn';
 import { MerkleTree } from '@m0-foundation/solana-m-sdk/src/merkle';
-import { _calculateTimeWeightedBalance, getTimeWeightedBalance } from '@m0-foundation/solana-m-sdk/src/twb';
+import { getBalanceAt, _balanceFromTransfers } from '@m0-foundation/solana-m-sdk/src/tokenBalance';
 import nock from 'nock';
 const EARN_IDL = require('@m0-foundation/solana-m-sdk/src/idl/earn.json');
 const EXT_EARN_IDL = require('@m0-foundation/solana-m-sdk/src/idl/ext_earn.json');
@@ -333,36 +333,28 @@ describe('SDK unit tests', () => {
   });
 
   describe('api calculations', () => {
-    test('weighted balance', async () => {
-      const balance = await getTimeWeightedBalance(
+    test('balance at', async () => {
+      const balance = await getBalanceAt(
         new PublicKey('BpBCHhfSbR368nurxPizimYEr55JE7JWQ5aDQjYi3EQj'),
         MINT,
-        new Date(0),
         new Date(1000e3),
       );
-      expect(balance.toNumber()).toEqual(2500000000000);
+      expect(balance.toNumber()).toEqual(2000000000000);
     });
 
-    describe('weighted balance calculations', () => {
-      test('0 balance', async () => {
-        expect(_calculateTimeWeightedBalance(new BN(0), new BN(0), new BN(1741939199), []).toNumber()).toEqual(0);
-      });
+    describe('balance calculations', () => {
       test('no transfers balance', async () => {
-        expect(_calculateTimeWeightedBalance(new BN(110), new BN(0), new BN(1741939199), []).toNumber()).toEqual(110);
+        expect(_balanceFromTransfers([]).toNumber()).toEqual(0);
       });
       test('one transfers halfway', async () => {
         expect(
-          _calculateTimeWeightedBalance(new BN(100), new BN(50), new BN(150), [
-            { preBalance: 100, postBalance: 50, ts: new Date(100e3) } as any,
-          ]).toNumber(),
-        ).toEqual(75);
+          _balanceFromTransfers([{ preBalance: 100, postBalance: 50, ts: new Date(100e3) } as any]).toNumber(),
+        ).toEqual(50);
       });
       test('huge transfer before calculation', async () => {
         expect(
-          _calculateTimeWeightedBalance(new BN(0), new BN(100), new BN(1500000), [
-            { preBalance: 0, postBalance: 1000000, ts: new Date(1499995e3) } as any,
-          ]).toNumber(),
-        ).toEqual(3);
+          _balanceFromTransfers([{ preBalance: 0, postBalance: 1000000, ts: new Date(1499995e3) } as any]).toNumber(),
+        ).toEqual(1000000);
       });
       test('many transfers', async () => {
         const numTransfers = 50;
@@ -378,19 +370,18 @@ describe('SDK unit tests', () => {
             } as any),
         );
 
-        const lower = new BN(transfers[0].ts.getTime() / 1000).sub(new BN(10));
-        const upper = new BN(transfers[transfers.length - 1].ts.getTime() / 1000).add(new BN(10));
+        // sort transfers in place by timestamp (newest first)
+        transfers.sort((a, b) => b.ts.getTime() - a.ts.getTime());
 
-        // expect balance based on linear distribution of transfers
-        const expected = 1000 - (numTransfers * transferAmount) / 2;
-        expect(_calculateTimeWeightedBalance(new BN(1000), lower, upper, transfers).toNumber()).toEqual(expected);
+        expect(_balanceFromTransfers(transfers).toNumber()).toEqual(transfers[0].postBalance);
       });
       test('current balance is 0', async () => {
         expect(
-          _calculateTimeWeightedBalance(new BN(0), new BN(100), new BN(200), [
+          _balanceFromTransfers([
+            { preBalance: 1000, postBalance: 0, ts: new Date(200e3) } as any,
             { preBalance: 0, postBalance: 1000, ts: new Date(150e3) } as any,
           ]).toNumber(),
-        ).toEqual(500);
+        ).toEqual(0);
       });
     });
   });
@@ -417,12 +408,26 @@ describe('SDK unit tests', () => {
 
     test('validate claims and send', async () => {
       const auth = await EarnAuthority.load(connection, evmClient, PROGRAM_ID, new ConsoleLogger());
+
+      // TODO: this test is distributing rewards for index 1.0201.. even though it appears that 1.010.... is the last one to be propagated
+      // console.log('index', auth['global'].index!.toString());
+
+      // const earner = await Earner.fromTokenAccount(
+      //   connection,
+      //   evmClient,
+      //   spl.getAssociatedTokenAddressSync(mints[0].publicKey, earnerA.publicKey, true, spl.TOKEN_2022_PROGRAM_ID),
+      //   EARN_PROGRAM,
+      // );
+      // console.log('earner', earner.data.userTokenAccount.toBase58());
+      // console.log('last claim index', earner.data.lastClaimIndex!.toString());
+
       expect(auth['global'].distributed!.toNumber()).toBe(0);
 
       // will throw on simulation or validation errors
-      const [ixs, amount] = await auth.simulateAndValidateClaimIxs(claimIxs);
-      expect(ixs).toHaveLength(1);
-      expect(amount.toNumber()).toEqual(50250000000);
+      const amount = await auth.simulateAndValidateClaimIxs(claimIxs);
+
+      expect(claimIxs).toHaveLength(1);
+      expect(amount.toNumber()).toEqual(40200000000);
 
       const logWaiter = new Promise((resolve: (value: void) => void, reject) => {
         const timeout = setTimeout(() => {
@@ -435,7 +440,7 @@ describe('SDK unit tests', () => {
           new PublicKey('3ojLwYogY9x64HvxACRZ4awjGonUYBTGefFp56mkfxVs'),
           (logs: Logs, _: Context) => {
             const rewards = auth['_getRewardAmounts'](logs.logs);
-            expect(rewards?.[0].user.toString()).toEqual('50250000000');
+            expect(rewards?.[0].user.toString()).toEqual('40200000000');
             provider.connection.removeOnLogsListener(logsID);
             clearTimeout(timeout);
             resolve();
@@ -448,16 +453,16 @@ describe('SDK unit tests', () => {
       await sendAndConfirmTransaction(connection, new Transaction().add(...claimIxs), [signer]);
 
       await auth.refresh();
-      expect(auth['global'].distributed!.toNumber()).toBe(50250000000);
+      expect(auth['global'].distributed!.toNumber()).toBe(40200000000);
 
       await logWaiter;
     });
 
     test('post claim cycle validation', async () => {
       const global = await earn.account.global.fetch(globalAccount, 'processed');
-      expect(global.maxSupply.toString()).toEqual('8050250000000');
+      expect(global.maxSupply.toString()).toEqual('8040200000000');
       expect(global.maxYield.toString()).toEqual('80000000000');
-      expect(global.distributed.toString()).toEqual('50250000000');
+      expect(global.distributed.toString()).toEqual('40200000000');
       expect(global.claimComplete).toBeFalsy();
     });
 
@@ -468,7 +473,7 @@ describe('SDK unit tests', () => {
 
       await auth.refresh();
       expect(auth['global'].claimComplete).toBeTruthy();
-      expect(auth['global'].distributed!.toString()).toEqual('50250000000');
+      expect(auth['global'].distributed!.toString()).toEqual('40200000000');
       expect(auth['global'].claimComplete).toBeTruthy();
     });
   });
@@ -541,7 +546,7 @@ describe('SDK unit tests', () => {
     describe('getPendingYield', () => {
       beforeAll(async () => {
         // Set a later index on the EVM contract so that there is some pending yield
-        await setIndex(new BN(1_020_100_000_000), new BN((await evmClient.getBlock()).timestamp.toString()));
+        await setIndex(new BN(1_020_600_000_000), new BN((await evmClient.getBlock()).timestamp.toString()));
       });
 
       test('earn program', async () => {
@@ -553,11 +558,12 @@ describe('SDK unit tests', () => {
         );
 
         const earner = await Earner.fromTokenAccount(connection, evmClient, earnerATA, EARN_PROGRAM);
+        console.log('earn pending yield');
         const pending = await earner.getPendingYield();
 
-        // Earner's weighted balance over the period is 5,000,000 M
-        // The index is increased by 1% since their last claim
-        // Therefore, the pending yield should be 50,000 M
+        // Earner's balance at the index update is 5,000,000 M
+        // The index is increased by 1.0206/1.0201 since their last claim
+        // Therefore, the pending yield should be 2,450.740123 M
         expect(pending.toString()).toEqual('2450740123'.toString());
       });
 
@@ -570,14 +576,15 @@ describe('SDK unit tests', () => {
         );
 
         const earner = await Earner.fromTokenAccount(connection, evmClient, earnerATA, EXT_PROGRAM_ID);
+        console.log('ext earn pending yield');
         const pending = await earner.getPendingYield();
 
-        // Earners's weighted balance over the period is 2,000,000
-        // The index increased by 2.01% since their last claim
-        // The total pending yield is 40,200 M
-        // The earn manager takes a 15 basis point fee
-        // Therefore, the earner's pending yield should be 40,200 * (1 - 0.0015) = 40,139.7 M
-        expect(pending.toString()).toEqual('51422750000'.toString());
+        // Earners's balance at:
+        //   1.01 index = 2,000,000 M -> 20,000 pending yield
+        //   1.0201 index = 2,000,000 M -> (20,000 + 20,000 * 1.0201 / 1.01) = 40,200 pending yield
+        //   1.0206 index = 2,000,000 M -> (20,000 + 40,200 * 1.0206 / 1.0201) = 41,200 pending yield
+        // The manage fee is 15 bps, therefore, the pending yield is 41,200 * (1 - 0.0015) = 41,138.2 M
+        expect(pending.toString()).toEqual('41138200000'.toString());
       });
 
       test('ext earn program - no manager fee', async () => {
@@ -605,10 +612,11 @@ describe('SDK unit tests', () => {
         const earner = await Earner.fromTokenAccount(connection, evmClient, earnerATA, EXT_PROGRAM_ID);
         const pending = await earner.getPendingYield();
 
-        // Earner's weighted balance over the period is 2,000,000 M
-        // The index increased by 2.01% since their last claim
-        // The total pending yield is 40,200 M
-        expect(pending.toString()).toEqual('51500000000'.toString());
+        // Earners's balance at:
+        //   1.01 index = 2,000,000 M -> 20,000 pending yield
+        //   1.0201 index = 2,000,000 M -> (20,000 + 20,000 * 1.0201 / 1.01) = 40,200 pending yield
+        //   1.0206 index = 2,000,000 M -> (20,000 + 40,200 * 1.0206 / 1.0201) = 41,200 pending yield
+        expect(pending.toString()).toEqual('41200000000'.toString());
       });
     });
   });
@@ -690,7 +698,8 @@ function mockAPI() {
     .query(true)
     .reply(200, (url: any) => {
       const urlParams = new URLSearchParams(url);
-      const from_time = Number(urlParams.get('from_time') ?? urlParams.get('to_time') ?? '0');
+      // const from_time = Number(urlParams.get('from_time') ?? urlParams.get('to_time') ?? '0');
+      const to_time = Number(urlParams.get('to_time') ?? 1);
 
       return {
         transfers: [
@@ -700,7 +709,7 @@ function mockAPI() {
             tokenAccount: '',
             owner: '',
             signature: '',
-            ts: new Date(from_time * 1000).toISOString(),
+            ts: new Date((to_time - 1) * 1000).toISOString(),
           },
         ],
       };

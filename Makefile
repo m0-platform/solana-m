@@ -1,6 +1,5 @@
 .PHONY: test-yield-bot yield-bot-devnet test-local-validator test-sdk build-devnet upgrade-earn-devnet upgrade-portal-devnet upgrade-ext-earn-devnet deploy-yield-bot deploy-dashboard-devnet deploy-dashboard-mainnet
 
-
 #
 # Test commands
 #
@@ -51,11 +50,11 @@ build-test-swap-program:
 #
 yield-bot-devnet:
 	@RPC_URL=$(shell op read "op://Solana Dev/Helius/dev rpc") \
+		DEVNET=true \
+		MONGO_CONNECTION_STRING=$(shell op read "op://Solana Dev/Mongo Read Access/devnet-connection-string") \
 		EVM_RPC_URL=$(shell op read "op://Solana Dev/Alchemy/sepolia") \
 		KEYPAIR=$(shell op read "op://Solana Dev/Solana Program Keys/devnet-authority") \
-		pnpm --silent ts-node services/yield-bot/main.ts distribute \
-		--programID wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko \
-		--dryRun
+		pnpm --silent ts-node services/yield-bot/main.ts distribute --dryRun
 
 yield-bot-mainnet:
 	@RPC_URL=$(shell op read "op://Solana Dev/Helius/prod rpc") \
@@ -63,10 +62,7 @@ yield-bot-mainnet:
 		TURNKEY_PUBKEY=5FFDpVvjVPEVGb9SgN9V5HNC6gkrPdVqdX6CxXBVwZV \
 		TURNKEY_API_PUBLIC_KEY=$(shell op read "op://Solana Secure/Turnkey API keys/public-key-prod") \
 		TURNKEY_API_PRIVATE_KEY=$(shell op read "op://Solana Secure/Turnkey API keys/private-key-prod") \
-		pnpm --silent ts-node services/yield-bot/main.ts distribute \
-		--claimThreshold 100000 \
-		--programID wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko \
-		--dryRun
+		pnpm --silent ts-node services/yield-bot/main.ts distribute --dryRun
 
 #
 # Program upgrade commands
@@ -149,8 +145,7 @@ define deploy-yield-bot
 	railway environment $(1)
 	docker build --build-arg now="$$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --platform linux/amd64 -t ghcr.io/m0-foundation/solana-m:yield-bot -f services/yield-bot/Dockerfile .
 	docker push ghcr.io/m0-foundation/solana-m:yield-bot
-	railway redeploy --service "yield bot - M" --yes
-	railway redeploy --service "yield bot - wM" --yes
+	railway redeploy --service "yield bot" --yes
 endef
 
 define deploy-index-bot
@@ -228,6 +223,28 @@ publish-sdk:
 	echo "//registry.npmjs.org/:_authToken=$(shell op read "op://Web3/NPM Publish Token m0-foundation/credential")" > .npmrc && \
 	npm publish && \
 	rm .npmrc
+
+#
+# Switchboard
+#
+define run-switchboard
+	op run --account mzerolabs.1password.com --no-masking --env-file='./.env.$(2)' -- pnpm ts-node services/switchboard/index.ts $(1)
+endef
+
+publish-switchboard-feed-devnet:
+	$(call run-switchboard,create-feed,dev)
+
+update-switchboard-feed-devnet:
+	$(call run-switchboard,update-feed,dev)
+
+publish-switchboard-feed-mainnet:
+	$(call run-switchboard,create-feed,prod)
+
+update-switchboard-feed-mainnet:
+	$(call run-switchboard,update-feed,prod)
+
+simulate-switchboard-jobs:
+	$(call run-switchboard,simulate-jobs,dev)
 
 publish-api-sdk:
 	@cd services/api/sdk && \

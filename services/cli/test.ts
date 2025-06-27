@@ -19,13 +19,13 @@ const SWAP_IDL = require('../../tests/programs/ext_swap.json');
 
 async function main() {
   const program = new Command();
+  const connection = new Connection(process.env.RPC_URL!);
 
   program
     .command('wrap-m')
     .description('Wrap M to wM')
     .argument('[number]', 'amount', '100000') // 0.1 M
     .action(async (amount) => {
-      const connection = new Connection(process.env.RPC_URL ?? '');
       const [sender, m, wM] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR', 'WM_MINT_KEYPAIR']);
       const program = new Program<ExtEarn>(EXT_EARN_IDL, anchorProvider(connection, sender));
 
@@ -72,7 +72,6 @@ async function main() {
     .argument('[string]', 'recipient evm address', '0x12b1A4226ba7D9Ad492779c924b0fC00BDCb6217')
     .argument('[number]', 'amount', '100000')
     .action(async (receiver, amount) => {
-      const connection = new Connection(process.env.RPC_URL ?? '');
       const [owner, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
       const { ctx, ntt, sender, signer } = NttManager(connection, owner, mint.publicKey);
 
@@ -138,7 +137,6 @@ async function main() {
     .command('create-squads-multisig')
     .description('create a squads multisig')
     .action(async () => {
-      const connection = new Connection(process.env.RPC_URL ?? '');
       const [owner, squadsProposer] = keysFromEnv(['PAYER_KEYPAIR', 'SQUADS_PROPOSER']);
       const createKey = Keypair.generate();
 
@@ -177,7 +175,6 @@ async function main() {
     .command('distribute-tokens')
     .description('distribute wM to random users')
     .action(async () => {
-      const connection = new Connection(process.env.RPC_URL ?? '');
       const [owner, mint] = keysFromEnv(['PAYER_KEYPAIR', 'WM_MINT_KEYPAIR']);
       const program = new Program<ExtEarn>(EXT_EARN_IDL, anchorProvider(connection, owner));
 

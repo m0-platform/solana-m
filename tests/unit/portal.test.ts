@@ -302,11 +302,22 @@ describe('Portal unit tests', () => {
         .signers([admin])
         .rpc();
 
-      // Add Portal program as wrap authority
+      const portalAuth = PublicKey.findProgramAddressSync(
+        [Buffer.from('token_authority')],
+        config.PORTAL_PROGRAM_ID,
+      )[0];
+
+      // Add wrap authorities to extension
+      await extEarn.methods.addWrapAuthority(portalAuth).accounts({ admin: admin.publicKey }).signers([admin]).rpc();
       await extEarn.methods
-        .addWrapAuthority(
-          PublicKey.findProgramAddressSync([Buffer.from('token_authority')], config.PORTAL_PROGRAM_ID)[0],
-        )
+        .addWrapAuthority(payer.publicKey)
+        .accounts({ admin: admin.publicKey })
+        .signers([admin])
+        .rpc();
+
+      // Let Portal program unwrap
+      await swapProgram.methods
+        .whitelistUnwrapper(portalAuth)
         .accounts({ admin: admin.publicKey })
         .signers([admin])
         .rpc();
@@ -321,6 +332,28 @@ describe('Portal unit tests', () => {
         undefined,
         TOKEN_PROGRAM,
       );
+
+      const ata = await spl.getOrCreateAssociatedTokenAccount(
+        connection,
+        payer,
+        extMint.publicKey,
+        payer.publicKey,
+        true,
+        undefined,
+        undefined,
+        TOKEN_PROGRAM,
+      );
+
+      // Get extension tokens for testing
+      await extEarn.methods
+        .wrap(new BN(10_000))
+        .accounts({
+          mEarnerAccount: null,
+          fromMTokenAccount: tokenAccount,
+          toExtTokenAccount: ata.address,
+        })
+        .signers([payer])
+        .rpc();
     });
   });
 
@@ -359,13 +392,10 @@ describe('Portal unit tests', () => {
       // get from balance
       const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
       const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
-      expect(parsedTokenAccount.amount).toBe(9900000n);
+      expect(parsedTokenAccount.amount).toBe(9890000n);
     });
-    test('can send extension tokens', async () => {
-      const amount = 100_000n;
-      const sender = Wormhole.parseAddress('Solana', signer.address());
-      const receiver = testing.utils.makeUniversalChainAddress('Ethereum');
 
+    test('can send extension tokens', async () => {
       const outboxItem = Keypair.generate();
 
       // init token accounts
@@ -391,11 +421,11 @@ describe('Portal unit tests', () => {
       );
 
       // update generator to return transfer_extension instruction
-      async function* tranferExtension() {
+      async function* transferExtension() {
         const tx = new Transaction().add(
           buildTransferExtensionIx(
             ntt,
-            100_000,
+            1_000,
             signer.address(),
             outboxItem.publicKey,
             mint.publicKey,
@@ -406,11 +436,12 @@ describe('Portal unit tests', () => {
         );
         tx.feePayer = payer.publicKey;
         tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+        tx.sign(outboxItem);
 
         yield ntt.createUnsignedTx({ transaction: tx }, 'Ntt.Transfer');
       }
 
-      await ssw(ctx, tranferExtension(), signer);
+      await ssw(ctx, transferExtension(), signer);
 
       // assert that released bitmap has transceiver bits set
       const outboxItemInfo = await ntt.program.account.outboxItem.fetch(outboxItem.publicKey);
@@ -543,7 +574,7 @@ describe('Portal unit tests', () => {
       console.debug(logs.filter((l) => l.startsWith('Program data: ')));
       expect(logs).toContain(
         // bridge event log
-        'Program data: bEUUGiR+tFmghgEAAAAAAICWmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+s4GuMrJWH+VN3VKYLnupK10TITmkAVIVRaGiXwYoEbZEgIA',
+        'Program data: bEUUGiR+tFmghgEAAAAAAJiSmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+s4GuMrJWH+VN3VKYLnupK10TITmkAVIVRaGiXwYoEbZEgIA',
       );
       expect(logs).toContain('Program log: Index update: 1000000000001 | root update: false');
 
@@ -739,7 +770,7 @@ function buildTransferExtensionIx(
       {
         // outbox item
         pubkey: outboxItem,
-        isSigner: false,
+        isSigner: true,
         isWritable: true,
       },
       {
@@ -802,7 +833,7 @@ function buildTransferExtensionIx(
       new BN(amount).toArrayLike(Buffer, 'le', 8), // amount
       new BN(2).toArrayLike(Buffer, 'le', 2), // chain: ethereum
       Buffer.alloc(32), // recipient_address
-      Buffer.from([1]), // should_queue
+      Buffer.from([0]), // should_queue
     ]),
   });
 }

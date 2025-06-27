@@ -247,82 +247,19 @@
           }
         },
         {
-          "name": "from_m_earner",
+          "name": "m_global",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  101,
+                  103,
+                  108,
+                  111,
+                  98,
                   97,
-                  114,
-                  110,
-                  101,
-                  114
+                  108
                 ]
-              },
-              {
-                "kind": "account",
-                "path": "from_m_vault"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
-                78,
-                85,
-                26,
-                180,
-                224,
-                26,
-                229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
-                49,
-                118,
-                130,
-                244,
-                142,
-                245
-              ]
-            }
-          }
-        },
-        {
-          "name": "to_m_earner",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  101,
-                  97,
-                  114,
-                  110,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "to_m_vault"
               }
             ],
             "program": {
@@ -816,23 +753,19 @@
           }
         },
         {
-          "name": "m_earner_account",
+          "name": "m_global",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  101,
+                  103,
+                  108,
+                  111,
+                  98,
                   97,
-                  114,
-                  110,
-                  101,
-                  114
+                  108
                 ]
-              },
-              {
-                "kind": "account",
-                "path": "from_m_vault"
               }
             ],
             "program": {
@@ -1296,23 +1229,19 @@
           }
         },
         {
-          "name": "m_earner_account",
+          "name": "m_global",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  101,
+                  103,
+                  108,
+                  111,
+                  98,
                   97,
-                  114,
-                  110,
-                  101,
-                  114
+                  108
                 ]
-              },
-              {
-                "kind": "account",
-                "path": "to_m_vault"
               }
             ],
             "program": {
@@ -1616,16 +1545,16 @@
   ],
   "accounts": [
     {
-      "name": "Earner",
+      "name": "Global",
       "discriminator": [
-        236,
-        126,
-        51,
-        96,
-        46,
-        225,
-        103,
-        207
+        167,
+        232,
+        232,
+        177,
+        200,
+        108,
+        114,
+        127
       ]
     },
     {
@@ -1666,29 +1595,66 @@
   ],
   "types": [
     {
-      "name": "Earner",
+      "name": "Global",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "last_claim_index",
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "earn_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "index",
             "type": "u64"
           },
           {
-            "name": "last_claim_timestamp",
+            "name": "timestamp",
             "type": "u64"
+          },
+          {
+            "name": "claim_cooldown",
+            "type": "u64"
+          },
+          {
+            "name": "max_supply",
+            "type": "u64"
+          },
+          {
+            "name": "max_yield",
+            "type": "u64"
+          },
+          {
+            "name": "distributed",
+            "type": "u64"
+          },
+          {
+            "name": "claim_complete",
+            "type": "bool"
+          },
+          {
+            "name": "earner_merkle_root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "portal_authority",
+            "type": "pubkey"
           },
           {
             "name": "bump",
             "type": "u8"
-          },
-          {
-            "name": "user",
-            "type": "pubkey"
-          },
-          {
-            "name": "user_token_account",
-            "type": "pubkey"
           }
         ]
       }

@@ -42,9 +42,10 @@ pub struct TransferExtensionBurn<'info> {
     #[account(
         has_one = m_mint,
         seeds = [GLOBAL_SEED],
+        seeds::program = ext_swap::ID,
         bump = swap_global.bump,
     )]
-    pub swap_global: Box<Account<'info, SwapGlobal>>,
+    pub swap_global: Account<'info, SwapGlobal>,
 
     #[account(
         seeds = [GLOBAL_SEED],

@@ -420,7 +420,7 @@ describe('Portal unit tests', () => {
         TOKEN_PROGRAM,
       );
 
-      // update generator to return transfer_extension instruction
+      // create generator that returns transfer_extension instruction
       async function* transferExtension() {
         const tx = new Transaction().add(
           buildTransferExtensionIx(
@@ -434,11 +434,22 @@ describe('Portal unit tests', () => {
             extAta,
           ),
         );
+
         tx.feePayer = payer.publicKey;
         tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
         tx.sign(outboxItem);
 
         yield ntt.createUnsignedTx({ transaction: tx }, 'Ntt.Transfer');
+
+        // release
+        const whTransceiver = await ntt.getWormholeTransceiver();
+        const release = new Transaction().add(
+          await whTransceiver!.createReleaseWormholeOutboundIx(payer.publicKey, outboxItem.publicKey, true),
+        );
+
+        release.feePayer = payer.publicKey;
+        release.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+        yield ntt.createUnsignedTx({ transaction: release }, 'Ntt.Release');
       }
 
       await ssw(ctx, transferExtension(), signer);
@@ -457,12 +468,12 @@ describe('Portal unit tests', () => {
       const payloadAmount = BigInt('0x' + payloadHex.slice(10, 26));
 
       // assert that amount is what we expect
-      expect(payloadAmount.toString()).toBe('10000');
+      expect(payloadAmount.toString()).toBe('100');
 
       // get from balance
       const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
       const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
-      expect(parsedTokenAccount.amount).toBe(9800000n);
+      expect(parsedTokenAccount.amount).toBe(9890000n);
     });
   });
 
@@ -570,8 +581,6 @@ describe('Portal unit tests', () => {
 
       const txIds = await ssw(ctx, getRedeemTxns(), signer);
       const logs = await fetchTransactionLogs(provider, txIds[txIds.length - 1].txid);
-
-      console.debug(logs.filter((l) => l.startsWith('Program data: ')));
       expect(logs).toContain(
         // bridge event log
         'Program data: bEUUGiR+tFmghgEAAAAAAJiSmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+s4GuMrJWH+VN3VKYLnupK10TITmkAVIVRaGiXwYoEbZEgIA',

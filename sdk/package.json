@@ -41,7 +41,6 @@
     "bn.js": "catalog:",
     "bs58": "catalog:",
     "js-sha256": "^0.11.0",
-    "limiter": "catalog:",
     "sha3": "catalog:",
     "viem": "catalog:",
     "winston": "catalog:"

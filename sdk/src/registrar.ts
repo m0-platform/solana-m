@@ -59,6 +59,25 @@ export class Registrar {
         spl.TOKEN_2022_PROGRAM_ID,
       );
 
+      // create token account if it does not exist
+      try {
+        await spl.getAccount(this.connection, userTokenAccount, undefined, spl.TOKEN_2022_PROGRAM_ID);
+      } catch (error: unknown) {
+        if (error instanceof spl.TokenAccountNotFoundError || error instanceof spl.TokenInvalidAccountOwnerError) {
+          ixs.push(
+            spl.createAssociatedTokenAccountInstruction(
+              signer,
+              userTokenAccount,
+              user,
+              await this.getMint(),
+              spl.TOKEN_2022_PROGRAM_ID,
+            ),
+          );
+        } else {
+          throw error;
+        }
+      }
+
       // build proof
       const tree = new MerkleTree(earners);
       const { proof } = tree.getInclusionProof(user);

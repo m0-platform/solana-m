@@ -22,6 +22,7 @@ service:
                   icon: https://gistcdn.githack.com/SC4RECOIN/a729afb77aa15a4aa6b1b46c3afa1b52/raw/209da531ed46c1aaef0b1d3d7b67b3a5cec257f3/M_Symbol_512.svg
                   mVault: 8vtsGdu4ErjK2skhV7FfPQwXdae6myWjgWJ8gRMnXi2K
                   mVaultBalance: 5500000000
+                  mEarned: 10000
                   tokenSupply: 5500000000
                   uiMultiplier: 1000000
 
@@ -39,5 +40,6 @@ types:
       icon: string
       mVault: string
       mVaultBalance: double
+      mEarned: double
       tokenSupply: double
       uiMultiplier: double

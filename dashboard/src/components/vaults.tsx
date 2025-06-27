@@ -1,27 +1,20 @@
-import { tokenHolders } from '../services/subgraph';
-import { PublicKey } from '@solana/web3.js';
-import { getMintsRPC } from '../services/rpc';
 import Decimal from 'decimal.js';
 import { useQuery } from '@tanstack/react-query';
 import { NavLink } from 'react-router-dom';
-import { MINTS } from '../services/consts';
-
-const labels: { [key: string]: string } = {
-  '8vtsGdu4ErjK2skhV7FfPQwXdae6myWjgWJ8gRMnXi2K': 'wM Vault',
-};
+import { ApiClient } from '../services/sdk';
 
 export const Vaults = () => {
-  const { data: mintData } = useQuery({ queryKey: ['mints'], queryFn: getMintsRPC });
-  const { data: holderData } = useQuery({
-    queryKey: ['holders:subgraph', 'M'],
-    queryFn: () => tokenHolders(MINTS.M),
+  const { data: extensionData } = useQuery({
+    queryKey: ['extensions'],
+    queryFn: () => ApiClient.extensions.extensions(),
   });
 
-  // use total supply to calc percentage
+  // sum up all balances to calculate percentages
+  const totalBalances = extensionData?.extensions.reduce((acc, extension) => acc + extension.mVaultBalance, 0);
+
   const toPercentage = (balance: number) => {
-    const supply = mintData?.M?.supply.toString();
-    if (!supply) return 1;
-    return new Decimal(balance).div(new Decimal(supply).div(1e6)).toNumber();
+    if (!totalBalances) return 1;
+    return new Decimal(balance).div(new Decimal(totalBalances)).toNumber();
   };
 
   return (
@@ -30,25 +23,24 @@ export const Vaults = () => {
       <table className="w-full text-sm text-left rtl:text-right text-xs">
         <thead className="border-b border-gray-200">
           <tr>
-            <th className="px-2 py-3">Address</th>
+            <th className="px-2 py-3">Name</th>
+            <th className="px-2 py-3">Ticker</th>
             <th className="px-2 py-3">Amount</th>
             <th className="px-2 py-3">Share</th>
           </tr>
         </thead>
         <tbody>
-          {holderData?.map((holder) => (
-            <tr key={holder.user.toString()} className="border-b border-gray-200">
+          {extensionData?.extensions.map((extension) => (
+            <tr key={extension.programId} className="border-b border-gray-200">
               <td className="px-2 py-4">
-                <NavLink
-                  to={`/earner/M/${holder.user.toBase58()}`}
-                  className={`hover:underline ${labels[holder.user.toBase58()] ? 'bg-gray-100 py-1 px-2' : ''}`}
-                >
-                  {labels[holder.user.toBase58()] || formatAddress(holder.user)}
+                <NavLink to={`/earner/${extension.mVault}`} className={'hover:underline bg-gray-100 py-1 px-2'}>
+                  {extension.name}
                 </NavLink>
               </td>
-              <td className="px-2 py-4">{formatAmount(holder.balance)}</td>
+              <td className="px-2 py-4">{extension.symbol}</td>
+              <td className="px-2 py-4">{formatAmount(extension.mVaultBalance)}</td>
               <td className="px-2 py-4">
-                <ProgressBar percentage={toPercentage(holder.balance)} />
+                <ProgressBar percentage={toPercentage(extension.mVaultBalance)} />
               </td>
             </tr>
           ))}
@@ -70,11 +62,6 @@ const ProgressBar = ({ percentage }: { percentage: number }) => {
   );
 };
 
-const formatAddress = (address: PublicKey, chars = 6) => {
-  const str = address.toBase58();
-  return `${str.slice(0, chars)}...${str.slice(-chars)}`;
-};
-
-const formatAmount = (amount: number, decimals = 2) => {
-  return amount.toFixed(decimals);
+const formatAmount = (amount: number) => {
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(amount / 1e6);
 };

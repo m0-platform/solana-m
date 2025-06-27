@@ -61,7 +61,7 @@ export const Bridges = () => {
                   <span className="hidden sm:inline">{formatAddress(event.to, event.amount > 0)}</span>
                 </div>
               </td>
-              <td className="px-2 py-4">{Math.abs(event.amount / 1e6).toFixed(2)}</td>
+              <td className="px-2 py-4">{new Intl.NumberFormat('en-US').format(Math.abs(event.amount / 1e6))}</td>
             </tr>
           ))}
         </tbody>

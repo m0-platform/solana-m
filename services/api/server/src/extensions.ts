@@ -7,6 +7,7 @@ import {
   isExtension,
   TOKEN_2022_PROGRAM_ADDRESS,
 } from '@solana-program/token-2022';
+import { database } from './db';
 
 const rpc = createSolanaRpc(process.env.SVM_RPC!);
 const isDevnet = process.env.SVM_RPC?.includes('devnet') ?? false;
@@ -20,6 +21,7 @@ const extensionData = [
     icon: 'https://gistcdn.githack.com/SC4RECOIN/a729afb77aa15a4aa6b1b46c3afa1b52/raw/209da531ed46c1aaef0b1d3d7b67b3a5cec257f3/M_Symbol_512.svg',
     mVault: '8vtsGdu4ErjK2skhV7FfPQwXdae6myWjgWJ8gRMnXi2K',
     mVaultBalance: 0,
+    mEarned: 0,
     tokenSupply: 0,
     uiMultiplier: 1,
   },
@@ -38,6 +40,7 @@ if (isDevnet) {
     icon: 'https://cdn-icons-png.freepik.com/512/6681/6681925.png',
     mVault: '3jjzuwuYxzHRn39D26KWDtGQCWMc12uXK41jBB3njEqi',
     mVaultBalance: 0,
+    mEarned: 0,
     tokenSupply: 0,
     uiMultiplier: 1,
   });
@@ -50,6 +53,7 @@ if (isDevnet) {
     icon: 'https://cdn-icons-png.freepik.com/512/6681/6681925.png',
     mVault: '93rkP7LJx47fn3AckRcvyiAZBCoSkpcTnCcTtQGGPCGJ',
     mVaultBalance: 0,
+    mEarned: 0,
     tokenSupply: 0,
     uiMultiplier: 1,
   });
@@ -57,6 +61,8 @@ if (isDevnet) {
 
 export const extensions = new ExtensionsService({
   extensions: async (req, res, next) => {
+    const claims = await getClaims();
+
     for (const ext of extensionData) {
       const mint = await fetchMint(rpc, ext.mint as Address);
       ext.tokenSupply = Number(mint.data.supply);
@@ -79,8 +85,48 @@ export const extensions = new ExtensionsService({
           }
         }
       }
+
+      ext.mEarned = claims[associatedTokenAddress] ?? 0;
     }
 
     res.send({ extensions: extensionData });
   },
 });
+
+async function getClaims() {
+  const cursor = database.collection('events').aggregate([
+    {
+      $match: {
+        event: 'claim',
+        program_id: 'MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c',
+      },
+    },
+    {
+      $lookup: {
+        from: 'transactions',
+        localField: 'signature',
+        foreignField: 'signature',
+        as: 'transaction',
+      },
+    },
+    {
+      $unwind: {
+        path: '$transaction',
+      },
+    },
+    {
+      $sort: {
+        'transaction.block_height': -1,
+      },
+    },
+  ]);
+
+  const result = await cursor.toArray();
+  const claims: { [key: string]: number } = {};
+
+  for (const claim of result) {
+    claims[claim.token_account] = (claims[claim.token_account] ?? 0) + claim.amount;
+  }
+
+  return claims;
+}

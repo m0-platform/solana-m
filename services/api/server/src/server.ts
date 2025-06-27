@@ -20,9 +20,9 @@ app.use(logHandler);
 if (process.env.DISABLE_CACHE === 'true') {
   logger.info('Cache is disabled');
 } else {
-  // cache all responses for 60 seconds
+  // cache all responses
   const cache = apicache.middleware;
-  app.use(cache('60 seconds'));
+  app.use(cache('5 minutes'));
 }
 
 // MongoDB

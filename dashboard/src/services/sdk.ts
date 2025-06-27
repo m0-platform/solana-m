@@ -1,9 +1,10 @@
-import { createPublicClient, Earner, EvmCaller, Graph, http, TOKEN_2022_ID } from '@m0-foundation/solana-m-sdk';
+import { createPublicClient, Earner, EvmCaller, http, PROGRAM_ID, TOKEN_2022_ID } from '@m0-foundation/solana-m-sdk';
 import { M0SolanaApiClient, M0SolanaApiEnvironment } from '@m0-foundation/solana-m-api-sdk';
 import { connection } from './rpc';
 import { PublicKey } from '@solana/web3.js';
-import { getAccount } from '@solana/spl-token';
+import { getAccount, getAssociatedTokenAddressSync } from '@solana/spl-token';
 import Decimal from 'decimal.js';
+import { MINTS } from './consts';
 
 export const ApiClient = new M0SolanaApiClient({
   environment:
@@ -11,24 +12,20 @@ export const ApiClient = new M0SolanaApiClient({
 });
 
 const evmClient = createPublicClient({ transport: http(import.meta.env.VITE_EVM_RPC_URL ?? '') });
-const graphClient = new Graph(import.meta.env.VITE_GRAPH_KEY, import.meta.env.VITE_SUBGRAPH_URL.split('/').pop());
 
-export const getEarner = async (programId: PublicKey, pubkey: PublicKey) => {
-  const earners = await Earner.fromUserAddress(connection, evmClient, graphClient, pubkey, programId);
-
-  if (earners.length === 0) {
-    throw new Error(`No earners found for ${pubkey.toBase58()}`);
-  }
+export const getEarner = async (vault: PublicKey) => {
+  const ata = getAssociatedTokenAddressSync(MINTS.M, vault, true, TOKEN_2022_ID);
+  const earner = await Earner.fromTokenAccount(connection, evmClient, ata, PROGRAM_ID);
 
   const [claims, pendingYield, tokenAccount] = await Promise.all([
-    earners[0].getHistoricalClaims(),
-    earners[0].getPendingYield(),
-    getAccount(connection, earners[0].data.userTokenAccount, connection.commitment, TOKEN_2022_ID),
+    earner.getHistoricalClaims(),
+    earner.getPendingYield(),
+    getAccount(connection, ata, connection.commitment, TOKEN_2022_ID),
   ]);
 
   return {
-    earner: earners[0],
-    claims,
+    earner,
+    claims: claims?.claims ?? [],
     pendingYield,
     tokenAccount,
   };

@@ -470,10 +470,15 @@ describe('Portal unit tests', () => {
       // assert that amount is what we expect
       expect(payloadAmount.toString()).toBe('100');
 
-      // get from balance
+      // $M balance did not change (we unwrapped an extension token)
       const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
       const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
       expect(parsedTokenAccount.amount).toBe(9890000n);
+
+      // verify that 1000 extension tokens were sent
+      const extTokenAccountInfo = await connection.getAccountInfo(extAta);
+      const extParsedTokenAccount = spl.unpackAccount(tokenAccount, extTokenAccountInfo, TOKEN_PROGRAM);
+      expect(extParsedTokenAccount.amount).toBe(9000n);
     });
   });
 

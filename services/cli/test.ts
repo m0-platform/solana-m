@@ -11,9 +11,11 @@ import {
   getOrCreateAssociatedTokenAccount,
   TOKEN_2022_PROGRAM_ID,
 } from '@solana/spl-token';
-import { Program } from '@coral-xyz/anchor';
+import { BN, Program } from '@coral-xyz/anchor';
 import { ExtEarn } from '../../sdk/src/idl/ext_earn';
+import { ExtSwap } from '../../tests/programs/ext_swap';
 const EXT_EARN_IDL = require('../../sdk/src/idl/ext_earn.json');
+const SWAP_IDL = require('../../tests/programs/ext_swap.json');
 
 async function main() {
   const program = new Command();
@@ -54,9 +56,9 @@ async function main() {
       const sig = await program.methods
         .wrap(amount)
         .accounts({
-          signer: sender.publicKey,
           fromMTokenAccount,
           toExtTokenAccount,
+          mEarnerAccount: program.programId,
         })
         .signers([sender])
         .rpc({ commitment: 'processed' });
@@ -87,6 +89,48 @@ async function main() {
 
       const txnIds = await signSendWait(ctx, xferTxs, signer);
       console.log(`Transaction IDs: ${txnIds.map((id) => id.txid)}`);
+    });
+
+  program
+    .command('swap-extension-token')
+    .description('Swap from one extension token to another using the swap program')
+    .argument('[number]', 'amount', '100000')
+    .argument('[string]', 'from_extension', 'wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko')
+    .argument('[string]', 'to_extension', 'Fb2AsCKmPd4gKhabT6KsremSHMrJ8G2Mopnc6rDQZX9e')
+    .action(async (amount, fromExtension, toExtension) => {
+      const connection = new Connection(process.env.RPC_URL ?? '');
+      const [payer] = keysFromEnv(['PAYER_KEYPAIR']);
+
+      const swapProgram = new Program<ExtSwap>(SWAP_IDL, anchorProvider(connection, payer));
+
+      const mints: { [key: string]: PublicKey } = {
+        wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko: new PublicKey('mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp'),
+        Fb2AsCKmPd4gKhabT6KsremSHMrJ8G2Mopnc6rDQZX9e: new PublicKey('usdkbee86pkLyRmxfFCdkyySpxRb5ndCxVsK2BkRXwX'),
+        '3PskKTHgboCbUSQPMcCAZdZNFHbNvSoZ8zEFYANCdob7': new PublicKey('usdkyPPxgV7sfNyKb8eDz66ogPrkRXG3wS2FVb6LLUf'),
+      };
+
+      const fromTokenAccount = getAssociatedTokenAddressSync(
+        mints[fromExtension],
+        payer.publicKey,
+        false,
+        TOKEN_2022_PROGRAM_ID,
+      );
+
+      await swapProgram.methods
+        .swap(new BN(amount), 0)
+        .accounts({
+          mTokenProgram: TOKEN_2022_PROGRAM_ID,
+          wrapAuthority: swapProgram.programId,
+          unwrapAuthority: swapProgram.programId,
+          fromExtProgram: new PublicKey(fromExtension),
+          toExtProgram: new PublicKey(toExtension),
+          fromMint: mints[fromExtension],
+          toMint: mints[toExtension],
+          fromTokenAccount,
+          toTokenProgram: TOKEN_2022_PROGRAM_ID,
+          fromTokenProgram: TOKEN_2022_PROGRAM_ID,
+        })
+        .rpc();
     });
 
   program

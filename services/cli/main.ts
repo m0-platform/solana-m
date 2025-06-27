@@ -55,14 +55,17 @@ import { EXT_PROGRAM_ID, PROGRAM_ID } from '../../sdk/src';
 import { EarnManager } from '../../sdk/src/earn_manager';
 import { getExtProgram, getProgram } from '../../sdk/src/idl';
 import { bs58 } from '@coral-xyz/anchor/dist/cjs/utils/bytes';
+import { ExtSwap } from '../../tests/programs/ext_swap';
 const EARN_IDL = require('../../sdk/src/idl/earn.json');
 const EXT_EARN_IDL = require('../../sdk/src/idl/ext_earn.json');
+const SWAP_IDL = require('../../tests/programs/ext_swap.json');
 
 const PROGRAMS = {
   // program id the same for devnet and mainnet
   portal: new PublicKey('mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY'),
   earn: PROGRAM_ID,
   extEarn: EXT_PROGRAM_ID,
+  swap: new PublicKey('MSwapi3WhNKMUGm9YrxGhypgUEt7wYQH3ZgG32XoWzH'),
   // addresses the same across L2s
   evmTransiever: '0x0763196A091575adF99e2306E5e90E0Be5154841',
   evmPeer: '0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd',
@@ -96,11 +99,13 @@ async function main() {
         [Buffer.from('registered_ntt'), PROGRAMS.portal.toBytes()],
         nttQuoter,
       );
+      const [swapAuth] = PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAMS.swap);
 
       const addresses = {
         'Portal Program': PROGRAMS.portal,
         'Earn Program': PROGRAMS.earn,
         'ExtEarn Program': PROGRAMS.extEarn,
+        'Swap Program': PROGRAMS.swap,
         'M Mint': mMint.publicKey,
         'M Mint Multisig': multisig.publicKey,
         'Portal Token Authority': portalTokenAuthPda,
@@ -111,6 +116,7 @@ async function main() {
         'Transceiver Emitter': portalEmitter,
         'Portal Quoter': nttQuoter,
         'Quoter Registered Ntt': quoterRegisteredNtt,
+        'Swap Authority': swapAuth,
       };
 
       const tableData = Object.entries(addresses).map(([name, pubkey]) => ({
@@ -317,6 +323,8 @@ async function main() {
       const [owner, mMint, wmMint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR', 'WM_MINT_KEYPAIR']);
 
       const extEarn = new Program<ExtEarn>(EXT_EARN_IDL, anchorProvider(connection, owner));
+      const [earnGlobalAccount] = PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAMS.earn);
+      const [extGlobalAccount] = PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAMS.extEarn);
 
       let earnAuth = owner.publicKey;
       let admin = owner.publicKey;
@@ -691,6 +699,47 @@ async function main() {
       if (confirmation.value.err) {
         throw new Error(`Transaction not confirmed: ${confirmation.value.err}`);
       }
+    });
+
+  program
+    .command('add-wrap-authority')
+    .description('Add wrap authority to an extension')
+    .argument('<wrap-auth>', 'Wrap authority pubkey')
+    .option('-e, --extension [pubkey]', 'Extension program id', 'wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko')
+    .action(async (wrapAuth: string, { extension }) => {
+      const [payer] = keysFromEnv(['PAYER_KEYPAIR']);
+      const wrapAuthority = new PublicKey(wrapAuth);
+
+      const idl = EXT_EARN_IDL;
+      idl.address = extension;
+      const ext = new Program<ExtEarn>(idl, anchorProvider(connection, payer));
+
+      const sig = await ext.methods
+        .addWrapAuthority(wrapAuthority)
+        .accounts({ admin: payer.publicKey })
+        .signers([payer])
+        .rpc();
+
+      console.log(`Wrap authority set (${sig})`);
+    });
+
+  program
+    .command('whitelist-extension')
+    .description('whitelist an extension on the swap program')
+    .argument('<extension>', 'Extension to whitelist')
+    .action(async (extension: string) => {
+      const [payer] = keysFromEnv(['PAYER_KEYPAIR']);
+      const extensionProgram = new PublicKey(extension);
+
+      const swapProgram = new Program<ExtSwap>(SWAP_IDL, anchorProvider(connection, payer));
+
+      const sig = await swapProgram.methods
+        .whitelistExtension(extensionProgram)
+        .accounts({ admin: payer.publicKey })
+        .signers([payer])
+        .rpc();
+
+      console.log(`Extension whitelisted (${sig})`);
     });
 
   await program.parseAsync(process.argv);

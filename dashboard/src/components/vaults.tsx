@@ -1,7 +1,20 @@
 import Decimal from 'decimal.js';
 import { useQuery } from '@tanstack/react-query';
 import { NavLink } from 'react-router-dom';
+import { M0SolanaApi } from '@m0-foundation/solana-m-api-sdk';
 import { ApiClient } from '../services/sdk';
+
+const ExtensionCard = ({ extension }: { extension: M0SolanaApi.extensions.Extension }) => {
+  return (
+    <div className="bg-white p-4 border border-gray-200 flex flex-col items-center">
+      <img src={extension.icon} alt={extension.name} className="w-14 h-14 rounded-full mb-2" />
+      <div className="font-medium text-center">{extension.name}</div>
+      <div className="text-sm text-gray-500 mt-1">
+        {formatAmount(extension.tokenSupply * extension.uiMultiplier)} {extension.symbol}{' '}
+      </div>
+    </div>
+  );
+};
 
 export const Vaults = () => {
   const { data: extensionData } = useQuery({
@@ -19,14 +32,24 @@ export const Vaults = () => {
 
   return (
     <div>
-      <div className="text-2xl">$M Vaults</div>
+      <div className="text-2xl mb-4">Extensions</div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-6">
+        {extensionData?.extensions.map((extension) => (
+          <NavLink key={extension.programId} to={`/earner/${extension.mVault}`}>
+            <ExtensionCard extension={extension} />
+          </NavLink>
+        ))}
+      </div>
+
       <table className="w-full text-sm text-left rtl:text-right text-xs">
         <thead className="border-b border-gray-200">
           <tr>
             <th className="px-2 py-3">Name</th>
-            <th className="px-2 py-3">Ticker</th>
-            <th className="px-2 py-3">Amount</th>
-            <th className="px-2 py-3">Share</th>
+            <th className="px-2 py-3">Vault Balance</th>
+            <th className="px-2 py-3">Earned</th>
+            <th className="px-2 py-3">UI multiplier</th>
+            <th className="px-2 py-3">Size</th>
           </tr>
         </thead>
         <tbody>
@@ -37,8 +60,9 @@ export const Vaults = () => {
                   {extension.name}
                 </NavLink>
               </td>
-              <td className="px-2 py-4">{extension.symbol}</td>
-              <td className="px-2 py-4">{formatAmount(extension.mVaultBalance)}</td>
+              <td className="px-2 py-4">{formatAmount(extension.mVaultBalance)} M</td>
+              <td className="px-2 py-4">{formatAmount(extension.mEarned)} M</td>
+              <td className="px-2 py-4">{extension.uiMultiplier}x</td>
               <td className="px-2 py-4">
                 <ProgressBar percentage={toPercentage(extension.mVaultBalance)} />
               </td>

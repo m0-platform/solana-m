@@ -59,13 +59,14 @@ pub struct Wrap<'info> {
         mut,
         associated_token::mint = m_mint,
         associated_token::authority = m_vault,
-        associated_token::token_program = token_2022,
+        associated_token::token_program = m_token_program,
     )]
     pub vault_m_token_account: InterfaceAccount<'info, TokenAccount>,
 
     #[account(
         mut,
         token::mint = ext_mint,
+        token::token_program = token_2022,
     )]
     pub to_ext_token_account: InterfaceAccount<'info, TokenAccount>,
 

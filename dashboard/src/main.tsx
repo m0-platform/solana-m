@@ -21,10 +21,9 @@ import {
   optimismSepolia,
   AppKitNetwork,
 } from '@reown/appkit/networks';
-import { Wrap } from './components/wrap';
+import { Swap } from './components/swap';
 import { Simulate } from './components/simulate';
 import { Bridge } from './components/bridge';
-import { Links } from './components/links';
 import { EarnerDetails } from './components/earner';
 import { IndexUpdates } from './components/index-updates';
 import { WagmiProvider } from 'wagmi';
@@ -64,7 +63,7 @@ const solanaWeb3JsAdapter = new SolanaAdapter();
 const metadata = {
   name: 'Solana - M',
   description: 'M dashboard and utilities for Solana',
-  url: 'https://dashboard-development-a79e.up.railway.app/',
+  url: 'https://dashboard-production-9afa.up.railway.app/',
   icons: ['https://media.m0.org/logos/svg/M_Symbol_512.svg'],
 };
 
@@ -104,10 +103,9 @@ createRoot(document.getElementById('root')!).render(
                 </div>
               }
             />
-            <Route path="/wrap" element={<Wrap />} />
+            <Route path="/swap" element={<Swap />} />
             <Route path="/bridge" element={<Bridge />} />
             <Route path="/simulate" element={<Simulate />} />
-            <Route path="/links" element={<Links />} />
             <Route path="/earner/:vault" element={<EarnerDetails />} />
           </Routes>
         </BrowserRouter>

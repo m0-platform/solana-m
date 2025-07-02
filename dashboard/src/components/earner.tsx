@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getCurrentRate, getEarner } from '../services/sdk';
+import { ApiClient, getCurrentRate, getEarner } from '../services/sdk';
 import { PublicKey } from '@solana/web3.js';
 import Decimal from 'decimal.js';
 import { useState, useEffect } from 'react';
@@ -18,7 +18,7 @@ const KeyValueDisplay = ({ data }: { data: Record<string, string | undefined> })
   if (!data) return null;
 
   return (
-    <div className="grid grid-cols-1 gap-2 bg-off-blue p-4">
+    <div className="grid grid-cols-1 gap-2 bg-off-blue p-4 text-sm">
       {Object.entries(data).map(([key, value]) => (
         <div key={key} className="flex border-b pb-2">
           <div className="w-1/3 font-medium">{key}</div>
@@ -44,16 +44,18 @@ const ClaimsTable = ({ claims }: { claims: { amount: number; ts: Date }[] | unde
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-700">
           <thead>
-            <tr>
+            <tr className="color-slate-400">
+              <th className="px-4 py-2 text-left text-sm font-medium text-slate-400">Timestamp</th>
               <th className="px-4 py-2 text-left text-sm font-medium text-slate-400">Amount</th>
-              <th className="px-4 py-2 text-left text-sm font-medium text-slate-400">Pushed Timestamp</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700">
             {claims.slice(0, 10).map((claim, index) => (
               <tr key={index}>
-                <td className="px-4 py-3 text-sm">{new Decimal(claim.amount).div(1e6).toFixed(6)} M</td>
                 <td className="px-4 py-3 text-sm">{claim.ts.toLocaleString()}</td>
+                <td className="px-4 py-3 text-sm">
+                  {new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(claim.amount / 1e6)} M
+                </td>
               </tr>
             ))}
           </tbody>
@@ -80,8 +82,14 @@ export const EarnerDetails = () => {
     enabled: true,
   });
 
+  const { data: extensionData, isLoading: extLoading } = useQuery({
+    queryKey: ['extensions'],
+    queryFn: () => ApiClient.extensions.extensions(),
+  });
+
   const { earner, claims, pendingYield, tokenAccount } = data ?? {};
   const claimedYield = claims?.reduce((acc, claim) => acc + claim.amount, 0);
+  const extension = extensionData?.extensions.find((ext) => ext.mVault === vault);
 
   const fmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 
@@ -129,13 +137,23 @@ export const EarnerDetails = () => {
 
   const aprDisplay = apr.toFixed(2) ?? '-';
 
-  if (isLoading) return;
+  if (isLoading || extLoading)
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2"></div>
+      </div>
+    );
   if (isError) return <div className="p-4 text-red-400">Error loading earner data</div>;
 
   return (
     <div className="max-w-6xl mx-auto py-8 px-2">
-      <h2 className="text-xl font-bold mb-4">Earner Details</h2>
-
+      <h2 className="text-xl font-bold mb-4">
+        <div className="flex items-center gap-2 mb-1">
+          {extension && <img src={extension.icon} alt={extension.name} className="w-8 h-8 rounded-full" />}
+          <span className="mt-1">$M Vault</span>
+        </div>
+        <div className="text-sm">{extension?.name}</div>
+      </h2>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <StatCard label="Token Balance" value={tokenBalance} />
         <StatCard label="Earned Yield" value={earnedYield} />

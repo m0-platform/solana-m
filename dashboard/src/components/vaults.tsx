@@ -6,7 +6,7 @@ import { ApiClient } from '../services/sdk';
 
 const ExtensionCard = ({ extension }: { extension: M0SolanaApi.extensions.Extension }) => {
   return (
-    <div className="bg-white p-4 border border-gray-200 flex flex-col items-center">
+    <div className="bg-white p-4 border border-gray-200 flex flex-col items-center hover:border-gray-400 transition-colors">
       <img src={extension.icon} alt={extension.name} className="w-14 h-14 rounded-full mb-2" />
       <div className="font-medium text-center">{extension.name}</div>
       <div className="text-sm text-gray-500 mt-1">

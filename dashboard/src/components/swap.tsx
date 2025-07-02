@@ -7,26 +7,14 @@ import { useAppKitProvider } from '@reown/appkit/react';
 import Decimal from 'decimal.js';
 import { toast, ToastContainer } from 'react-toastify';
 
-enum TabType {
-  WRAP = 'wrap',
-  UNWRAP = 'unwrap',
-}
-
-export const Wrap = () => {
+export const Swap = () => {
   const { isConnected, address, solanaBalances } = useAccount();
   const { walletProvider } = useAppKitProvider<Provider>('solana');
 
-  const [activeTab, setActiveTab] = useState<TabType>(TabType.WRAP);
   const [amount, setAmount] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const isWrapping = activeTab === TabType.WRAP;
   const [displayNonceInput, setDisplayNonceInput] = useState<boolean>(false);
   const [nonceAccount, setNonceAccount] = useState<string>('');
-
-  const handleTabChange = (tab: TabType) => {
-    setActiveTab(tab);
-    setAmount('');
-  };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -39,11 +27,7 @@ export const Wrap = () => {
   };
 
   const handleMaxClick = () => {
-    if (isWrapping) {
-      setAmount(solanaBalances.M?.toString() ?? '0');
-    } else {
-      setAmount(solanaBalances.wM?.toString() ?? '0');
-    }
+    setAmount(solanaBalances.M?.toString() ?? '0');
   };
 
   const handleWrapUnwrap = async () => {
@@ -52,17 +36,6 @@ export const Wrap = () => {
     try {
       setIsLoading(true);
       let sig;
-      if (nonceAccount === '') {
-        sig = await wrapOrUnwrap(activeTab, walletProvider, amountValue);
-      } else {
-        let noncePubkey;
-        try {
-          noncePubkey = new PublicKey(nonceAccount);
-        } catch (error) {
-          throw new Error('Invalid nonce account address');
-        }
-        sig = await wrapOrUnwrap(activeTab, walletProvider, amountValue, noncePubkey);
-      }
       const txUrl = `https://solscan.io/tx/${sig}?cluster=${NETWORK}`;
 
       // give an extra second for the transaction to be confirmed
@@ -70,7 +43,7 @@ export const Wrap = () => {
 
       toast.success(
         <div>
-          <div>{`Successfully ${activeTab}ped ${amount} tokens`}</div>
+          <div>{`Successfully swapped ${amount} tokens`}</div>
           <a href={txUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">
             View on Solscan
           </a>
@@ -106,23 +79,11 @@ export const Wrap = () => {
   return (
     <div className="flex justify-center mt-20">
       <div className="p-6 w-full max-w-md">
-        <div className="flex space-x-2 mb-6">
-          {[TabType.WRAP, TabType.UNWRAP].map((tab) => (
-            <button
-              className={`px-2 pt-1 hover:cursor-pointer ${activeTab === tab ? 'bg-blue-200 text-blue-600' : ''}`}
-              onClick={() => handleTabChange(tab)}
-              key={tab}
-            >
-              {tab === TabType.WRAP ? 'Wrap' : 'Unwrap'}
-            </button>
-          ))}
-        </div>
-
         <div className="mb-6">
           <div className="flex justify-between items-center mb-2 text-gray-400 text-xs">
-            <label>{isWrapping ? 'M Amount' : 'wM Amount'}</label>
+            <label>Amount</label>
             <div>
-              Balance: {(isWrapping ? solanaBalances.M?.toFixed(4) : solanaBalances.wM?.toFixed(4)) ?? '0.00'}
+              Balance: {solanaBalances.M?.toFixed(4) ?? '0.00'}
               <button onClick={handleMaxClick} className="ml-2 text-blue-400 hover:text-blue-300 hover:cursor-pointer">
                 MAX
               </button>
@@ -137,15 +98,8 @@ export const Wrap = () => {
               className="w-full bg-off-blue py-3 px-4 pr-20 focus:outline-none"
             />
             <div className="absolute right-2 flex items-center space-x-1">
-              <img
-                src={
-                  isWrapping
-                    ? 'https://media.m0.org/logos/svg/M_Symbol_512.svg'
-                    : 'https://media.m0.org/logos/svg/wM_Symbol_512.svg'
-                }
-                className="w-6 h-6 -translate-y-0.5"
-              />
-              <span className="w-8">{isWrapping ? 'M' : 'wM'}</span>
+              <img src={'https://media.m0.org/logos/svg/M_Symbol_512.svg'} className="w-6 h-6 -translate-y-0.5" />
+              <span className="w-8">wM</span>
             </div>
           </div>
         </div>
@@ -187,16 +141,10 @@ export const Wrap = () => {
             <div className="flex items-center justify-center animate-pulse transition-opacity duration-1000">
               <span className="loader mr-2"></span>Processing...
             </div>
-          ) : isWrapping ? (
-            'Wrap M'
           ) : (
-            'Unwrap wM'
+            'Swap'
           )}
         </button>
-
-        <div className="mt-5 text-xs text-gray-400 text-center">
-          {isWrapping ? 'Wrapping converts M to wM for use with DeFi protocols' : 'Unwrapping converts wM back to M'}
-        </div>
       </div>
       <ToastContainer position="bottom-right" autoClose={false} stacked={false} closeOnClick={false} />
     </div>

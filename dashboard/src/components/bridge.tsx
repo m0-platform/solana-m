@@ -11,6 +11,7 @@ import { useSendTransaction } from 'wagmi';
 import { switchChain, waitForTransactionReceipt, writeContract } from '@wagmi/core';
 import { wagmiAdapter } from '../main';
 import { useQuery } from '@tanstack/react-query';
+import { M_EVM, MINTS } from '../services/consts';
 
 type Chain = {
   name: string;
@@ -180,9 +181,13 @@ export const Bridge = () => {
     setRecipientAddress(e.target.value.trim());
   };
 
+  const getMBalance = () => {
+    const balances = inputChain.name === 'Solana' ? solanaBalances[MINTS.M.toBase58()] : evmBalances[M_EVM];
+    return balances?.balance ?? new Decimal(0);
+  };
+
   const handleMaxClick = () => {
-    const balances = inputChain.name === 'Solana' ? solanaBalances : evmBalances;
-    setAmount(balances.M?.toString() ?? '0');
+    setAmount(getMBalance().toString());
   };
 
   const handleBridge = async () => {
@@ -284,7 +289,8 @@ export const Bridge = () => {
   const validWallet = isConnected && (isSolanaWallet ? inputChain.name === 'Solana' : inputChain.name !== 'Solana');
   const buttonDisabled = !isConnected || !isValidAmount || !isValidRecipient || isLoading || !validWallet;
   const hasAllowance =
-    inputChain.name === 'Solana' || (isValidAmount && (allowanceQuery.data ?? 0n) >= BigInt(new Decimal(amount).mul(1e6).toFixed(0)));
+    inputChain.name === 'Solana' ||
+    (isValidAmount && (allowanceQuery.data ?? 0n) >= BigInt(new Decimal(amount).mul(1e6).toFixed(0)));
 
   const handleNonceCheckBox = (e: React.ChangeEvent<HTMLInputElement>) => {
     const checked = e.target.checked;
@@ -303,16 +309,14 @@ export const Bridge = () => {
   return (
     <div className="flex justify-center mt-20">
       <div className="p-6 w-full max-w-md">
-        <div className="mb-6">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block mb-2 text-gray-400 text-xs">Input Chain</label>
-              <ChainDropdown selectedChain={inputChain} onChange={handleInputChainChange} />
-            </div>
-            <div>
-              <label className="block mb-2 text-gray-400 text-xs">Output Chain</label>
-              <ChainDropdown selectedChain={outputChain} onChange={handleOutputChainChange} />
-            </div>
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div>
+            <label className="block mb-2 text-gray-400 text-xs">Input Chain</label>
+            <ChainDropdown selectedChain={inputChain} onChange={handleInputChainChange} />
+          </div>
+          <div>
+            <label className="block mb-2 text-gray-400 text-xs">Output Chain</label>
+            <ChainDropdown selectedChain={outputChain} onChange={handleOutputChainChange} />
           </div>
         </div>
 
@@ -320,7 +324,7 @@ export const Bridge = () => {
           <div className="flex justify-between items-center mb-2 text-gray-400 text-xs">
             <label>M Amount</label>
             <div>
-              Balance: {(inputChain.name === 'Solana' ? solanaBalances : evmBalances).M?.toFixed(4) ?? '0.00'}
+              Balance: {getMBalance().toFixed(4) ?? '0.00'}
               <button onClick={handleMaxClick} className="ml-2 text-blue-400 hover:text-blue-300 hover:cursor-pointer">
                 MAX
               </button>

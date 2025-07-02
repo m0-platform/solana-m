@@ -16,3 +16,5 @@ export const MINTS =
         M: new PublicKey('mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo'),
         wM: new PublicKey('mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp'),
       };
+
+export const M_EVM = '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b';

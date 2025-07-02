@@ -1,16 +1,23 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAccount } from '../hooks/useAccount';
-import { NETWORK, wrapOrUnwrap } from '../services/rpc';
-import { PublicKey } from '@solana/web3.js';
+import { NETWORK } from '../services/rpc';
 import { type Provider } from '@reown/appkit-adapter-solana/react';
 import { useAppKitProvider } from '@reown/appkit/react';
 import Decimal from 'decimal.js';
 import { toast, ToastContainer } from 'react-toastify';
+import { ApiClient } from '../services/sdk';
+import { useQuery } from '@tanstack/react-query';
+import { M0SolanaApi } from '@m0-foundation/solana-m-api-sdk';
+import { MINTS } from '../services/consts';
+
+type Extension = M0SolanaApi.extensions.Extension;
 
 export const Swap = () => {
   const { isConnected, address, solanaBalances } = useAccount();
   const { walletProvider } = useAppKitProvider<Provider>('solana');
 
+  const [fromtExt, setFromExt] = useState<Extension>();
+  const [toExt, setToExt] = useState<Extension>();
   const [amount, setAmount] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [displayNonceInput, setDisplayNonceInput] = useState<boolean>(false);
@@ -27,7 +34,7 @@ export const Swap = () => {
   };
 
   const handleMaxClick = () => {
-    setAmount(solanaBalances.M?.toString() ?? '0');
+    setAmount(solanaBalances[fromtExt?.mint ?? '']?.toString() ?? '0');
   };
 
   const handleWrapUnwrap = async () => {
@@ -79,11 +86,15 @@ export const Swap = () => {
   return (
     <div className="flex justify-center mt-20">
       <div className="p-6 w-full max-w-md">
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <ExtensionDropdown selectedExt={fromtExt} onChange={setFromExt} side="From" />
+          <ExtensionDropdown selectedExt={toExt} onChange={setToExt} side="To" />
+        </div>
         <div className="mb-6">
           <div className="flex justify-between items-center mb-2 text-gray-400 text-xs">
             <label>Amount</label>
             <div>
-              Balance: {solanaBalances.M?.toFixed(4) ?? '0.00'}
+              Balance: {solanaBalances[fromtExt?.mint ?? '']?.balance.toFixed(4) ?? '0.00'}
               <button onClick={handleMaxClick} className="ml-2 text-blue-400 hover:text-blue-300 hover:cursor-pointer">
                 MAX
               </button>
@@ -97,10 +108,6 @@ export const Swap = () => {
               placeholder="0.0"
               className="w-full bg-off-blue py-3 px-4 pr-20 focus:outline-none"
             />
-            <div className="absolute right-2 flex items-center space-x-1">
-              <img src={'https://media.m0.org/logos/svg/M_Symbol_512.svg'} className="w-6 h-6 -translate-y-0.5" />
-              <span className="w-8">wM</span>
-            </div>
           </div>
         </div>
 
@@ -147,6 +154,94 @@ export const Swap = () => {
         </button>
       </div>
       <ToastContainer position="bottom-right" autoClose={false} stacked={false} closeOnClick={false} />
+    </div>
+  );
+};
+
+const ExtensionDropdown = ({
+  selectedExt,
+  onChange,
+  side,
+}: {
+  selectedExt?: Extension;
+  onChange: (ext: Extension) => void;
+  side: 'From' | 'To';
+}) => {
+  const { data: extensionData } = useQuery({
+    queryKey: ['extensions'],
+    queryFn: () => ApiClient.extensions.extensions(),
+  });
+
+  // Add $M as extension (can wrap it)
+  const extensions: M0SolanaApi.extensions.Extension[] = [
+    {
+      mint: MINTS.M.toBase58(),
+      programId: 'MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c',
+      symbol: '$M',
+      name: '$M by M0',
+      icon: 'https://gistcdn.githack.com/SC4RECOIN/a729afb77aa15a4aa6b1b46c3afa1b52/raw/209da531ed46c1aaef0b1d3d7b67b3a5cec257f3/M_Symbol_512.svg',
+      mVault: '',
+      mVaultBalance: 0,
+      mEarned: 0,
+      tokenSupply: 0,
+      uiMultiplier: 1,
+    },
+    ...(extensionData?.extensions ?? []),
+  ];
+
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+
+  const handleClickOutside = (event: MouseEvent) => {
+    if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      setIsOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // auto-select first extension
+  useEffect(() => {
+    if (extensionData && !selectedExt) {
+      onChange(extensions[side === 'From' ? 0 : 1]);
+    }
+  }, [extensionData]);
+
+  const handleSelect = (ext: Extension) => {
+    onChange(ext);
+    setIsOpen(false);
+  };
+
+  return (
+    <div>
+      <label className="block mb-2 text-gray-400 text-xs">{side}</label>
+      <div className="relative w-80" ref={dropdownRef}>
+        <button className="flex items-center space-x-2 bg-off-blue px-4 py-2" onClick={() => setIsOpen(!isOpen)}>
+          <img src={selectedExt?.icon} alt={selectedExt?.name} className="w-6 h-6 rounded-full" />
+          <span>{selectedExt?.symbol}</span>
+        </button>
+        {isOpen && (
+          <div className="absolute bg-off-blue mt-2 w-full z-10">
+            {extensions.map((ext) => (
+              <button
+                key={ext.symbol}
+                onClick={() => handleSelect(ext)}
+                className={
+                  'flex items-center space-x-2 px-4 py-2 w-full text-left hover:bg-gray-100 hover:cursor-pointer'
+                }
+              >
+                <img src={ext.icon} alt={ext.name} className="w-6 h-6" />
+                <span>{ext.symbol}</span>-<span className="text-small pl-2">{ext.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

@@ -1,18 +1,23 @@
 import { useAppKitAccount } from '@reown/appkit/react';
 import { Connection, PublicKey } from '@solana/web3.js';
 import Decimal from 'decimal.js';
-import { MINTS } from '../services/consts';
 import { getBalance } from '@wagmi/core';
 import { wagmiAdapter } from '../main';
 import { useQuery } from '@tanstack/react-query';
+import { ApiClient } from '../services/sdk';
+import { MINTS } from '../services/consts';
 
-interface TokenBalance {
-  M?: Decimal;
-  wM?: Decimal;
-}
+type TokenBalance = { [key: string]: { mint: PublicKey; balance: Decimal } };
 
 export const useAccount = () => {
   const { isConnected, address, caipAddress } = useAppKitAccount();
+
+  const { data: extensionData } = useQuery({
+    queryKey: ['extensions'],
+    queryFn: () => ApiClient.extensions.extensions(),
+  });
+
+  const mints = [MINTS.M, ...(extensionData?.extensions.map((ext) => new PublicKey(ext.mint)) || [])];
 
   const isSolanaWallet = !!address && !address.startsWith('0x');
   const isEvmWallet = !!address && address.startsWith('0x');
@@ -37,11 +42,13 @@ export const useAccount = () => {
       const tokenMint = account.account.data.parsed.info.mint;
       const tokenAmount = account.account.data.parsed.info.tokenAmount.uiAmount.toString();
 
-      if (tokenMint === MINTS.M.toBase58()) {
-        solanaBalances.M = new Decimal(tokenAmount);
-      }
-      if (tokenMint === MINTS.wM.toBase58()) {
-        solanaBalances.wM = new Decimal(tokenAmount);
+      const target = mints.find((mint) => mint.toBase58() === tokenMint);
+
+      if (target) {
+        solanaBalances[target.toBase58()] = {
+          mint: target,
+          balance: new Decimal(tokenAmount),
+        };
       }
     }
 
@@ -49,7 +56,7 @@ export const useAccount = () => {
   };
 
   // Fetch EVM token balances
-  const fetchEvmBalances = async (): Promise<TokenBalance> => {
+  const fetchEvmBalance = async (): Promise<TokenBalance> => {
     if (!isConnected || !isEvmWallet || !address) {
       return {};
     }
@@ -58,14 +65,12 @@ export const useAccount = () => {
       address: address as `0x${string}`,
       token: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b',
     });
-    const wmBalance = await getBalance(wagmiAdapter.wagmiConfig, {
-      address: address as `0x${string}`,
-      token: '0x437cc33344a0B27A429f795ff6B469C72698B291',
-    });
 
     return {
-      M: new Decimal(mBalance.value.toString()).div(1e6),
-      wM: new Decimal(wmBalance.value.toString()).div(1e6),
+      '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b': {
+        balance: new Decimal(mBalance.value.toString()).div(1e6),
+        mint: PublicKey.default,
+      },
     };
   };
 
@@ -76,7 +81,7 @@ export const useAccount = () => {
   } = useQuery({
     queryKey: ['solanaBalances', address],
     queryFn: fetchSolanaBalances,
-    enabled: isConnected && isSolanaWallet,
+    enabled: isConnected && isSolanaWallet && !!extensionData,
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
@@ -86,7 +91,7 @@ export const useAccount = () => {
     error: evmBalancesError,
   } = useQuery({
     queryKey: ['evmBalances', caipAddress],
-    queryFn: fetchEvmBalances,
+    queryFn: fetchEvmBalance,
     enabled: isConnected && isEvmWallet,
     refetchInterval: 30000, // Refetch every 30 seconds
   });

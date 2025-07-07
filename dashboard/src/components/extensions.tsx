@@ -16,14 +16,17 @@ const ExtensionCard = ({ extension }: { extension: M0SolanaApi.extensions.Extens
   );
 };
 
-export const Vaults = () => {
+export const Extensions = () => {
   const { data: extensionData } = useQuery({
     queryKey: ['extensions'],
     queryFn: () => ApiClient.extensions.extensions(),
   });
 
+  // sort by size
+  const extensions = extensionData?.extensions.sort((a, b) => b.mVaultBalance - a.mVaultBalance) || [];
+
   // sum up all balances to calculate percentages
-  const totalBalances = extensionData?.extensions.reduce((acc, extension) => acc + extension.mVaultBalance, 0);
+  const totalBalances = extensions.reduce((acc, extension) => acc + extension.mVaultBalance, 0);
 
   const toPercentage = (balance: number) => {
     if (!totalBalances) return 1;
@@ -34,8 +37,8 @@ export const Vaults = () => {
     <div>
       <div className="text-2xl mb-4">Extensions</div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-6">
-        {extensionData?.extensions.map((extension) => (
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-8">
+        {extensions.map((extension) => (
           <NavLink key={extension.programId} to={`/earner/${extension.mVault}`}>
             <ExtensionCard extension={extension} />
           </NavLink>
@@ -53,7 +56,7 @@ export const Vaults = () => {
           </tr>
         </thead>
         <tbody>
-          {extensionData?.extensions.map((extension) => (
+          {extensions.map((extension) => (
             <tr key={extension.programId} className="border-b border-gray-200">
               <td className="px-2 py-4">
                 <NavLink to={`/earner/${extension.mVault}`} className={'hover:underline bg-gray-100 py-1 px-2'}>

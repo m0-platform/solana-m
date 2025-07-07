@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { Navbar } from './components/navbar';
 import { StatsBar } from './components/statsbar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Vaults } from './components/vaults';
+import { Extensions } from './components/extensions';
 import { Route, BrowserRouter, Routes } from 'react-router-dom';
 import { HistoricalSupply } from './components/historical-supply';
 import { Bridges } from './components/bridges';
@@ -96,7 +96,7 @@ createRoot(document.getElementById('root')!).render(
                   <StatsBar />
                   <div className="max-w-6xl mx-auto py-10 space-y-16 px-2">
                     <HistoricalSupply />
-                    <Vaults />
+                    <Extensions />
                     <Bridges />
                     <IndexUpdates />
                   </div>

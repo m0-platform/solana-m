@@ -25,6 +25,30 @@ const extensionData = [
     tokenSupply: 0,
     uiMultiplier: 1,
   },
+  {
+    name: 'Kast USDK',
+    mint: 'usdkbee86pkLyRmxfFCdkyySpxRb5ndCxVsK2BkRXwX',
+    programId: 'extaykYu5AQcDm3qZAbiDN3yp6skqn6Nssj7veUUGZw',
+    symbol: 'USDK',
+    icon: 'https://i.imgur.com/nLvez92.png',
+    mVault: 'HGXvfS2MmJ1k6aGji7u13AtaiM62w2m7egwW3o5qLqqo',
+    mVaultBalance: 0,
+    mEarned: 0,
+    tokenSupply: 0,
+    uiMultiplier: 1,
+  },
+  {
+    name: 'Kast USDKY',
+    mint: 'usdkyPPxgV7sfNyKb8eDz66ogPrkRXG3wS2FVb6LLUf',
+    programId: 'extMahs9bUFMYcviKCvnSRaXgs5PcqmMzcnHRtTqE85',
+    symbol: 'USDKY',
+    icon: 'https://i.imgur.com/4VY1dQ4.png',
+    mVault: '4QqDEKoXeD5esxx1UCDXiKyMsmQyhxN3zsaHSxUJZWmR',
+    mVaultBalance: 0,
+    mEarned: 0,
+    tokenSupply: 0,
+    uiMultiplier: 1,
+  },
 ];
 
 let mMint = 'mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo' as Address;
@@ -32,31 +56,10 @@ let mMint = 'mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo' as Address;
 if (isDevnet) {
   mMint = 'mzeroZRGCah3j5xEWp2Nih3GDejSBbH1rbHoxDg8By6' as Address;
 
-  extensionData.push({
-    name: 'Kast USD',
-    mint: 'usdkbee86pkLyRmxfFCdkyySpxRb5ndCxVsK2BkRXwX',
-    programId: 'Fb2AsCKmPd4gKhabT6KsremSHMrJ8G2Mopnc6rDQZX9e',
-    symbol: 'USDK',
-    icon: 'https://cdn-icons-png.freepik.com/512/6681/6681925.png',
-    mVault: '3jjzuwuYxzHRn39D26KWDtGQCWMc12uXK41jBB3njEqi',
-    mVaultBalance: 0,
-    mEarned: 0,
-    tokenSupply: 0,
-    uiMultiplier: 1,
-  });
-
-  extensionData.push({
-    name: 'Kast USDY',
-    mint: 'usdkyPPxgV7sfNyKb8eDz66ogPrkRXG3wS2FVb6LLUf',
-    programId: '3PskKTHgboCbUSQPMcCAZdZNFHbNvSoZ8zEFYANCdob7',
-    symbol: 'USDKY',
-    icon: 'https://cdn-icons-png.freepik.com/512/6681/6681925.png',
-    mVault: '93rkP7LJx47fn3AckRcvyiAZBCoSkpcTnCcTtQGGPCGJ',
-    mVaultBalance: 0,
-    mEarned: 0,
-    tokenSupply: 0,
-    uiMultiplier: 1,
-  });
+  extensionData[1].programId = 'Fb2AsCKmPd4gKhabT6KsremSHMrJ8G2Mopnc6rDQZX9e';
+  extensionData[2].programId = '3PskKTHgboCbUSQPMcCAZdZNFHbNvSoZ8zEFYANCdob7';
+  extensionData[1].mVault = '3jjzuwuYxzHRn39D26KWDtGQCWMc12uXK41jBB3njEqi';
+  extensionData[2].mVault = '93rkP7LJx47fn3AckRcvyiAZBCoSkpcTnCcTtQGGPCGJ';
 }
 
 export const extensions = new ExtensionsService({

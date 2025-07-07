@@ -20,7 +20,6 @@ export const Navbar = () => {
               { path: '/', label: 'Home' },
               { path: '/swap', label: 'Swap' },
               { path: '/bridge', label: 'Bridge' },
-              { path: '/simulate', label: 'Simulate' },
             ].map(({ path, label }) => (
               <NavLink
                 key={path}

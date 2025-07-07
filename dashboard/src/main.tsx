@@ -22,7 +22,6 @@ import {
   AppKitNetwork,
 } from '@reown/appkit/networks';
 import { Swap } from './components/swap';
-import { Simulate } from './components/simulate';
 import { Bridge } from './components/bridge';
 import { EarnerDetails } from './components/earner';
 import { IndexUpdates } from './components/index-updates';
@@ -105,7 +104,6 @@ createRoot(document.getElementById('root')!).render(
             />
             <Route path="/swap" element={<Swap />} />
             <Route path="/bridge" element={<Bridge />} />
-            <Route path="/simulate" element={<Simulate />} />
             <Route path="/earner/:vault" element={<EarnerDetails />} />
           </Routes>
         </BrowserRouter>

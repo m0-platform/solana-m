@@ -14,6 +14,58 @@ export type MExt = {
   },
   "instructions": [
     {
+      "name": "addWrapAuthority",
+      "discriminator": [
+        234,
+        104,
+        99,
+        10,
+        191,
+        202,
+        68,
+        43
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "globalAccount"
+          ]
+        },
+        {
+          "name": "globalAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "newWrapAuthority",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
       "name": "claimFees",
       "discriminator": [
         82,
@@ -53,23 +105,19 @@ export type MExt = {
           }
         },
         {
-          "name": "mEarnerAccount",
+          "name": "mEarnGlobalAccount",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  101,
+                  103,
+                  108,
+                  111,
+                  98,
                   97,
-                  114,
-                  110,
-                  101,
-                  114
+                  108
                 ]
-              },
-              {
-                "kind": "account",
-                "path": "vaultMTokenAccount"
               }
             ],
             "program": {
@@ -530,6 +578,58 @@ export type MExt = {
       ]
     },
     {
+      "name": "removeWrapAuthority",
+      "discriminator": [
+        218,
+        60,
+        185,
+        181,
+        112,
+        63,
+        60,
+        152
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "globalAccount"
+          ]
+        },
+        {
+          "name": "globalAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "wrapAuthority",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
       "name": "setFee",
       "discriminator": [
         18,
@@ -567,38 +667,9 @@ export type MExt = {
               }
             ]
           }
-        }
-      ],
-      "args": [
-        {
-          "name": "feeBps",
-          "type": "u64"
-        }
-      ]
-    },
-    {
-      "name": "setMMint",
-      "discriminator": [
-        235,
-        27,
-        65,
-        160,
-        39,
-        11,
-        1,
-        2
-      ],
-      "accounts": [
-        {
-          "name": "admin",
-          "signer": true,
-          "relations": [
-            "globalAccount"
-          ]
         },
         {
-          "name": "globalAccount",
-          "writable": true,
+          "name": "mEarnGlobalAccount",
           "pda": {
             "seeds": [
               {
@@ -612,218 +683,90 @@ export type MExt = {
                   108
                 ]
               }
-            ]
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                5,
+                96,
+                203,
+                194,
+                112,
+                168,
+                176,
+                78,
+                85,
+                26,
+                180,
+                224,
+                26,
+                229,
+                153,
+                66,
+                23,
+                208,
+                230,
+                56,
+                28,
+                164,
+                98,
+                240,
+                154,
+                37,
+                49,
+                118,
+                130,
+                244,
+                142,
+                245
+              ]
+            }
           }
         },
         {
-          "name": "mVault",
+          "name": "extMint",
+          "writable": true,
+          "relations": [
+            "globalAccount"
+          ]
+        },
+        {
+          "name": "extMintAuthority",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
                   109,
+                  105,
+                  110,
+                  116,
                   95,
-                  118,
                   97,
                   117,
-                  108,
-                  116
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
                 ]
               }
             ]
           }
         },
         {
-          "name": "mMint",
-          "relations": [
-            "globalAccount"
-          ]
-        },
-        {
-          "name": "vaultMTokenAccount",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "mVault"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  6,
-                  221,
-                  246,
-                  225,
-                  238,
-                  117,
-                  143,
-                  222,
-                  24,
-                  66,
-                  93,
-                  188,
-                  228,
-                  108,
-                  205,
-                  218,
-                  182,
-                  26,
-                  252,
-                  77,
-                  131,
-                  185,
-                  13,
-                  39,
-                  254,
-                  189,
-                  249,
-                  40,
-                  216,
-                  161,
-                  139,
-                  252
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "global_account.m_mint",
-                "account": "extGlobal"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
-        },
-        {
-          "name": "newMMint"
-        },
-        {
-          "name": "newVaultMTokenAccount",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "mVault"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  6,
-                  221,
-                  246,
-                  225,
-                  238,
-                  117,
-                  143,
-                  222,
-                  24,
-                  66,
-                  93,
-                  188,
-                  228,
-                  108,
-                  205,
-                  218,
-                  182,
-                  26,
-                  252,
-                  77,
-                  131,
-                  185,
-                  13,
-                  39,
-                  254,
-                  189,
-                  249,
-                  40,
-                  216,
-                  161,
-                  139,
-                  252
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "newMMint"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
+          "name": "extTokenProgram",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "feeBps",
+          "type": "u64"
+        }
+      ]
     },
     {
       "name": "sync",
@@ -858,132 +801,19 @@ export type MExt = {
           }
         },
         {
-          "name": "mVault",
+          "name": "mEarnGlobalAccount",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  109,
-                  95,
-                  118,
-                  97,
-                  117,
+                  103,
                   108,
-                  116
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "vaultMTokenAccount",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "mVault"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  6,
-                  221,
-                  246,
-                  225,
-                  238,
-                  117,
-                  143,
-                  222,
-                  24,
-                  66,
-                  93,
-                  188,
-                  228,
-                  108,
-                  205,
-                  218,
-                  182,
-                  26,
-                  252,
-                  77,
-                  131,
-                  185,
-                  13,
-                  39,
-                  254,
-                  189,
-                  249,
-                  40,
-                  216,
-                  161,
-                  139,
-                  252
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "global_account.m_mint",
-                "account": "extGlobal"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
-        },
-        {
-          "name": "mEarnerAccount",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  101,
+                  111,
+                  98,
                   97,
-                  114,
-                  110,
-                  101,
-                  114
+                  108
                 ]
-              },
-              {
-                "kind": "account",
-                "path": "vaultMTokenAccount"
               }
             ],
             "program": {
@@ -1120,23 +950,19 @@ export type MExt = {
           }
         },
         {
-          "name": "mEarnerAccount",
+          "name": "mEarnGlobalAccount",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  101,
+                  103,
+                  108,
+                  111,
+                  98,
                   97,
-                  114,
-                  110,
-                  101,
-                  114
+                  108
                 ]
-              },
-              {
-                "kind": "account",
-                "path": "vaultMTokenAccount"
               }
             ],
             "program": {
@@ -1305,57 +1131,6 @@ export type MExt = {
       ]
     },
     {
-      "name": "updateWrapAuthority",
-      "discriminator": [
-        20,
-        165,
-        160,
-        64,
-        87,
-        115,
-        99,
-        135
-      ],
-      "accounts": [
-        {
-          "name": "admin",
-          "signer": true,
-          "relations": [
-            "globalAccount"
-          ]
-        },
-        {
-          "name": "globalAccount",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
-              }
-            ]
-          }
-        }
-      ],
-      "args": [
-        {
-          "name": "index",
-          "type": "u8"
-        },
-        {
-          "name": "newWrapAuthority",
-          "type": "pubkey"
-        }
-      ]
-    },
-    {
       "name": "wrap",
       "discriminator": [
         178,
@@ -1410,23 +1185,19 @@ export type MExt = {
           }
         },
         {
-          "name": "mEarnerAccount",
+          "name": "mEarnGlobalAccount",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  101,
+                  103,
+                  108,
+                  111,
+                  98,
                   97,
-                  114,
-                  110,
-                  101,
-                  114
+                  108
                 ]
-              },
-              {
-                "kind": "account",
-                "path": "vaultMTokenAccount"
               }
             ],
             "program": {
@@ -1701,6 +1472,16 @@ export type MExt = {
       "code": 6009,
       "name": "typeConversionError",
       "msg": "Type conversion error."
+    },
+    {
+      "code": 6010,
+      "name": "invalidInput",
+      "msg": "Invalid value provided for calculation"
+    },
+    {
+      "code": 6011,
+      "name": "invalidAmount",
+      "msg": "Invalid amount"
     }
   ],
   "types": [
@@ -1766,20 +1547,17 @@ export type MExt = {
             "type": "u8"
           },
           {
-            "name": "wrapAuthorities",
-            "type": {
-              "array": [
-                "pubkey",
-                10
-              ]
-            }
-          },
-          {
             "name": "yieldConfig",
             "type": {
               "defined": {
                 "name": "yieldConfig"
               }
+            }
+          },
+          {
+            "name": "wrapAuthorities",
+            "type": {
+              "vec": "pubkey"
             }
           }
         ]

@@ -45,7 +45,11 @@ export interface ParsedOptions extends EnvOptions {
 }
 
 // all programs and extensions that require yield distribution
-const programsMainnet = [PROGRAM_ID, new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko')];
+const programsMainnet = [
+  PROGRAM_ID,
+  new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'),
+  new PublicKey('extMahs9bUFMYcviKCvnSRaXgs5PcqmMzcnHRtTqE85'),
+];
 
 const programsDevnet = [
   PROGRAM_ID,
@@ -217,6 +221,9 @@ async function buildAndSendTransaction(
     // return serialized transaction instead on dry run
     if (opt.dryRun) {
       returnData.push(Buffer.from(txn.serialize()).toString('base64'));
+      logger.debug('dry run transaction', {
+        base64: Buffer.from(txn.serialize()).toString('base64'),
+      });
       continue;
     }
 

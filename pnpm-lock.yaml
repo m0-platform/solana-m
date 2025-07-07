@@ -89,6 +89,9 @@ importers:
 
   dashboard:
     dependencies:
+      '@coral-xyz/anchor':
+        specifier: 'catalog:'
+        version: 0.31.1(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@wormhole-foundation/sdk':
         specifier: 'catalog:'
         version: 1.16.1(@types/react@19.1.8)(axios@1.9.0)(bufferutil@4.0.9)(got@11.8.6)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(typescript@5.8.3)(utf-8-validate@5.0.10)

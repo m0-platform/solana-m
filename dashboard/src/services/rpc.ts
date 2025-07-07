@@ -5,23 +5,14 @@ import {
   NonceAccount,
   PublicKey,
   Transaction,
-  TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
   SystemProgram,
 } from '@solana/web3.js';
-import {
-  createAssociatedTokenAccountInstruction,
-  getAccount,
-  getAssociatedTokenAddressSync,
-  Mint,
-  TOKEN_2022_PROGRAM_ID,
-  unpackMint,
-} from '@solana/spl-token';
-import { EXT_EARN_PROGRAM_ID, MINTS, PORTAL } from './consts';
+import { Mint, TOKEN_2022_PROGRAM_ID, unpackMint } from '@solana/spl-token';
+import { MINTS, PORTAL } from './consts';
 import { type Provider } from '@reown/appkit-adapter-solana/react';
 import Decimal from 'decimal.js';
-import { getU64Encoder } from '@solana/codecs';
 import { UniversalAddress, Wormhole } from '@wormhole-foundation/sdk';
 import { SolanaNtt } from '@wormhole-foundation/sdk-solana-ntt';
 import { EvmNtt } from '@wormhole-foundation/sdk-evm-ntt';
@@ -31,6 +22,8 @@ import { Config, useReadContract } from 'wagmi';
 import { JsonRpcProvider } from 'ethers';
 import evm from '@wormhole-foundation/sdk/evm';
 import { wormhole } from '@wormhole-foundation/sdk';
+import { getSwapProgram } from '../programs';
+import BN from 'bn.js';
 
 export const NETWORK: 'devnet' | 'mainnet' = import.meta.env.VITE_NETWORK;
 export const connection = new Connection(import.meta.env.VITE_RPC_URL);
@@ -53,165 +46,62 @@ export const getMintsRPC = async (): Promise<Record<string, Mint>> => {
   return data;
 };
 
-export const wrapOrUnwrap = async (
-  action: 'wrap' | 'unwrap',
+export const swap = async (
   walletProvider: Provider,
-  amount: Decimal,
-  noncePubkey?: PublicKey,
+  amount: BN,
+  fromExtProgram: PublicKey,
+  toExtProgram: PublicKey,
+  fromMint: PublicKey,
+  toMint: PublicKey,
+  fromTokenAccount: PublicKey,
 ) => {
-  const ixs: TransactionInstruction[] = [];
+  const program = getSwapProgram();
 
-  if (!walletProvider.publicKey) {
-    throw new Error('Wallet not connected');
-  }
+  const txn = await program.methods
+    .swap(amount, 0)
+    .accounts({
+      fromExtProgram,
+      toExtProgram,
+      fromMint,
+      toMint,
+      mMint: MINTS.M,
+      fromTokenAccount,
+      toTokenProgram: TOKEN_2022_PROGRAM_ID,
+      mTokenProgram: TOKEN_2022_PROGRAM_ID,
+      fromTokenProgram: TOKEN_2022_PROGRAM_ID,
+    })
+    .transaction();
 
-  // if using nonce account, then we need to add an advance nonce ix to the front of the transaction
-  let recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-  if (noncePubkey) {
-    const nonceAccountInfo = await connection.getAccountInfo(noncePubkey);
-    if (!nonceAccountInfo) {
-      throw new Error('Nonce account not found');
-    }
+  return sendAndConfirm(walletProvider, txn);
+};
 
-    const nonceAccount = NonceAccount.fromAccountData(nonceAccountInfo.data);
+export const wrap = async (walletProvider: Provider, amount: BN, toExtProgram: PublicKey, toMint: PublicKey) => {
+  const program = getSwapProgram();
 
-    // Signer needs to be the nonce authority
-    // and the nonce account needs to be owned by the system program
-    if (!nonceAccount.authorizedPubkey.equals(walletProvider.publicKey)) {
-      throw new Error('Nonce account is not owned by the wallet provider');
-    }
-    if (!nonceAccountInfo.owner.equals(SystemProgram.programId)) {
-      throw new Error('Nonce account is not owned by System Program');
-    }
+  const txn = await program.methods
+    .wrap(amount)
+    .accounts({
+      toExtProgram,
+      toMint,
+      mMint: MINTS.M,
+      toTokenProgram: TOKEN_2022_PROGRAM_ID,
+      mTokenProgram: TOKEN_2022_PROGRAM_ID,
+    })
+    .transaction();
 
-    // Create the advance nonce ix
-    const advanceNonceIx = SystemProgram.nonceAdvance({
-      noncePubkey: noncePubkey,
-      authorizedPubkey: walletProvider.publicKey,
-    });
-    ixs.push(advanceNonceIx);
+  return sendAndConfirm(walletProvider, txn);
+};
 
-    // Set the recent blockhash to the nonce account's blockhash
-    recentBlockhash = nonceAccount.nonce;
-  }
+const sendAndConfirm = async (walletProvider: Provider, txn: Transaction) => {
+  const { lastValidBlockHeight, blockhash } = await connection.getLatestBlockhash();
+  txn.feePayer = walletProvider.publicKey;
+  txn.recentBlockhash = blockhash;
 
-  // add compute budget ix
-  ixs.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 250_000 }));
+  console.log(`Sending transaction: ${txn.serialize({ verifySignatures: false }).toString('base64')}`);
 
-  if (!walletProvider.publicKey) {
-    throw new Error('Wallet not connected');
-  }
-
-  const userTokenAccount = getAssociatedTokenAddressSync(
-    MINTS.M,
-    walletProvider.publicKey,
-    false,
-    TOKEN_2022_PROGRAM_ID,
-  );
-  const userwMTokenAccount = getAssociatedTokenAddressSync(
-    MINTS.wM,
-    walletProvider.publicKey,
-    false,
-    TOKEN_2022_PROGRAM_ID,
-  );
-
-  // check if token account exists
-  for (const tokenAccount of [userTokenAccount, userwMTokenAccount]) {
-    try {
-      await getAccount(connection, tokenAccount, 'processed', TOKEN_2022_PROGRAM_ID);
-    } catch {
-      // add create ix
-      ixs.push(
-        createAssociatedTokenAccountInstruction(
-          walletProvider.publicKey,
-          userwMTokenAccount,
-          walletProvider.publicKey,
-          MINTS.wM,
-          TOKEN_2022_PROGRAM_ID,
-        ),
-      );
-    }
-  }
-
-  const mVault = PublicKey.findProgramAddressSync([Buffer.from('m_vault')], EXT_EARN_PROGRAM_ID)[0];
-  const vaultTokenAccount = getAssociatedTokenAddressSync(MINTS.M, mVault, true, TOKEN_2022_PROGRAM_ID);
-
-  const keys = [
-    {
-      pubkey: walletProvider.publicKey,
-      isSigner: true,
-      isWritable: true,
-    },
-    {
-      pubkey: MINTS.M,
-      isSigner: false,
-      isWritable: false,
-    },
-    {
-      pubkey: MINTS.wM,
-      isSigner: false,
-      isWritable: true,
-    },
-    {
-      pubkey: PublicKey.findProgramAddressSync([Buffer.from('global')], EXT_EARN_PROGRAM_ID)[0],
-      isSigner: false,
-      isWritable: false,
-    },
-    {
-      pubkey: mVault,
-      isSigner: false,
-      isWritable: false,
-    },
-  ];
-
-  if (action === 'wrap') {
-    keys.push({
-      pubkey: PublicKey.findProgramAddressSync([Buffer.from('mint_authority')], EXT_EARN_PROGRAM_ID)[0],
-      isSigner: false,
-      isWritable: false,
-    });
-  }
-
-  keys.push(
-    {
-      pubkey: userTokenAccount,
-      isSigner: false,
-      isWritable: true,
-    },
-    {
-      pubkey: vaultTokenAccount,
-      isSigner: false,
-      isWritable: true,
-    },
-    {
-      pubkey: userwMTokenAccount,
-      isSigner: false,
-      isWritable: true,
-    },
-    {
-      pubkey: TOKEN_2022_PROGRAM_ID,
-      isSigner: false,
-      isWritable: false,
-    },
-  );
-
-  const ix = new TransactionInstruction({
-    keys,
-    data: Buffer.concat([
-      Buffer.from(action === 'wrap' ? 'b2280abde481ba8c' : '7eafc60ed445322c', 'hex'),
-      Buffer.from(getU64Encoder().encode(BigInt(amount.toString()))),
-    ]),
-    programId: EXT_EARN_PROGRAM_ID,
-  });
-
-  const tx = new Transaction().add(...ixs, ix);
-  tx.feePayer = walletProvider.publicKey;
-  tx.recentBlockhash = recentBlockhash;
-
-  const sig = await walletProvider.sendTransaction(tx, connection);
-
+  let sig = '';
   try {
-    const { lastValidBlockHeight, blockhash } = await connection.getLatestBlockhash();
+    const sig = await walletProvider.sendTransaction(txn, connection);
 
     await connection.confirmTransaction(
       {
@@ -252,7 +142,7 @@ export const bridgeFromSolana = async (
       address: new UniversalAddress(recipient, 'hex'),
       chain: toChain as any,
     },
-    { queue: false, automatic: true, gasDropoff: 0n },
+    { queue: false, automatic: true },
     outboxItem,
   );
 
@@ -361,7 +251,6 @@ export const bridgeFromEvm = async (
     {
       queue: false,
       automatic: true,
-      gasDropoff: 0n,
     },
   );
 

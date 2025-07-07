@@ -220,9 +220,10 @@ async function buildAndSendTransaction(
   for (const [i, txn] of (await buildTransactions(opt, ixs, priorityFee, batchSize, memo)).entries()) {
     // return serialized transaction instead on dry run
     if (opt.dryRun) {
-      returnData.push(Buffer.from(txn.serialize()).toString('base64'));
+      const base64Txn = Buffer.from(txn.serialize()).toString('base64');
+      returnData.push(base64Txn);
       logger.debug('dry run transaction', {
-        base64: Buffer.from(txn.serialize()).toString('base64'),
+        base64: base64Txn,
       });
       continue;
     }

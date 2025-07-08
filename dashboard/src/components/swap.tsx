@@ -1,4 +1,4 @@
-import { use, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAccount } from '../hooks/useAccount';
 import { NETWORK, swap, unwrap, wrap } from '../services/rpc';
 import { type Provider } from '@reown/appkit-adapter-solana/react';

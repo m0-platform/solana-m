@@ -1,0 +1,111 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+
+service:
+  auth: false
+  base-path: /swap
+  endpoints:
+    quote:
+      docs: Get swap quote
+      method: GET
+      path: /quote
+      response: Quote
+      request:
+        name: GetQuoteRequest
+        query-parameters:
+          inputMint: string
+          outputMint: string
+          amount: string
+          slippageBps: optional<integer>
+      examples:
+        - query-parameters:
+            inputMint: So11111111111111111111111111111111111111112
+            outputMint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+            amount: '100000000'
+          response:
+            body:
+              quoteId: 'abc1234356'
+              inputMint: So11111111111111111111111111111111111111112
+              inAmount: '100000000'
+              outputMint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+              outAmount: '16198753'
+              slippageBps: 50
+              priceImpactPct: '0'
+              routePlan:
+                - swapInfo:
+                    ammKey: 5BKxfWMbmYBAEWvyPZS9esPducUba9GqyMjtLCfbaqyF
+                    label: Meteora DLMM
+                    inputMint: So11111111111111111111111111111111111111112
+                    outputMint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+                    inAmount: '100000000'
+                    outAmount: '16198753'
+                    feeAmount: '24825'
+                    feeMint: So11111111111111111111111111111111111111112
+                  percent: 100
+
+    swap:
+      docs: Get swap transaction
+      method: GET
+      path: /transaction
+      response: Swap
+      errors:
+        - QuoteNotFound
+      request:
+        name: GetSwapRequest
+        query-parameters:
+          quoteId: string
+          userPublicKey: string
+      examples:
+        - query-parameters:
+            quoteId: 'abc1234356'
+            userPublicKey: 'D76ySoHPwD8U2nnTTDqXeUJQg5UkD9UD1PUE1rnvPAGm'
+          response:
+            body:
+              simlutionLogs: []
+              transaction: 'AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAQAGDkS+3LuGTbs......+/oD9qb31dH6i0QZ2IHELXUX3Y1YeW79p9Stkqk12z4yvZFJiQ4GCQwLBwYQBgUEDggNTQ=='
+
+types:
+  Quote:
+    properties:
+      quoteId: string
+      inputMint: string
+      inAmount: string
+      outputMint: string
+      outAmount: string
+      slippageBps: integer
+      priceImpactPct: string
+      routePlan: list<RoutePlan>
+
+  RoutePlan:
+    properties:
+      percent: integer
+      swapInfo: SwapInfo
+
+  SwapInfo:
+    properties:
+      ammKey: string
+      label: string
+      inputMint: string
+      outputMint: string
+      inAmount: string
+      outAmount: string
+      feeAmount: string
+      feeMint: string
+
+  Swap:
+    properties:
+      transaction: string
+      simlutionLogs: list<string>
+
+  SwapRequestError:
+    properties:
+      message: string
+      logs: optional<list<string>>
+
+errors:
+  QuoteNotFound:
+    status-code: 404
+    type: SwapRequestError
+
+  SimulationFailed:
+    status-code: 400
+    type: SwapRequestError

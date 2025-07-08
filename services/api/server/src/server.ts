@@ -8,6 +8,7 @@ import { events } from './events';
 import { connectToDatabase } from './db';
 import { tokenAccount } from './tokenAccount';
 import { extensions } from './extensions';
+import { swap } from './swap';
 
 const PORT = process.env.PORT ?? 5500;
 
@@ -37,7 +38,7 @@ connectToDatabase()
 app.use('/docs', docs);
 
 // register all services implementation in api spec
-register(app, { events, tokenAccount, extensions });
+register(app, { events, tokenAccount, extensions, swap });
 
 app.listen(PORT);
 logger.info('Server is running', { port: `${PORT}` });

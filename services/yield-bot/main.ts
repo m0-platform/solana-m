@@ -47,8 +47,8 @@ export interface ParsedOptions extends EnvOptions {
 // all programs and extensions that require yield distribution
 const programsMainnet = [
   PROGRAM_ID,
-  new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'),
-  new PublicKey('extMahs9bUFMYcviKCvnSRaXgs5PcqmMzcnHRtTqE85'),
+  new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'), // wM
+  new PublicKey('extMahs9bUFMYcviKCvnSRaXgs5PcqmMzcnHRtTqE85'), // USDKY
 ];
 
 const programsDevnet = [

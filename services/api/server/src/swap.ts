@@ -12,7 +12,13 @@ import {
 } from '@solana/web3.js';
 import { extensionData, mMint } from './extensions';
 import { getSwapProgram } from './programs';
-import { fetchMint, isExtension, Mint, TOKEN_2022_PROGRAM_ADDRESS } from '@solana-program/token-2022';
+import {
+  fetchMint,
+  findAssociatedTokenPda,
+  isExtension,
+  Mint,
+  TOKEN_2022_PROGRAM_ADDRESS,
+} from '@solana-program/token-2022';
 import { BN } from '@coral-xyz/anchor';
 import { createSolanaRpc, Address, isSome, Account } from '@solana/kit';
 
@@ -44,7 +50,7 @@ export const swap = new SwapService({
     const slippage = slippageBps ?? 50;
 
     // only support going to or from extensions
-    if (!extensionData.find((ext) => ext.mint === inputMint) || !extensionData.find((ext) => ext.mint === outputMint)) {
+    if (!extensionData.find((ext) => ext.mint === inputMint) && !extensionData.find((ext) => ext.mint === outputMint)) {
       throw new QuoteNotFound({ message: 'Invalid mints' });
     }
 
@@ -189,18 +195,27 @@ export const swap = new SwapService({
       );
     }
 
+    const [associatedTokenAddress] = await findAssociatedTokenPda({
+      mint: quote.extensionFrom!.mint as Address,
+      owner: userPublicKey as Address,
+      tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
+    });
+
     // swap facility
     ixs.push(
       await swapProgram.methods
         .swap(new BN(quote.swapFacilityAmount!), 0)
         .accounts({
+          signer: new PublicKey(userPublicKey),
+          wrapAuthority: swapProgram.programId,
+          unwrapAuthority: swapProgram.programId,
           fromExtProgram: quote.extensionFrom!.programId,
           toExtProgram: quote.extensionTo!.programId,
           fromMint: quote.extensionFrom!.mint,
           toMint: quote.extensionTo!.mint,
           mMint: mMint,
-          fromTokenAccount: '',
-          toTokenProgram: '',
+          fromTokenAccount: associatedTokenAddress,
+          toTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
           mTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
           fromTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
         })
@@ -239,8 +254,9 @@ export const swap = new SwapService({
     const result = await connection.simulateTransaction(transaction);
     if (result.value.err) {
       throw new SimulationFailed({
-        message: `Simulation failed: ${result.value.err}`,
+        message: `Simulation failed: ${JSON.stringify(result.value.err)}`,
         logs: result.value.logs || [],
+        b64: Buffer.from(transaction.serialize()).toString('base64'),
       });
     }
 

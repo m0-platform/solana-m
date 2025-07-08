@@ -9,6 +9,8 @@ service:
       method: GET
       path: /quote
       response: Quote
+      errors:
+        - QuoteNotFound
       request:
         name: GetQuoteRequest
         query-parameters:
@@ -100,6 +102,7 @@ types:
     properties:
       message: string
       logs: optional<list<string>>
+      b64: optional<string>
 
 errors:
   QuoteNotFound:

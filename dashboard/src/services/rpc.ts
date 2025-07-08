@@ -60,6 +60,9 @@ export const swap = async (
   const txn = await program.methods
     .swap(amount, 0)
     .accounts({
+      signer: walletProvider.publicKey,
+      wrapAuthority: program.programId,
+      unwrapAuthority: program.programId,
       fromExtProgram,
       toExtProgram,
       fromMint,
@@ -81,10 +84,31 @@ export const wrap = async (walletProvider: Provider, amount: BN, toExtProgram: P
   const txn = await program.methods
     .wrap(amount)
     .accounts({
+      signer: walletProvider.publicKey,
+      wrapAuthority: program.programId,
       toExtProgram,
       toMint,
       mMint: MINTS.M,
       toTokenProgram: TOKEN_2022_PROGRAM_ID,
+      mTokenProgram: TOKEN_2022_PROGRAM_ID,
+    })
+    .transaction();
+
+  return sendAndConfirm(walletProvider, txn);
+};
+
+export const unwrap = async (walletProvider: Provider, amount: BN, fromExtProgram: PublicKey, fromMint: PublicKey) => {
+  const program = getSwapProgram();
+
+  const txn = await program.methods
+    .unwrap(amount)
+    .accounts({
+      signer: walletProvider.publicKey,
+      unwrapAuthority: program.programId,
+      fromExtProgram,
+      fromMint,
+      mMint: MINTS.M,
+      fromTokenProgram: TOKEN_2022_PROGRAM_ID,
       mTokenProgram: TOKEN_2022_PROGRAM_ID,
     })
     .transaction();
@@ -101,7 +125,25 @@ const sendAndConfirm = async (walletProvider: Provider, txn: Transaction) => {
 
   let sig = '';
   try {
-    const sig = await walletProvider.sendTransaction(txn, connection);
+    const messageV0 = new TransactionMessage({
+      payerKey: walletProvider.publicKey!,
+      recentBlockhash: blockhash,
+      instructions: txn.instructions,
+    }).compileToV0Message();
+
+    const result = await connection.simulateTransaction(new VersionedTransaction(messageV0), {
+      sigVerify: false,
+      replaceRecentBlockhash: true,
+    });
+
+    // check program logs for error
+    for (const log of result.value.logs || []) {
+      if (log.includes('Error Message')) {
+        throw new Error(log.split('Error Message: ')?.[1] || 'Unknown error');
+      }
+    }
+
+    sig = await walletProvider.sendTransaction(txn, connection);
 
     await connection.confirmTransaction(
       {
@@ -113,7 +155,7 @@ const sendAndConfirm = async (walletProvider: Provider, txn: Transaction) => {
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
-    throw new Error(`Failed to confirm transaction: ${sig}. Error details: ${errorMessage}`);
+    throw new Error(`${errorMessage}`);
   }
 
   return sig;

@@ -65,7 +65,9 @@ export const Extensions = () => {
               </td>
               <td className="px-2 py-4">{formatAmount(extension.mVaultBalance)} M</td>
               <td className="px-2 py-4">{formatAmount(extension.mEarned)} M</td>
-              <td className="px-2 py-4">{extension.uiMultiplier}x</td>
+              <td className="px-2 py-4">
+                {new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(extension.uiMultiplier)}x
+              </td>
               <td className="px-2 py-4">
                 <ProgressBar percentage={toPercentage(extension.mVaultBalance)} />
               </td>

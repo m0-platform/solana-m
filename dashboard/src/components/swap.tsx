@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { use, useEffect, useRef, useState } from 'react';
 import { useAccount } from '../hooks/useAccount';
-import { NETWORK, swap, wrap } from '../services/rpc';
+import { NETWORK, swap, unwrap, wrap } from '../services/rpc';
 import { type Provider } from '@reown/appkit-adapter-solana/react';
 import { useAppKitProvider } from '@reown/appkit/react';
 import Decimal from 'decimal.js';
@@ -18,6 +18,11 @@ type Extension = M0SolanaApi.extensions.Extension;
 export const Swap = () => {
   const { isConnected, address, solanaBalances } = useAccount();
   const { walletProvider } = useAppKitProvider<Provider>('solana');
+
+  const { data: extensionData } = useQuery({
+    queryKey: ['extensions'],
+    queryFn: () => ApiClient.extensions.extensions(),
+  });
 
   const [fromExt, setFromExt] = useState<Extension>();
   const [toExt, setToExt] = useState<Extension>();
@@ -47,6 +52,13 @@ export const Swap = () => {
       let sig;
       if (fromExt?.symbol === '$M') {
         sig = await wrap(walletProvider, amountValue, new PublicKey(toExt!.programId), new PublicKey(toExt!.mint));
+      } else if (toExt?.symbol === '$M') {
+        sig = await unwrap(
+          walletProvider,
+          amountValue,
+          new PublicKey(fromExt!.programId),
+          new PublicKey(fromExt!.mint),
+        );
       } else {
         sig = await swap(
           walletProvider,
@@ -91,7 +103,7 @@ export const Swap = () => {
   const invalidWalletConnect = !isConnected || address?.startsWith('0x');
 
   return (
-    <div className="flex justify-center mt-20">
+    <div className="flex flex-col items-center mt-20">
       <div className="p-6 w-full max-w-md">
         <div className="grid grid-cols-2 gap-4 mb-6">
           <ExtensionDropdown selectedExt={fromExt} onChange={setFromExt} side="From" />
@@ -137,6 +149,37 @@ export const Swap = () => {
             'Swap'
           )}
         </button>
+      </div>
+      <div className="w-100 mt-6">
+        <div className="p-4 bg-off-blue rounded">
+          <h2 className="mb-4 pb-2">Balances</h2>
+          {!isConnected ? (
+            <div className="text-gray-400 text-sm py-2">Connect your wallet to view balances</div>
+          ) : Object.entries(solanaBalances).length === 0 ? (
+            <div className="text-gray-400 text-sm py-2">No balances to display</div>
+          ) : (
+            <div className="space-y-2 text-sm">
+              {Object.entries(solanaBalances).map(([mint, balanceData]) => {
+                const extension = (extensionData?.extensions || []).find((ext) => ext.mint === mint);
+                if (!extension) return null;
+
+                return (
+                  <div key={mint} className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      {extension.icon && (
+                        <img src={extension.icon} alt={extension?.symbol} className="w-6 h-6 rounded-full mb-1" />
+                      )}
+                      <span>{extension.symbol}</span>
+                    </div>
+                    <div className="text-right">
+                      <div>{balanceData.balance.toFixed(4)}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
       <ToastContainer position="bottom-right" autoClose={false} stacked={false} closeOnClick={false} />
     </div>
@@ -207,7 +250,7 @@ const ExtensionDropdown = ({
       <label className="block mb-2 text-gray-400 text-xs">{side}</label>
       <div className="relative w-60" ref={dropdownRef}>
         <button className="flex items-center space-x-2 bg-off-blue px-4 py-2" onClick={() => setIsOpen(!isOpen)}>
-          <img src={selectedExt?.icon} alt={selectedExt?.name} className="w-6 h-6 rounded-full" />
+          <img src={selectedExt?.icon} alt={selectedExt?.name} className="w-6 h-6 rounded-full mb-1" />
           <span>{selectedExt?.symbol}</span>
         </button>
         {isOpen && (
@@ -217,10 +260,10 @@ const ExtensionDropdown = ({
                 key={ext.symbol}
                 onClick={() => handleSelect(ext)}
                 className={
-                  'flex items-center space-x-2 px-4 py-2 w-full text-left hover:bg-gray-100 hover:cursor-pointer'
+                  'flex items-center space-x-2 px-4 py-1 w-full text-left hover:bg-gray-100 hover:cursor-pointer'
                 }
               >
-                <img src={ext.icon} alt={ext.name} className="w-6 h-6" />
+                <img src={ext.icon} alt={ext.name} className="w-6 h-6 rounded-full mb-1" />
                 <span>{ext.symbol}</span>
               </button>
             ))}

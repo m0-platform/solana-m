@@ -82,7 +82,7 @@ export const useAccount = () => {
     queryKey: ['solanaBalances', address],
     queryFn: fetchSolanaBalances,
     enabled: isConnected && isSolanaWallet && !!extensionData,
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 5000,
   });
 
   const {
@@ -93,7 +93,7 @@ export const useAccount = () => {
     queryKey: ['evmBalances', caipAddress],
     queryFn: fetchEvmBalance,
     enabled: isConnected && isEvmWallet,
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 15000,
   });
 
   return {

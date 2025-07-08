@@ -6,15 +6,63 @@ settings:
 
 catalogs:
   default:
+    '@coral-xyz/anchor':
+      specifier: 0.31.1
+      version: 0.31.1
+    '@solana/spl-token':
+      specifier: ~0.4.12
+      version: 0.4.13
     '@solana/web3.js':
       specifier: ^1.68.0
       version: 1.98.2
+    '@sqds/multisig':
+      specifier: ~2.1.3
+      version: 2.1.3
+    '@types/bn.js':
+      specifier: ^5.1.2
+      version: 5.1.6
+    '@types/bs58':
+      specifier: ^4.0.1
+      version: 4.0.4
+    '@wormhole-foundation/sdk':
+      specifier: 1.16.1
+      version: 1.16.1
+    '@wormhole-foundation/sdk-definitions':
+      specifier: 1.16.1
+      version: 1.16.1
+    '@wormhole-foundation/sdk-solana':
+      specifier: 1.16.1
+      version: 1.16.1
+    '@wormhole-foundation/sdk-solana-core':
+      specifier: 1.16.1
+      version: 1.16.1
+    '@wormhole-foundation/sdk-solana-ntt':
+      specifier: 0.7.0-multi-transceiver-alpha.1
+      version: 0.7.0-multi-transceiver-alpha.1
+    bn.js:
+      specifier: ~5.2.1
+      version: 5.2.2
+    bs58:
+      specifier: ^4.0.1
+      version: 4.0.1
+    commander:
+      specifier: 13.1.0
+      version: 13.1.0
+    limiter:
+      specifier: ~3.0.0
+      version: 3.0.0
+    sha3:
+      specifier: ^2.1.4
+      version: 2.1.4
     typescript:
       specifier: '5'
       version: 5.8.3
     viem:
       specifier: ~2.23.14
       version: 2.23.15
+    web3:
+      specifier: ~4.16.0
+      version: 4.16.0
     winston:
       specifier: ~3.17.0
       version: 3.17.0
@@ -266,6 +314,9 @@ importers:
 
   services/api/server:
     dependencies:
+      '@coral-xyz/anchor':
+        specifier: 'catalog:'
+        version: 0.31.1(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@jup-ag/api':
         specifier: ^6.0.44
         version: 6.0.44

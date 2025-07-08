@@ -12,7 +12,7 @@ import { database } from './db';
 const rpc = createSolanaRpc(process.env.SVM_RPC!);
 const isDevnet = process.env.SVM_RPC?.includes('devnet') ?? false;
 
-const extensionData = [
+export const extensionData = [
   {
     name: 'Wrapped $M by M0',
     mint: 'mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp',
@@ -51,7 +51,7 @@ const extensionData = [
   },
 ];
 
-let mMint = 'mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo' as Address;
+export let mMint = 'mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo' as Address;
 
 if (isDevnet) {
   mMint = 'mzeroZRGCah3j5xEWp2Nih3GDejSBbH1rbHoxDg8By6' as Address;

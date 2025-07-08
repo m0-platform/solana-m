@@ -15,6 +15,7 @@
     "outDir": "dist"
   },
   "dependencies": {
+    "@coral-xyz/anchor": "catalog:",
     "@jup-ag/api": "^6.0.44",
     "@solana-program/token-2022": "^0.4.2",
     "@solana/kit": "^2.1.1",

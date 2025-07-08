@@ -105,7 +105,7 @@ define propose_upgrade_program
 		--keypair $(DEVNET_KEYPAIR) \
 		--max-sign-attempts $(MAX_SIGN_ATTEMPTS) \
 		--buffer temp-buffer.json \
-		target/deploy/$(1).so 
+		target/verifiable/$(1).so 
 	@echo "Transfering buffer $$(solana address --keypair temp-buffer.json) authority to Squads" 
 	@solana program set-buffer-authority $$(solana address --keypair temp-buffer.json) \
 		--new-buffer-authority $(SQUADS_VAULT) \

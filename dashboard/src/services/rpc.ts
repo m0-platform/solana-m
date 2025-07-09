@@ -4,7 +4,6 @@ import {
   Keypair,
   NonceAccount,
   PublicKey,
-  Transaction,
   TransactionMessage,
   VersionedTransaction,
   SystemProgram,
@@ -22,8 +21,6 @@ import { Config, useReadContract } from 'wagmi';
 import { JsonRpcProvider } from 'ethers';
 import evm from '@wormhole-foundation/sdk/evm';
 import { wormhole } from '@wormhole-foundation/sdk';
-import { getSwapProgram } from '../programs';
-import BN from 'bn.js';
 
 export const NETWORK: 'devnet' | 'mainnet' = import.meta.env.VITE_NETWORK;
 export const connection = new Connection(import.meta.env.VITE_RPC_URL);
@@ -44,121 +41,6 @@ export const getMintsRPC = async (): Promise<Record<string, Mint>> => {
   }
 
   return data;
-};
-
-export const swap = async (
-  walletProvider: Provider,
-  amount: BN,
-  fromExtProgram: PublicKey,
-  toExtProgram: PublicKey,
-  fromMint: PublicKey,
-  toMint: PublicKey,
-  fromTokenAccount: PublicKey,
-) => {
-  const program = getSwapProgram();
-
-  const txn = await program.methods
-    .swap(amount, 0)
-    .accounts({
-      signer: walletProvider.publicKey,
-      wrapAuthority: program.programId,
-      unwrapAuthority: program.programId,
-      fromExtProgram,
-      toExtProgram,
-      fromMint,
-      toMint,
-      mMint: MINTS.M,
-      fromTokenAccount,
-      toTokenProgram: TOKEN_2022_PROGRAM_ID,
-      mTokenProgram: TOKEN_2022_PROGRAM_ID,
-      fromTokenProgram: TOKEN_2022_PROGRAM_ID,
-    })
-    .transaction();
-
-  return sendAndConfirm(walletProvider, txn);
-};
-
-export const wrap = async (walletProvider: Provider, amount: BN, toExtProgram: PublicKey, toMint: PublicKey) => {
-  const program = getSwapProgram();
-
-  const txn = await program.methods
-    .wrap(amount)
-    .accounts({
-      signer: walletProvider.publicKey,
-      wrapAuthority: program.programId,
-      toExtProgram,
-      toMint,
-      mMint: MINTS.M,
-      toTokenProgram: TOKEN_2022_PROGRAM_ID,
-      mTokenProgram: TOKEN_2022_PROGRAM_ID,
-    })
-    .transaction();
-
-  return sendAndConfirm(walletProvider, txn);
-};
-
-export const unwrap = async (walletProvider: Provider, amount: BN, fromExtProgram: PublicKey, fromMint: PublicKey) => {
-  const program = getSwapProgram();
-
-  const txn = await program.methods
-    .unwrap(amount)
-    .accounts({
-      signer: walletProvider.publicKey,
-      unwrapAuthority: program.programId,
-      fromExtProgram,
-      fromMint,
-      mMint: MINTS.M,
-      fromTokenProgram: TOKEN_2022_PROGRAM_ID,
-      mTokenProgram: TOKEN_2022_PROGRAM_ID,
-    })
-    .transaction();
-
-  return sendAndConfirm(walletProvider, txn);
-};
-
-const sendAndConfirm = async (walletProvider: Provider, txn: Transaction) => {
-  const { lastValidBlockHeight, blockhash } = await connection.getLatestBlockhash();
-  txn.feePayer = walletProvider.publicKey;
-  txn.recentBlockhash = blockhash;
-
-  console.log(`Sending transaction: ${txn.serialize({ verifySignatures: false }).toString('base64')}`);
-
-  let sig = '';
-  try {
-    const messageV0 = new TransactionMessage({
-      payerKey: walletProvider.publicKey!,
-      recentBlockhash: blockhash,
-      instructions: txn.instructions,
-    }).compileToV0Message();
-
-    const result = await connection.simulateTransaction(new VersionedTransaction(messageV0), {
-      sigVerify: false,
-      replaceRecentBlockhash: true,
-    });
-
-    // check program logs for error
-    for (const log of result.value.logs || []) {
-      if (log.includes('Error Message')) {
-        throw new Error(log.split('Error Message: ')?.[1] || 'Unknown error');
-      }
-    }
-
-    sig = await walletProvider.sendTransaction(txn, connection);
-
-    await connection.confirmTransaction(
-      {
-        blockhash: blockhash,
-        lastValidBlockHeight: lastValidBlockHeight,
-        signature: sig,
-      },
-      'confirmed',
-    );
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
-    throw new Error(`${errorMessage}`);
-  }
-
-  return sig;
 };
 
 export const bridgeFromSolana = async (

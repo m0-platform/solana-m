@@ -51,7 +51,7 @@ export const useAccount = () => {
         mint: new PublicKey(token.id),
         balance: new Decimal(token.token_info.balance).div(10 ** token.token_info.decimals),
         decimals: token.token_info.decimals,
-        icon: token.content.files.uri ?? token.mint_extensions.metadata.uri ?? '',
+        icon: token.content.files?.[0]?.uri ?? token.mint_extensions.metadata.uri ?? '',
         ticker: token.content.metadata.symbol,
         programId: extensionData?.extensions?.find((ext) => ext.mint === token.id)?.programId,
       };

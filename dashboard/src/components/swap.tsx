@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { Asset, useAccount } from '../hooks/useAccount';
-import { NETWORK, swap, unwrap, wrap } from '../services/rpc';
+import { connection, NETWORK } from '../services/rpc';
 import { type Provider } from '@reown/appkit-adapter-solana/react';
 import { useAppKitProvider } from '@reown/appkit/react';
 import Decimal from 'decimal.js';
 import { toast, ToastContainer } from 'react-toastify';
 import { ApiClient } from '../services/sdk';
 import { M0SolanaApi } from '@m0-foundation/solana-m-api-sdk';
-import { BN } from '@coral-xyz/anchor';
-import { PublicKey } from '@solana/web3.js';
+import { PublicKey, VersionedTransaction } from '@solana/web3.js';
+import { useDebouncedCallback } from 'use-debounce';
+import { useQueryClient } from '@tanstack/react-query';
 
 const additionalStables: Asset[] = [
   {
@@ -30,12 +31,19 @@ const additionalStables: Asset[] = [
 export const Swap = () => {
   const { isConnected, address, solanaBalances } = useAccount();
   const { walletProvider } = useAppKitProvider<Provider>('solana');
+  const queryClient = useQueryClient();
 
   const [fromAsset, setFromAsset] = useState<Asset>();
   const [toAsset, setToAsset] = useState<Asset>();
   const [amount, setAmount] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [quote, setQuote] = useState<M0SolanaApi.Quote>();
+
+  // debounce amount to not overcall quote API
+  const [debouncedAmount, setDebouncedAmount] = useState<string>('');
+  const debounced = useDebouncedCallback((value: string) => {
+    setDebouncedAmount(value);
+  }, 1000);
 
   let selectableFrom = Object.values(solanaBalances);
   let selectableTo = Object.values(solanaBalances);
@@ -67,6 +75,15 @@ export const Swap = () => {
     }
   }, [solanaBalances]);
 
+  // fetch quote when fromAsset, toAsset, or amount changes
+  useEffect(() => {
+    if (fromAsset && toAsset && debouncedAmount) {
+      getQuote();
+    } else {
+      setQuote(undefined);
+    }
+  }, [fromAsset, toAsset, debouncedAmount]);
+
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
 
@@ -74,36 +91,73 @@ export const Swap = () => {
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
       if (value.split('.').length > 2) return;
       setAmount(value);
+      debounced(value);
     }
   };
 
   const handleMaxClick = () => {
-    setAmount(solanaBalances[fromAsset!.mint.toBase58()].balance.toString());
+    const value = solanaBalances[fromAsset!.mint.toBase58()].balance.toString();
+    setAmount(value);
+    debounced(value);
   };
 
   const getQuote = async () => {
     if (!fromAsset || !toAsset || !amount) return;
 
     try {
+      setIsLoading(true);
+
       const quote = await ApiClient.swap.quote({
         inputMint: fromAsset.mint.toBase58(),
         outputMint: toAsset.mint.toBase58(),
-        amount: new Decimal(amount).mul(10 ** fromAsset.decimals).toString(),
+        amount: new Decimal(debouncedAmount).mul(10 ** fromAsset.decimals).toString(),
       });
 
       setQuote(quote);
     } catch (error) {
       console.error('Error fetching quote:', error);
       toast.error(`Failed to fetch swap quote: ${error}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleSwap = async () => {
-    const amountValue = new BN(new Decimal(amount).mul(1e6).floor().toString());
-    let sig = '';
-
     try {
       setIsLoading(true);
+
+      if (!quote) {
+        throw new Error('No quote available. Please try again.');
+      }
+      if (!walletProvider?.publicKey) {
+        throw new Error('No wallet connected');
+      }
+
+      const swap = await ApiClient.swap.swap({
+        quoteId: quote.quoteId,
+        userPublicKey: walletProvider.publicKey.toBase58(),
+      });
+
+      const txBuffer = Buffer.from(swap.transaction, 'base64');
+      const txn = VersionedTransaction.deserialize(txBuffer);
+      const sig = await walletProvider.sendTransaction(txn, connection);
+
+      const { lastValidBlockHeight, blockhash } = await connection.getLatestBlockhash({ commitment: 'finalized' });
+      txn.message.recentBlockhash = blockhash;
+
+      try {
+        await connection.confirmTransaction(
+          {
+            blockhash: blockhash,
+            lastValidBlockHeight: lastValidBlockHeight,
+            signature: sig,
+          },
+          'confirmed',
+        );
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
+        throw new Error(`Failed to confirm transaction: ${sig}. Error details: ${errorMessage}`);
+      }
 
       const txUrl = `https://solscan.io/tx/${sig}?cluster=${NETWORK}`;
 
@@ -118,10 +172,12 @@ export const Swap = () => {
           </a>
         </div>,
       );
-    } catch (error) {
-      console.error('Error:', error);
 
-      toast.error(<div>Transaction failed: {error instanceof Error ? error.message : 'Unknown error'}</div>);
+      await queryClient.invalidateQueries({ queryKey: ['solanaBalances'] });
+    } catch (error: any) {
+      console.error('Error:', JSON.stringify(error, null, 2));
+
+      toast.error(<div>Transaction failed: {error?.body?.message ?? error?.message ?? 'Unknown error'}</div>);
     } finally {
       setIsLoading(false);
     }
@@ -171,6 +227,20 @@ export const Swap = () => {
             />
           </div>
         </div>
+
+        {quote && (
+          <div className="mb-6 text-sm">
+            <div>
+              {new Decimal(quote.outAmount).div(10 ** toAsset.decimals).toFixed(4)} {toAsset.ticker}{' '}
+            </div>
+            <div>Est Price Impact: {new Decimal(quote.priceImpactPct).toFixed(4)}% </div>
+            <div>
+              {['M0 Swap Facility', ...quote.routePlan.map((p) => p.swapInfo.label)].map((dex) => (
+                <span className="bg-gray-200 mr-2 p-1 text-xs">{dex}</span>
+              ))}
+            </div>
+          </div>
+        )}
 
         <button
           onClick={handleSwap}

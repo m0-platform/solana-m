@@ -59,67 +59,72 @@ export const swap = new SwapService({
 
     const quoteResponse: Quote = {};
 
-    // need to hit jupiter to get to wM
-    if (!extensionData.find((ext) => ext.mint === inputMint)) {
-      const quote = await jupiterQuoteApi.quoteGet({
-        inputMint,
-        outputMint: 'mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp', // wM mint
-        amount: parseInt(amount),
-        slippageBps: slippage,
-        maxAccounts: MAX_ACCOUNTS,
-      });
+    try {
+      // need to hit jupiter to get to wM
+      if (!extensionData.find((ext) => ext.mint === inputMint)) {
+        const quote = await jupiterQuoteApi.quoteGet({
+          inputMint,
+          outputMint: 'mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp', // wM mint
+          amount: parseInt(amount),
+          slippageBps: slippage,
+          maxAccounts: MAX_ACCOUNTS,
+        });
 
-      quoteResponse.preQuote = quote;
+        quoteResponse.preQuote = quote;
 
-      // minimum output amount after accounting for `slippageBps` and `platformFeeBps`
-      quoteResponse.swapFacilityAmount = quote.otherAmountThreshold;
+        // minimum output amount after accounting for `slippageBps` and `platformFeeBps`
+        quoteResponse.swapFacilityAmount = quote.otherAmountThreshold;
 
-      // swap in facility will be from wM
-      quoteResponse.extensionFrom = {
-        mint: 'mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp',
-        programId: 'wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko',
-      };
-    } else {
-      quoteResponse.extensionFrom = {
-        mint: inputMint,
-        programId: extensionData.find((ext) => ext.mint === inputMint)!.programId || '',
-      };
+        // swap in facility will be from wM
+        quoteResponse.extensionFrom = {
+          mint: 'mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp',
+          programId: 'wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko',
+        };
+      } else {
+        quoteResponse.extensionFrom = {
+          mint: inputMint,
+          programId: extensionData.find((ext) => ext.mint === inputMint)!.programId || '',
+        };
 
-      quoteResponse.swapFacilityAmount = amount;
+        quoteResponse.swapFacilityAmount = amount;
 
-      // scale amount if extension is a scaled-ui
-      const ext = extensionData.find((ext) => ext.mint === inputMint)!;
-      const mult = await getScaledMultiplier(ext.mint);
-      quoteResponse.swapFacilityAmount = Math.floor(parseFloat(amount) / mult).toString();
-    }
+        // scale amount if extension is a scaled-ui
+        const ext = extensionData.find((ext) => ext.mint === inputMint)!;
+        const mult = await getScaledMultiplier(ext.mint);
+        quoteResponse.swapFacilityAmount = Math.floor(parseFloat(amount) / mult).toString();
+      }
 
-    // need to hit jupiter to swap from wM
-    if (!extensionData.find((ext) => ext.mint === outputMint)) {
-      const quote = await jupiterQuoteApi.quoteGet({
-        inputMint: 'mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp', // wM mint
-        outputMint,
-        amount: parseInt(amount),
-        slippageBps: slippage,
-        maxAccounts: MAX_ACCOUNTS,
-      });
+      // need to hit jupiter to swap from wM
+      if (!extensionData.find((ext) => ext.mint === outputMint)) {
+        const quote = await jupiterQuoteApi.quoteGet({
+          inputMint: 'mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp', // wM mint
+          outputMint,
+          amount: parseInt(amount),
+          slippageBps: slippage,
+          maxAccounts: MAX_ACCOUNTS,
+        });
 
-      quoteResponse.preQuote = quote;
+        quoteResponse.preQuote = quote;
 
-      // swap in facility will be to wM
-      quoteResponse.extensionTo = {
-        mint: 'mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp',
-        programId: 'wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko',
-      };
-    } else {
-      quoteResponse.extensionTo = {
-        mint: outputMint,
-        programId: extensionData.find((ext) => ext.mint === outputMint)!.programId,
-      };
+        // swap in facility will be to wM
+        quoteResponse.extensionTo = {
+          mint: 'mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp',
+          programId: 'wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko',
+        };
+      } else {
+        quoteResponse.extensionTo = {
+          mint: outputMint,
+          programId: extensionData.find((ext) => ext.mint === outputMint)!.programId,
+        };
 
-      // scale amount if extension is a scaled-ui
-      const ext = extensionData.find((ext) => ext.mint === inputMint)!;
-      const mult = await getScaledMultiplier(ext.mint);
-      quoteResponse.swapFacilityAmount = Math.floor(parseFloat(amount) / mult).toString();
+        // scale amount if extension is a scaled-ui
+        const ext = extensionData.find((ext) => ext.mint === inputMint)!;
+        const mult = await getScaledMultiplier(ext.mint);
+        quoteResponse.swapFacilityAmount = Math.floor(parseFloat(amount) / mult).toString();
+      }
+    } catch (error) {
+      logger.error('Error fetching quote', { error, inputMint, outputMint, amount, slippageBps });
+      throw new QuoteNotFound({ message: `Failed to fetch quote: ${error}` });
     }
 
     // generate random id and save quote for swap endpoint
@@ -245,7 +250,7 @@ export const swap = new SwapService({
     // resolve lut accounts
     const addressLookupTableAccounts = await getAddressLookupTableAccounts(luts);
 
-    const blockhash = (await connection.getLatestBlockhash()).blockhash;
+    const blockhash = (await connection.getLatestBlockhash({ commitment: 'finalized' })).blockhash;
     const messageV0 = new TransactionMessage({
       payerKey: new PublicKey(userPublicKey),
       recentBlockhash: blockhash,
@@ -256,7 +261,7 @@ export const swap = new SwapService({
 
     let sim: SimulatedTransactionResponse;
     try {
-      sim = (await connection.simulateTransaction(transaction)).value;
+      sim = (await connection.simulateTransaction(transaction, { replaceRecentBlockhash: true })).value;
     } catch (error) {
       throw new SimulationFailed({
         message: `Simulation failed: ${error}`,

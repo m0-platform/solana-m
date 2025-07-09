@@ -42,3 +42,5 @@ register(app, { events, tokenAccount, extensions, swap });
 
 app.listen(PORT);
 logger.info('Server is running', { port: `${PORT}` });
+
+export { logger };

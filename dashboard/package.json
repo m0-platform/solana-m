@@ -20,7 +20,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
-    "@m0-foundation/solana-m-api-sdk": "0.1.5",
+    "@m0-foundation/solana-m-api-sdk": "0.1.6",
     "@m0-foundation/solana-m-sdk": "workspace:",
     "@reown/appkit": "^1.7.2",
     "@reown/appkit-adapter-solana": "^1.7.2",

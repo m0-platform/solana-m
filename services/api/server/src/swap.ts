@@ -6,6 +6,7 @@ import {
   AddressLookupTableAccount,
   Connection,
   PublicKey,
+  SimulatedTransactionResponse,
   TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
@@ -21,13 +22,15 @@ import {
 } from '@solana-program/token-2022';
 import { BN } from '@coral-xyz/anchor';
 import { createSolanaRpc, Address, isSome, Account } from '@solana/kit';
+import { logger } from './server';
 
 const quoteCache = new NodeCache({ stdTTL: 90 });
 const connection = new Connection(process.env.SVM_RPC!);
 const jupiterQuoteApi = createJupiterApiClient();
 const swapProgram = getSwapProgram(connection);
 
-const MAX_ACCOUNTS = 48;
+const MAX_ACCOUNTS = process.env.MAX_JUP_ACCOUNTS ? parseInt(process.env.MAX_JUP_ACCOUNTS) : 48;
+const SWAP_LUT = new PublicKey('9JLRqBqkznKiSoNfotA4ywSRdnWb2fE76SiFrAfkaRCD');
 
 // cached quote
 type Quote = {
@@ -175,7 +178,7 @@ export const swap = new SwapService({
       throw new QuoteNotFound({ message: `Quote not found for id: ${quoteId}` });
     }
 
-    const luts: PublicKey[] = [];
+    const luts = [SWAP_LUT];
     const ixs: TransactionInstruction[] = [];
 
     // swapping to wM
@@ -251,18 +254,33 @@ export const swap = new SwapService({
 
     const transaction = new VersionedTransaction(messageV0);
 
-    const result = await connection.simulateTransaction(transaction);
-    if (result.value.err) {
+    let sim: SimulatedTransactionResponse;
+    try {
+      sim = (await connection.simulateTransaction(transaction)).value;
+    } catch (error) {
       throw new SimulationFailed({
-        message: `Simulation failed: ${JSON.stringify(result.value.err)}`,
-        logs: result.value.logs || [],
-        b64: Buffer.from(transaction.serialize()).toString('base64'),
+        message: `Simulation failed: ${error}`,
       });
     }
 
+    const logs = sim.logs || [];
+    const b64 = Buffer.from(transaction.serialize()).toString('base64');
+
+    if (sim.err) {
+      logger.error('Swap simulation failed', { logs, quoteId, userPublicKey, b64 });
+
+      throw new SimulationFailed({
+        message: `Simulation failed: ${JSON.stringify(sim.err)}`,
+        logs,
+        b64: b64,
+      });
+    }
+
+    logger.info('Swap simulation successful', { logs, quoteId, userPublicKey, b64 });
+
     res.send({
-      transaction: Buffer.from(transaction.serialize()).toString('base64'),
-      simlutionLogs: result.value.logs || [],
+      transaction: b64,
+      simlutionLogs: logs,
     });
   },
 });

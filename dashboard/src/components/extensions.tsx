@@ -83,7 +83,7 @@ const ProgressBar = ({ percentage }: { percentage: number }) => {
   const width = `${Math.min(100, Math.max(0, percentage * 100))}%`;
   return (
     <div className="flex items-center">
-      <div className="mr-2 h-2.5 w-15">{(percentage * 100).toFixed(2)}%</div>
+      <div className="mr-2 h-2.5 w-20">{(percentage * 100).toFixed(2)}%</div>
       <div className="w-full bg-gray-200 h-2.5 mr-2">
         <div className="bg-blue-600 h-2.5" style={{ width }}></div>
       </div>

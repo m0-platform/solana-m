@@ -224,6 +224,13 @@ publish-sdk:
 	npm publish && \
 	rm .npmrc
 
+publish-api-sdk:
+	@cd services/api/sdk && \
+	pnpm build && \
+	echo "//registry.npmjs.org/:_authToken=$(shell op read "op://Web3/NPM Publish Token m0-foundation/credential")" > .npmrc && \
+	npm publish && \
+	rm .npmrc
+
 #
 # Switchboard
 #
@@ -245,13 +252,6 @@ update-switchboard-feed-mainnet:
 
 simulate-switchboard-jobs:
 	$(call run-switchboard,simulate-jobs,dev)
-
-publish-api-sdk:
-	@cd services/api/sdk && \
-	pnpm build && \
-	echo "//registry.npmjs.org/:_authToken=$(shell op read "op://Web3/NPM Publish Token m0-foundation/credential")" > .npmrc && \
-	npm publish && \
-	rm .npmrc
 
 #
 # API

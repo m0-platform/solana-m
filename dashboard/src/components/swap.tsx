@@ -1,33 +1,71 @@
 import { useEffect, useRef, useState } from 'react';
-import { useAccount } from '../hooks/useAccount';
+import { Asset, useAccount } from '../hooks/useAccount';
 import { NETWORK, swap, unwrap, wrap } from '../services/rpc';
 import { type Provider } from '@reown/appkit-adapter-solana/react';
 import { useAppKitProvider } from '@reown/appkit/react';
 import Decimal from 'decimal.js';
 import { toast, ToastContainer } from 'react-toastify';
 import { ApiClient } from '../services/sdk';
-import { useQuery } from '@tanstack/react-query';
 import { M0SolanaApi } from '@m0-foundation/solana-m-api-sdk';
-import { MINTS } from '../services/consts';
 import { BN } from '@coral-xyz/anchor';
 import { PublicKey } from '@solana/web3.js';
-import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
 
-type Extension = M0SolanaApi.extensions.Extension;
+const additionalStables: Asset[] = [
+  {
+    mint: new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'),
+    balance: new Decimal(0),
+    decimals: 6,
+    icon: 'https://image-cdn.solana.fm/images/?imageUrl=https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
+    ticker: 'USDC',
+  },
+  {
+    mint: new PublicKey('Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'),
+    balance: new Decimal(0),
+    decimals: 6,
+    icon: 'https://image-cdn.solana.fm/images/?imageUrl=https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB/logo.svg',
+    ticker: 'USDT',
+  },
+];
 
 export const Swap = () => {
   const { isConnected, address, solanaBalances } = useAccount();
   const { walletProvider } = useAppKitProvider<Provider>('solana');
 
-  const { data: extensionData } = useQuery({
-    queryKey: ['extensions'],
-    queryFn: () => ApiClient.extensions.extensions(),
-  });
-
-  const [fromExt, setFromExt] = useState<Extension>();
-  const [toExt, setToExt] = useState<Extension>();
+  const [fromAsset, setFromAsset] = useState<Asset>();
+  const [toAsset, setToAsset] = useState<Asset>();
   const [amount, setAmount] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [quote, setQuote] = useState<M0SolanaApi.Quote>();
+
+  let selectableFrom = Object.values(solanaBalances);
+  let selectableTo = Object.values(solanaBalances);
+
+  // filter out already selected assets
+  if (fromAsset) selectableFrom = selectableFrom.filter((asset) => !asset.mint.equals(fromAsset.mint));
+  if (fromAsset) selectableTo = selectableTo.filter((asset) => !asset.mint.equals(fromAsset.mint));
+  if (toAsset) selectableTo = selectableTo.filter((asset) => !asset.mint.equals(toAsset.mint));
+
+  // Add additional stables to swap to
+  for (const stable of additionalStables) {
+    if (!selectableTo.some((asset) => asset.mint.equals(stable.mint))) {
+      selectableTo.push(stable);
+    }
+  }
+
+  // automatically change output if same
+  useEffect(() => {
+    if (fromAsset && toAsset && fromAsset!.mint.equals(toAsset!.mint)) {
+      setToAsset(selectableTo.find((asset) => !asset.mint.equals(fromAsset!.mint)));
+    }
+  }, [fromAsset]);
+
+  // auto-select first extension
+  useEffect(() => {
+    if (solanaBalances && !fromAsset && !toAsset) {
+      setFromAsset(Object.values(solanaBalances)[0]);
+      setToAsset(Object.values(solanaBalances)[1]);
+    }
+  }, [solanaBalances]);
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -40,41 +78,32 @@ export const Swap = () => {
   };
 
   const handleMaxClick = () => {
-    setAmount(solanaBalances[fromExt?.mint ?? '']?.toString() ?? '0');
+    setAmount(solanaBalances[fromAsset!.mint.toBase58()].balance.toString());
+  };
+
+  const getQuote = async () => {
+    if (!fromAsset || !toAsset || !amount) return;
+
+    try {
+      const quote = await ApiClient.swap.quote({
+        inputMint: fromAsset.mint.toBase58(),
+        outputMint: toAsset.mint.toBase58(),
+        amount: new Decimal(amount).mul(10 ** fromAsset.decimals).toString(),
+      });
+
+      setQuote(quote);
+    } catch (error) {
+      console.error('Error fetching quote:', error);
+      toast.error(`Failed to fetch swap quote: ${error}`);
+    }
   };
 
   const handleSwap = async () => {
     const amountValue = new BN(new Decimal(amount).mul(1e6).floor().toString());
+    let sig = '';
 
     try {
       setIsLoading(true);
-
-      let sig;
-      if (fromExt?.symbol === '$M') {
-        sig = await wrap(walletProvider, amountValue, new PublicKey(toExt!.programId), new PublicKey(toExt!.mint));
-      } else if (toExt?.symbol === '$M') {
-        sig = await unwrap(
-          walletProvider,
-          amountValue,
-          new PublicKey(fromExt!.programId),
-          new PublicKey(fromExt!.mint),
-        );
-      } else {
-        sig = await swap(
-          walletProvider,
-          amountValue,
-          new PublicKey(fromExt!.programId),
-          new PublicKey(toExt!.programId),
-          new PublicKey(fromExt!.mint),
-          new PublicKey(toExt!.mint),
-          getAssociatedTokenAddressSync(
-            new PublicKey(fromExt!.mint),
-            walletProvider.publicKey!,
-            true,
-            TOKEN_2022_PROGRAM_ID,
-          ),
-        );
-      }
 
       const txUrl = `https://solscan.io/tx/${sig}?cluster=${NETWORK}`;
 
@@ -102,18 +131,31 @@ export const Swap = () => {
   const isValidAmount = amount !== '' && parseFloat(amount) > 0;
   const invalidWalletConnect = !isConnected || address?.startsWith('0x');
 
+  if (!fromAsset || !toAsset)
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2"></div>
+      </div>
+    );
+
   return (
     <div className="flex flex-col items-center mt-20">
       <div className="p-6 w-full max-w-md">
         <div className="grid grid-cols-2 gap-4 mb-6">
-          <ExtensionDropdown selectedExt={fromExt} onChange={setFromExt} side="From" />
-          <ExtensionDropdown selectedExt={toExt} onChange={setToExt} side="To" />
+          <div>
+            <label className="block mb-2 text-gray-400 text-xs">From</label>
+            <ExtensionDropdown selectedAsset={fromAsset} onChange={setFromAsset} selectableAssets={selectableFrom} />
+          </div>
+          <div>
+            <label className="block mb-2 text-gray-400 text-xs">To</label>
+            <ExtensionDropdown selectedAsset={toAsset} onChange={setToAsset} selectableAssets={selectableTo} />
+          </div>
         </div>
         <div className="mb-6">
           <div className="flex justify-between items-center mb-2 text-gray-400 text-xs">
             <label>Amount</label>
             <div>
-              Balance: {solanaBalances[fromExt?.mint ?? '']?.balance.toFixed(4) ?? '0.00'}
+              Balance: {solanaBalances[fromAsset?.mint.toBase58() ?? '']?.balance.toFixed(4) ?? '0.00'}
               <button onClick={handleMaxClick} className="ml-2 text-blue-400 hover:text-blue-300 hover:cursor-pointer">
                 MAX
               </button>
@@ -159,24 +201,17 @@ export const Swap = () => {
             <div className="text-gray-400 text-sm py-2">No balances to display</div>
           ) : (
             <div className="space-y-2 text-sm">
-              {Object.entries(solanaBalances).map(([mint, balanceData]) => {
-                const extension = (extensionData?.extensions || []).find((ext) => ext.mint === mint);
-                if (!extension) return null;
-
-                return (
-                  <div key={mint} className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      {extension.icon && (
-                        <img src={extension.icon} alt={extension?.symbol} className="w-6 h-6 rounded-full mb-1" />
-                      )}
-                      <span>{extension.symbol}</span>
-                    </div>
-                    <div className="text-right">
-                      <div>{balanceData.balance.toFixed(4)}</div>
-                    </div>
+              {Object.entries(solanaBalances).map(([mint, data]) => (
+                <div key={mint} className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    {data.icon && <img src={data.icon} alt={data?.ticker} className="w-6 h-6 rounded-full mb-1" />}
+                    <span>{data.ticker}</span>
                   </div>
-                );
-              })}
+                  <div className="text-right">
+                    <div>{data.balance.toFixed(4)}</div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -187,36 +222,14 @@ export const Swap = () => {
 };
 
 const ExtensionDropdown = ({
-  selectedExt,
+  selectableAssets,
+  selectedAsset,
   onChange,
-  side,
 }: {
-  selectedExt?: Extension;
-  onChange: (ext: Extension) => void;
-  side: 'From' | 'To';
+  selectableAssets: Asset[];
+  selectedAsset?: Asset;
+  onChange: (ext: Asset) => void;
 }) => {
-  const { data: extensionData } = useQuery({
-    queryKey: ['extensions'],
-    queryFn: () => ApiClient.extensions.extensions(),
-  });
-
-  // Add $M as extension (can wrap it)
-  const extensions: M0SolanaApi.extensions.Extension[] = [
-    {
-      mint: MINTS.M.toBase58(),
-      programId: 'MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c',
-      symbol: '$M',
-      name: '$M by M0',
-      icon: 'https://gistcdn.githack.com/SC4RECOIN/a729afb77aa15a4aa6b1b46c3afa1b52/raw/209da531ed46c1aaef0b1d3d7b67b3a5cec257f3/M_Symbol_512.svg',
-      mVault: '',
-      mVaultBalance: 0,
-      mEarned: 0,
-      tokenSupply: 0,
-      uiMultiplier: 1,
-    },
-    ...(extensionData?.extensions ?? []),
-  ];
-
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -233,38 +246,30 @@ const ExtensionDropdown = ({
     };
   }, []);
 
-  // auto-select first extension
-  useEffect(() => {
-    if (extensionData && !selectedExt) {
-      onChange(extensions[side === 'From' ? 0 : 1]);
-    }
-  }, [extensionData]);
-
-  const handleSelect = (ext: Extension) => {
-    onChange(ext);
+  const handleSelect = (asset: Asset) => {
+    onChange(asset);
     setIsOpen(false);
   };
 
   return (
     <div>
-      <label className="block mb-2 text-gray-400 text-xs">{side}</label>
       <div className="relative w-60" ref={dropdownRef}>
         <button className="flex items-center space-x-2 bg-off-blue px-4 py-2" onClick={() => setIsOpen(!isOpen)}>
-          <img src={selectedExt?.icon} alt={selectedExt?.name} className="w-6 h-6 rounded-full mb-1" />
-          <span>{selectedExt?.symbol}</span>
+          <img src={selectedAsset?.icon} alt={selectedAsset?.ticker} className="w-6 h-6 rounded-full mb-1" />
+          <span>{selectedAsset?.ticker}</span>
         </button>
         {isOpen && (
-          <div className="absolute bg-off-blue mt-2 w-full z-10">
-            {extensions.map((ext) => (
+          <div className="absolute bg-off-blue mt-2 w-full z-10 py-2">
+            {selectableAssets.map((asset) => (
               <button
-                key={ext.symbol}
-                onClick={() => handleSelect(ext)}
+                key={asset.ticker}
+                onClick={() => handleSelect(asset)}
                 className={
                   'flex items-center space-x-2 px-4 py-1 w-full text-left hover:bg-gray-100 hover:cursor-pointer'
                 }
               >
-                <img src={ext.icon} alt={ext.name} className="w-6 h-6 rounded-full mb-1" />
-                <span>{ext.symbol}</span>
+                <img src={asset.icon} alt={asset.ticker} className="w-6 h-6 rounded-full mb-1" />
+                <span>{asset.ticker}</span>
               </button>
             ))}
           </div>

@@ -53,8 +53,9 @@ const programsMainnet = [
 
 const programsDevnet = [
   PROGRAM_ID,
-  new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'),
-  new PublicKey('3PskKTHgboCbUSQPMcCAZdZNFHbNvSoZ8zEFYANCdob7'),
+  new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'), // wM
+  new PublicKey('3PskKTHgboCbUSQPMcCAZdZNFHbNvSoZ8zEFYANCdob7'), // USDKY
+  new PublicKey('extUkDFf3HLekkxbcZ3XRUizMjbxMJgKBay3p9xGVmg'), // Fuse USD
 ];
 
 // entrypoint for the yield bot command

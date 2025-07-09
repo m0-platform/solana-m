@@ -263,7 +263,7 @@ export class MerkleTree {
       // If the index is even, the sibling is to the right
       // If the index is odd, the sibling is to the left
       let siblingOnRight = index % 2 === 0;
-      let siblingIndex = siblingOnRight ? index + 1 : index - 1;
+      let siblingIndex = siblingOnRight ? index : index - 1;
       let sibling = this.tree[i][siblingIndex];
 
       // console.log("sibling index", siblingIndex);

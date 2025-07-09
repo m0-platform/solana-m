@@ -25,7 +25,7 @@ solana_security_txt::security_txt! {
     auditors: "Asymmetric Research, Sec3, OtterSec, Halborn"
 }
 
-declare_id!("MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c");
+declare_id!("mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z");
 
 #[program]
 pub mod earn {
@@ -33,22 +33,11 @@ pub mod earn {
 
     // Admin instructions
 
-    pub fn initialize(
-        ctx: Context<Initialize>,
-        earn_authority: Pubkey,
-        initial_index: u64,
-        claim_cooldown: u64,
-    ) -> Result<()> {
-        instructions::admin::initialize::handler(ctx, earn_authority, initial_index, claim_cooldown)
+    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
+        Initialize::handler(ctx)
     }
 
-    pub fn set_earn_authority(ctx: Context<AdminAction>, new_earn_authority: Pubkey) -> Result<()> {
-        instructions::admin::set_earn_authority::handler(ctx, new_earn_authority)
-    }
-
-    pub fn set_claim_cooldown(ctx: Context<AdminAction>, claim_cooldown: u64) -> Result<()> {
-        instructions::admin::set_claim_cooldown::handler(ctx, claim_cooldown)
-    }
+    // TODO add admin instructions for updating global values
 
     // Portal instrutions
 
@@ -57,17 +46,7 @@ pub mod earn {
         index: u64,
         earner_merkle_root: [u8; 32],
     ) -> Result<()> {
-        instructions::portal::propagate_index::handler(ctx, index, earner_merkle_root)
-    }
-
-    // Earn authority instructions
-
-    pub fn claim_for(ctx: Context<ClaimFor>, snapshot_balance: u64) -> Result<()> {
-        instructions::earn_authority::claim_for::handler(ctx, snapshot_balance)
-    }
-
-    pub fn complete_claims(ctx: Context<CompleteClaims>) -> Result<()> {
-        instructions::earn_authority::complete_claims::handler(ctx)
+        PropagateIndex::handler(ctx, index, earner_merkle_root)
     }
 
     // Open instructions
@@ -77,7 +56,7 @@ pub mod earn {
         user: Pubkey,
         proof: Vec<ProofElement>,
     ) -> Result<()> {
-        instructions::open::add_registrar_earner::handler(ctx, user, proof)
+        AddRegistrarEarner::handler(ctx, user, proof)
     }
 
     pub fn remove_registrar_earner(
@@ -85,6 +64,6 @@ pub mod earn {
         proofs: Vec<Vec<ProofElement>>,
         neighbors: Vec<[u8; 32]>,
     ) -> Result<()> {
-        instructions::open::remove_registrar_earner::handler(ctx, proofs, neighbors)
+        RemoveRegistrarEarner::handler(ctx, proofs, neighbors)
     }
 }

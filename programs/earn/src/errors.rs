@@ -26,4 +26,12 @@ pub enum EarnError {
     InvalidProof,
     #[msg("Token account owner is required to be immutable.")]
     MutableOwner,
+    #[msg("Invalid Mint.")]
+    InvalidMint,
+    #[msg("Math overflow error.")]
+    MathOverflow,
+    #[msg("Math underflow error.")]
+    MathUnderflow,
+    #[msg("Type conversion error.")]
+    TypeConversionError,
 }

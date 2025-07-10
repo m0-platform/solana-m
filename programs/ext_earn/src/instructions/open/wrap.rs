@@ -1,7 +1,6 @@
-// ext_earn/instructions/open/wrap.rs
-
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, Token2022, TokenAccount};
+use earn::utils::conversion::principal_to_amount_down;
 
 use crate::{
     errors::ExtError,
@@ -75,7 +74,7 @@ pub struct Wrap<'info> {
     pub token_2022: Program<'info, Token2022>,
 }
 
-pub fn handler(ctx: Context<Wrap>, amount: u64) -> Result<()> {
+pub fn handler(ctx: Context<Wrap>, m_principal: u64) -> Result<()> {
     let auth = match &ctx.accounts.program_authority {
         Some(auth) => auth.key,
         None => ctx.accounts.token_authority.key,
@@ -90,16 +89,21 @@ pub fn handler(ctx: Context<Wrap>, amount: u64) -> Result<()> {
     transfer_tokens(
         &ctx.accounts.from_m_token_account,              // from
         &ctx.accounts.vault_m_token_account,             // to
-        amount,                                          // amount
+        m_principal,                                     // amount
         &ctx.accounts.m_mint,                            // mint
         &ctx.accounts.token_authority.to_account_info(), // authority
         &ctx.accounts.m_token_program,                   // token program
     )?;
 
+    // Calculate the amount of ext tokens to mint
+    let m_scaled_ui_config = earn::utils::conversion::get_scaled_ui_config(&ctx.accounts.m_mint)?;
+    let m_equivalent_amount =
+        principal_to_amount_down(m_principal, m_scaled_ui_config.new_multiplier.into())?;
+
     // Mint the amount of ext tokens to the user
     mint_tokens(
         &ctx.accounts.to_ext_token_account, // to
-        amount,                             // amount
+        m_equivalent_amount,                // amount
         &ctx.accounts.ext_mint,             // mint
         &ctx.accounts.ext_mint_authority,   // authority
         &[&[

@@ -1,5 +1,3 @@
-// ext_earn/instructions/open/unwrap.rs
-
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, Token2022, TokenAccount};
 
@@ -75,7 +73,7 @@ pub struct Unwrap<'info> {
     pub token_2022: Program<'info, Token2022>,
 }
 
-pub fn handler(ctx: Context<Unwrap>, amount: u64) -> Result<()> {
+pub fn handler(ctx: Context<Unwrap>, ext_amount: u64) -> Result<()> {
     let auth = match &ctx.accounts.program_authority {
         Some(auth) => auth.key,
         None => ctx.accounts.token_authority.key,
@@ -89,17 +87,24 @@ pub fn handler(ctx: Context<Unwrap>, amount: u64) -> Result<()> {
     // Burn the amount of ext tokens from the user
     burn_tokens(
         &ctx.accounts.from_ext_token_account,            // from
-        amount,                                          // amount
+        ext_amount,                                      // amount
         &ctx.accounts.ext_mint,                          // mint
         &ctx.accounts.token_authority.to_account_info(), // authority
         &ctx.accounts.token_2022,                        // token program
+    )?;
+
+    // Calculate the principal amount of $M tokens to transfer using the multiplier
+    let scaled_ui_config = earn::utils::conversion::get_scaled_ui_config(&ctx.accounts.m_mint)?;
+    let m_principal = earn::utils::conversion::amount_to_principal_down(
+        ext_amount,
+        scaled_ui_config.new_multiplier.into(),
     )?;
 
     // Transfer the amount of m tokens from the m vault to the user
     transfer_tokens_from_program(
         &ctx.accounts.vault_m_token_account, // from
         &ctx.accounts.to_m_token_account,    // to
-        amount,                              // amount
+        m_principal,                         // amount
         &ctx.accounts.m_mint,                // mint
         &ctx.accounts.m_vault,               // authority
         &[&[M_VAULT_SEED, &[ctx.accounts.global_account.m_vault_bump]]], // authority seeds

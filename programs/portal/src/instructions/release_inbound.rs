@@ -1,6 +1,6 @@
 use anchor_lang::{prelude::*, solana_program::program::invoke_signed};
 use anchor_spl::{associated_token::get_associated_token_address_with_program_id, token_interface};
-use earn::cpi::accounts::PropagateIndex;
+use earn::{cpi::accounts::PropagateIndex, utils::conversion::amount_to_principal_down};
 
 use spl_token_2022::onchain;
 
@@ -102,50 +102,8 @@ pub fn release_inbound_mint_multisig<'info>(
         &[ctx.bumps.common.token_authority],
     ]];
 
-    if inbox_item.transfer.amount > 0 {
-        // Mint then transfer to ensure transfer hook is called
-        invoke_signed(
-            &spl_token_2022::instruction::mint_to(
-                &ctx.accounts.common.token_program.key(),
-                &ctx.accounts.common.mint.key(),
-                &ctx.accounts.common.custody.key(),
-                &ctx.accounts.multisig.key(),
-                &[&ctx.accounts.common.token_authority.key()],
-                inbox_item.transfer.amount,
-            )?,
-            &[
-                ctx.accounts.common.custody.to_account_info(),
-                ctx.accounts.common.mint.to_account_info(),
-                ctx.accounts.common.token_authority.to_account_info(),
-                ctx.accounts.multisig.to_account_info(),
-            ],
-            token_authority_sig,
-        )?;
-
-        onchain::invoke_transfer_checked(
-            &ctx.accounts.common.token_program.key(),
-            ctx.accounts.common.custody.to_account_info(),
-            ctx.accounts.common.mint.to_account_info(),
-            ctx.accounts.common.recipient.to_account_info(),
-            ctx.accounts.common.token_authority.to_account_info(),
-            ctx.remaining_accounts,
-            inbox_item.transfer.amount,
-            ctx.accounts.common.mint.decimals,
-            token_authority_sig,
-        )?;
-
-        ctx.accounts.common.mint.reload()?;
-
-        emit!(BridgeEvent {
-            amount: inbox_item.transfer.amount as i64,
-            token_supply: ctx.accounts.common.mint.supply,
-            to: inbox_item.transfer.recipient.to_bytes(),
-            from: inbox_item.source.from,
-            wormhole_chain_id: inbox_item.source.chain.id,
-        });
-    }
-
     // Send update to the earn program
+    // Must be done before minting tokens
     {
         let expected_accounts = &ctx
             .accounts
@@ -169,7 +127,8 @@ pub fn release_inbound_mint_multisig<'info>(
             PropagateIndex {
                 signer: ctx.accounts.common.token_authority.to_account_info(),
                 global_account: ctx.remaining_accounts[1].clone(),
-                mint: ctx.accounts.common.mint.to_account_info(),
+                m_mint: ctx.accounts.common.mint.to_account_info(),
+                token_program: ctx.accounts.common.token_program.to_account_info(),
             },
             token_authority_sig,
         );
@@ -182,6 +141,65 @@ pub fn release_inbound_mint_multisig<'info>(
             inbox_item.index_update,
             inbox_item.earners_root_update.is_some()
         );
+    }
+
+    // Mint and transfer tokens if the amount is greater than zero
+    if inbox_item.transfer.amount > 0 {
+        // Reload the mint to ensure the latest multiplier is used
+        ctx.accounts.common.mint.reload()?;
+
+        // Get the multiplier from the mint
+        // We load it rather than using the index provided in the inbox item
+        // since it is possible that the inbox index is not the latest
+        let scaled_ui_config =
+            earn::utils::conversion::get_scaled_ui_config(&ctx.accounts.common.mint)?;
+
+        // Get the principal amount of $M tokens to transfer using the multiplier
+        let principal = amount_to_principal_down(
+            inbox_item.transfer.amount,
+            scaled_ui_config.multiplier.into(),
+        )?;
+
+        // Mint then transfer to ensure transfer hook is called
+        invoke_signed(
+            &spl_token_2022::instruction::mint_to(
+                &ctx.accounts.common.token_program.key(),
+                &ctx.accounts.common.mint.key(),
+                &ctx.accounts.common.custody.key(),
+                &ctx.accounts.multisig.key(),
+                &[&ctx.accounts.common.token_authority.key()],
+                principal,
+            )?,
+            &[
+                ctx.accounts.common.custody.to_account_info(),
+                ctx.accounts.common.mint.to_account_info(),
+                ctx.accounts.common.token_authority.to_account_info(),
+                ctx.accounts.multisig.to_account_info(),
+            ],
+            token_authority_sig,
+        )?;
+
+        onchain::invoke_transfer_checked(
+            &ctx.accounts.common.token_program.key(),
+            ctx.accounts.common.custody.to_account_info(),
+            ctx.accounts.common.mint.to_account_info(),
+            ctx.accounts.common.recipient.to_account_info(),
+            ctx.accounts.common.token_authority.to_account_info(),
+            ctx.remaining_accounts,
+            principal,
+            ctx.accounts.common.mint.decimals,
+            token_authority_sig,
+        )?;
+
+        ctx.accounts.common.mint.reload()?;
+
+        emit!(BridgeEvent {
+            amount: principal as i64,
+            token_supply: ctx.accounts.common.mint.supply,
+            to: inbox_item.transfer.recipient.to_bytes(),
+            from: inbox_item.source.from,
+            wormhole_chain_id: inbox_item.source.chain.id,
+        });
     }
 
     Ok(())

@@ -25,6 +25,10 @@ test-sdk:
 	kill -9 $$(lsof -ti:8899) & kill -9 $$(lsof -ti:8545); \
 	exit $$e
 
+test-merkle:
+	@cd sdk && pnpm build
+	cd tests && pnpm jest --preset ts-jest tests/unit/merkle.test.ts; exit $$?
+
 test-local-validator:
 	solana-test-validator --deactivate-feature EenyoWx9UMXYKpR8mW5Jmfmy2fRjzUtM7NduYMY8bx33 -r \
 		--account 2yVjuQwpsvdsrywzsJJVs9Ueh4zayyo5DYJbBNc3DDpn tests/accounts/core_bridge_config.json \

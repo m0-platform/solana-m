@@ -1,7 +1,7 @@
 import { SwapService } from '../generated/api/resources/swap/service/SwapService';
 import NodeCache from 'node-cache';
 import { createJupiterApiClient, Instruction, QuoteResponse, RoutePlanStep } from '@jup-ag/api';
-import { QuoteNotFound, SimulationFailed } from '../generated/api';
+import { QuoteNotFound, RoutePlan, SimulationFailed } from '../generated/api';
 import {
   AddressLookupTableAccount,
   Connection,
@@ -31,6 +31,7 @@ const swapProgram = getSwapProgram(connection);
 
 const MAX_ACCOUNTS = process.env.MAX_JUP_ACCOUNTS ? parseInt(process.env.MAX_JUP_ACCOUNTS) : 48;
 const SWAP_LUT = new PublicKey('9JLRqBqkznKiSoNfotA4ywSRdnWb2fE76SiFrAfkaRCD');
+const wM = new PublicKey('mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp');
 
 // cached quote
 type Quote = {
@@ -58,6 +59,7 @@ export const swap = new SwapService({
     }
 
     const quoteResponse: Quote = {};
+    const routePlan: RoutePlan[] = [];
 
     try {
       // need to hit jupiter to get to wM
@@ -71,6 +73,8 @@ export const swap = new SwapService({
         });
 
         quoteResponse.preQuote = quote;
+        routePlan.push(...quote.routePlan.map(convertRoutePlan));
+        routePlan.push(getM0Route(wM.toBase58(), outputMint, amount));
 
         // minimum output amount after accounting for `slippageBps` and `platformFeeBps`
         quoteResponse.swapFacilityAmount = quote.otherAmountThreshold;
@@ -105,6 +109,8 @@ export const swap = new SwapService({
         });
 
         quoteResponse.preQuote = quote;
+        routePlan.push(getM0Route(inputMint, wM.toBase58(), amount));
+        routePlan.push(...quote.routePlan.map(convertRoutePlan));
 
         // swap in facility will be to wM
         quoteResponse.extensionTo = {
@@ -118,13 +124,18 @@ export const swap = new SwapService({
         };
 
         // scale amount if extension is a scaled-ui
-        const ext = extensionData.find((ext) => ext.mint === inputMint)!;
+        const ext = extensionData.find((ext) => ext.mint === outputMint)!;
         const mult = await getScaledMultiplier(ext.mint);
         quoteResponse.swapFacilityAmount = Math.floor(parseFloat(amount) / mult).toString();
       }
     } catch (error) {
       logger.error('Error fetching quote', { error, inputMint, outputMint, amount, slippageBps });
       throw new QuoteNotFound({ message: `Failed to fetch quote: ${error}` });
+    }
+
+    // only route is through swap facility
+    if (routePlan.length === 0) {
+      routePlan.push(getM0Route(inputMint, outputMint, amount));
     }
 
     // generate random id and save quote for swap endpoint
@@ -149,7 +160,7 @@ export const swap = new SwapService({
       quoteResponse.swapFacilityAmount = Math.floor(parseFloat(amount) * mult).toString();
     }
 
-    const { priceImpactPct, routePlan } = quoteResponse.preQuote ?? quoteResponse.postQuote ?? {};
+    const { priceImpactPct } = quoteResponse.preQuote ?? quoteResponse.postQuote ?? {};
 
     res.send({
       quoteId,
@@ -159,19 +170,7 @@ export const swap = new SwapService({
       outAmount: outAmount,
       slippageBps: slippage,
       priceImpactPct: priceImpactPct ?? '0',
-      routePlan: (routePlan ?? []).map((r: RoutePlanStep) => ({
-        swapInfo: {
-          ammKey: r.swapInfo.ammKey,
-          label: r.swapInfo.label ?? 'unknown',
-          inputMint: r.swapInfo.inputMint,
-          outputMint: r.swapInfo.outputMint,
-          inAmount: r.swapInfo.inAmount,
-          outAmount: r.swapInfo.outAmount,
-          feeAmount: r.swapInfo.feeAmount,
-          feeMint: r.swapInfo.feeMint,
-        },
-        percent: r.percent,
-      })),
+      routePlan,
     });
   },
 
@@ -338,4 +337,36 @@ async function getScaledMultiplier(mintAddress: string) {
   }
 
   return 1;
+}
+
+function getM0Route(inputMint: string, outputMint: string, amount: string): RoutePlan {
+  return {
+    percent: 100,
+    swapInfo: {
+      ammKey: 'MSwapi3WhNKMUGm9YrxGhypgUEt7wYQH3ZgG32XoWzH',
+      label: 'M0 Swap Facility',
+      inputMint,
+      outputMint,
+      inAmount: amount,
+      outAmount: amount,
+      feeAmount: '0',
+      feeMint: inputMint,
+    },
+  };
+}
+
+function convertRoutePlan(step: RoutePlanStep): RoutePlan {
+  return {
+    swapInfo: {
+      ammKey: step.swapInfo.ammKey,
+      label: step.swapInfo.label ?? 'unknown',
+      inputMint: step.swapInfo.inputMint,
+      outputMint: step.swapInfo.outputMint,
+      inAmount: step.swapInfo.inAmount,
+      outAmount: step.swapInfo.outAmount,
+      feeAmount: step.swapInfo.feeAmount,
+      feeMint: step.swapInfo.feeMint,
+    },
+    percent: step.percent,
+  };
 }

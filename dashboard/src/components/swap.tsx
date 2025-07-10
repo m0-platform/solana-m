@@ -9,7 +9,7 @@ import { ApiClient } from '../services/sdk';
 import { M0SolanaApi } from '@m0-foundation/solana-m-api-sdk';
 import { PublicKey, VersionedTransaction } from '@solana/web3.js';
 import { useDebouncedCallback } from 'use-debounce';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 const additionalStables: Asset[] = [
   {
@@ -29,9 +29,14 @@ const additionalStables: Asset[] = [
 ];
 
 export const Swap = () => {
-  const { isConnected, address, solanaBalances } = useAccount();
+  const { isConnected, address, solanaBalances, isLoading: balanceLoading } = useAccount();
   const { walletProvider } = useAppKitProvider<Provider>('solana');
   const queryClient = useQueryClient();
+
+  const { data: extensionData, isLoading: extLoading } = useQuery({
+    queryKey: ['extensions'],
+    queryFn: () => ApiClient.extensions.extensions(),
+  });
 
   const [fromAsset, setFromAsset] = useState<Asset>();
   const [toAsset, setToAsset] = useState<Asset>();
@@ -46,7 +51,14 @@ export const Swap = () => {
   }, 1000);
 
   let selectableFrom = Object.values(solanaBalances);
-  let selectableTo = Object.values(solanaBalances);
+
+  // if no wallet balances, use extensions
+  if (selectableFrom.length === 0 && extensionData) {
+    selectableFrom = extensionData.extensions.map(extToAsset);
+  }
+
+  // can swap to any extension or additional stablecoin
+  let selectableTo = Object.values([...(extensionData?.extensions.map(extToAsset) || []), ...additionalStables]);
 
   // filter out already selected assets
   if (fromAsset) selectableFrom = selectableFrom.filter((asset) => !asset.mint.equals(fromAsset.mint));
@@ -69,11 +81,17 @@ export const Swap = () => {
 
   // auto-select first extension
   useEffect(() => {
-    if (solanaBalances && !fromAsset && !toAsset) {
-      setFromAsset(Object.values(solanaBalances)[0]);
-      setToAsset(Object.values(solanaBalances)[1]);
+    // no wallet balances so auto-select extensions
+    if (!isConnected && !balanceLoading && extensionData && !fromAsset && !toAsset) {
+      setFromAsset(extToAsset(extensionData.extensions[0]));
+      setToAsset(extToAsset(extensionData.extensions[1]));
     }
-  }, [solanaBalances]);
+    // use wallet balances for auto-select
+    else if (solanaBalances && !balanceLoading && extensionData && !fromAsset && !toAsset) {
+      setFromAsset(Object.values(solanaBalances)[0]);
+      setToAsset(extToAsset(extensionData.extensions[0]));
+    }
+  }, [solanaBalances, extensionData, extLoading, balanceLoading]);
 
   // fetch quote when fromAsset, toAsset, or amount changes
   useEffect(() => {
@@ -114,9 +132,9 @@ export const Swap = () => {
       });
 
       setQuote(quote);
-    } catch (error) {
-      console.error('Error fetching quote:', error);
-      toast.error(`Failed to fetch swap quote: ${error}`);
+    } catch (error: any) {
+      console.error('Quote error:', JSON.stringify(error, null, 2));
+      toast.error(<div>{error?.body?.message ?? error?.message ?? 'Unknown error'}</div>);
     } finally {
       setIsLoading(false);
     }
@@ -187,7 +205,7 @@ export const Swap = () => {
   const isValidAmount = amount !== '' && parseFloat(amount) > 0;
   const invalidWalletConnect = !isConnected || address?.startsWith('0x');
 
-  if (!fromAsset || !toAsset)
+  if (extLoading || balanceLoading)
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="animate-spin rounded-full h-6 w-6 border-b-2"></div>
@@ -231,12 +249,12 @@ export const Swap = () => {
         {quote && (
           <div className="mb-6 text-sm">
             <div>
-              {new Decimal(quote.outAmount).div(10 ** toAsset.decimals).toFixed(4)} {toAsset.ticker}{' '}
+              {new Decimal(quote.outAmount).div(10 ** toAsset!.decimals).toFixed(4)} {toAsset!.ticker}{' '}
             </div>
             <div>Est Price Impact: {new Decimal(quote.priceImpactPct).toFixed(4)}% </div>
             <div>
-              {['M0 Swap Facility', ...quote.routePlan.map((p) => p.swapInfo.label)].map((dex) => (
-                <span className="bg-gray-200 mr-2 p-1 text-xs">{dex}</span>
+              {quote.routePlan.map((p) => (
+                <span className="bg-gray-200 mr-2 p-1 text-xs">{p.swapInfo.label}</span>
               ))}
             </div>
           </div>
@@ -348,3 +366,13 @@ const ExtensionDropdown = ({
     </div>
   );
 };
+
+function extToAsset(ext: M0SolanaApi.extensions.Extension): Asset {
+  return {
+    mint: new PublicKey(ext.mint),
+    balance: new Decimal(0),
+    decimals: 6,
+    icon: ext.icon,
+    ticker: ext.symbol,
+  };
+}

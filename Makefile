@@ -160,8 +160,8 @@ define deploy-dashboard
 	op inject -i dashboard/$(2) -o dashboard/.env.production -f && \
 	docker build --platform linux/amd64 -t ghcr.io/m0-foundation/solana-m:dashboard -f dashboard/Dockerfile . && \
 	rm dashboard/.env.production
-	# docker push ghcr.io/m0-foundation/solana-m:dashboard
-	# railway redeploy --service dashboard --yes
+	docker push ghcr.io/m0-foundation/solana-m:dashboard
+	railway redeploy --service dashboard --yes
 endef
 
 deploy-yield-bot-devnet:

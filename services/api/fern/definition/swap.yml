@@ -21,14 +21,14 @@ service:
       examples:
         - query-parameters:
             inputMint: So11111111111111111111111111111111111111112
-            outputMint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
-            amount: '100000000'
+            outputMint: usdkyPPxgV7sfNyKb8eDz66ogPrkRXG3wS2FVb6LLUf
+            amount: '1000000'
           response:
             body:
               quoteId: 'abc1234356'
               inputMint: So11111111111111111111111111111111111111112
               inAmount: '100000000'
-              outputMint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+              outputMint: usdkyPPxgV7sfNyKb8eDz66ogPrkRXG3wS2FVb6LLUf
               outAmount: '16198753'
               slippageBps: 50
               priceImpactPct: '0'
@@ -37,7 +37,7 @@ service:
                     ammKey: 5BKxfWMbmYBAEWvyPZS9esPducUba9GqyMjtLCfbaqyF
                     label: Meteora DLMM
                     inputMint: So11111111111111111111111111111111111111112
-                    outputMint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+                    outputMint: usdkyPPxgV7sfNyKb8eDz66ogPrkRXG3wS2FVb6LLUf
                     inAmount: '100000000'
                     outAmount: '16198753'
                     feeAmount: '24825'

@@ -29,7 +29,22 @@ const additionalStables: Asset[] = [
   },
 ];
 
-export const Swap = () => {
+// for wrapping and unwrapping
+const mAsset = {
+  mint: new PublicKey('mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo'),
+  balance: new Decimal(0),
+  decimals: 6,
+  icon: 'https://gistcdn.githack.com/SC4RECOIN/a729afb77aa15a4aa6b1b46c3afa1b52/raw/209da531ed46c1aaef0b1d3d7b67b3a5cec257f3/M_Symbol_512.svg',
+  ticker: '$M',
+};
+
+export enum SwapMode {
+  SWAP = 'swap',
+  WRAP = 'wrap', // hidden from nav
+  UNWRAP = 'unwrap', // hidden from nav
+}
+
+export const Swap = ({ mode }: { mode: SwapMode }) => {
   const { isConnected, address, solanaBalances, isLoading: balanceLoading } = useAccount();
   const { walletProvider } = useAppKitProvider<Provider>('solana');
   const queryClient = useQueryClient();
@@ -39,8 +54,8 @@ export const Swap = () => {
     queryFn: () => ApiClient.extensions.extensions(),
   });
 
-  const [fromAsset, setFromAsset] = useState<Asset>();
-  const [toAsset, setToAsset] = useState<Asset>();
+  const [fromAsset, setFromAsset] = useState<Asset | undefined>(mode === SwapMode.WRAP ? mAsset : undefined);
+  const [toAsset, setToAsset] = useState<Asset | undefined>(mode === SwapMode.UNWRAP ? mAsset : undefined);
   const [amount, setAmount] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [quote, setQuote] = useState<M0SolanaApi.Quote>();
@@ -75,22 +90,24 @@ export const Swap = () => {
 
   // automatically change output if same
   useEffect(() => {
-    if (fromAsset && toAsset && fromAsset!.mint.equals(toAsset!.mint)) {
+    if (fromAsset && toAsset && fromAsset!.mint.equals(toAsset!.mint) && mode === SwapMode.SWAP) {
       setToAsset(selectableTo.find((asset) => !asset.mint.equals(fromAsset!.mint)));
     }
   }, [fromAsset]);
 
   // auto-select first extension
   useEffect(() => {
+    const assetNotSet = !fromAsset || !toAsset;
+
     // no wallet balances so auto-select extensions
-    if (!isConnected && !balanceLoading && extensionData && !fromAsset && !toAsset) {
-      setFromAsset(extToAsset(extensionData.extensions[0]));
-      setToAsset(extToAsset(extensionData.extensions[1]));
+    if (assetNotSet && !isConnected && !balanceLoading && extensionData) {
+      setFromAsset(fromAsset ?? extToAsset(extensionData.extensions[0]));
+      setToAsset(toAsset ?? extToAsset(extensionData.extensions[1]));
     }
     // use wallet balances for auto-select
-    else if (solanaBalances && !balanceLoading && extensionData && !fromAsset && !toAsset) {
-      setFromAsset(Object.values(solanaBalances)[0]);
-      setToAsset(extToAsset(extensionData.extensions[0]));
+    else if (assetNotSet && solanaBalances && !balanceLoading && extensionData) {
+      setFromAsset(fromAsset ?? Object.values(solanaBalances)[0]);
+      setToAsset(toAsset ?? extToAsset(extensionData.extensions[0]));
     }
   }, [solanaBalances, extensionData, extLoading, balanceLoading]);
 
@@ -111,6 +128,7 @@ export const Swap = () => {
       if (value.split('.').length > 2) return;
       setAmount(value);
       debounced(value);
+      setQuote(undefined);
     }
   };
 
@@ -195,8 +213,11 @@ export const Swap = () => {
       await queryClient.invalidateQueries({ queryKey: ['solanaBalances'] });
     } catch (error: any) {
       console.error('Error:', JSON.stringify(error, null, 2));
+      const logError = error?.body?.logs?.find((log: string) => log.includes('Error Code'));
 
-      toast.error(<div>Transaction failed: {error?.body?.message ?? error?.message ?? 'Unknown error'}</div>);
+      toast.error(
+        <div>Transaction failed: {logError ?? error?.body?.message ?? error?.message ?? 'Unknown error'}</div>,
+      );
     } finally {
       setIsLoading(false);
     }
@@ -215,6 +236,9 @@ export const Swap = () => {
     }
   };
 
+  const btnText = mode === SwapMode.SWAP ? 'Swap' : mode === SwapMode.WRAP ? 'Wrap' : 'Unwrap';
+  const swapDisabled = invalidWalletConnect || !isValidAmount || isLoading || !quote;
+
   if (extLoading || balanceLoading)
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -228,20 +252,31 @@ export const Swap = () => {
         <div className="relative grid grid-cols-3 gap-4 mb-6">
           <div>
             <label className="block mb-2 text-gray-400 text-xs">From</label>
-            <ExtensionDropdown selectedAsset={fromAsset} onChange={setFromAsset} selectableAssets={selectableFrom} />
+            <ExtensionDropdown
+              selectedAsset={fromAsset}
+              onChange={setFromAsset}
+              selectableAssets={selectableFrom}
+              disabled={mode === SwapMode.WRAP}
+            />
           </div>
           <div className="flex justify-center items-end pb-1">
             <button
               onClick={swapAssets}
               className="hover:bg-off-blue text-blue-400 flex justify-center items-center w-10 h-10 hover:cursor-pointer z-10"
               type="button"
+              disabled={mode !== SwapMode.SWAP}
             >
               <TbSwitchHorizontal size={20} />
             </button>
           </div>
           <div>
             <label className="block mb-2 text-gray-400 text-xs">To</label>
-            <ExtensionDropdown selectedAsset={toAsset} onChange={setToAsset} selectableAssets={selectableTo} />
+            <ExtensionDropdown
+              selectedAsset={toAsset}
+              onChange={setToAsset}
+              selectableAssets={selectableTo}
+              disabled={mode === SwapMode.UNWRAP}
+            />
           </div>
         </div>
         <div className="mb-6">
@@ -249,7 +284,13 @@ export const Swap = () => {
             <label>Amount</label>
             <div>
               Balance: {solanaBalances[fromAsset?.mint.toBase58() ?? '']?.balance.toFixed(4) ?? '0.00'}
-              <button onClick={handleMaxClick} className="ml-2 text-blue-400 hover:text-blue-300 hover:cursor-pointer">
+              <button
+                onClick={handleMaxClick}
+                disabled={isLoading}
+                className={`ml-2 text-blue-400 ${
+                  isLoading ? 'opacity-60 cursor-not-allowed' : 'hover:text-blue-300 hover:cursor-pointer'
+                }`}
+              >
                 MAX
               </button>
             </div>
@@ -260,7 +301,10 @@ export const Swap = () => {
               value={amount}
               onChange={handleAmountChange}
               placeholder="0.0"
-              className="w-full bg-off-blue py-3 px-4 pr-20 focus:outline-none"
+              disabled={isLoading}
+              className={`w-full bg-off-blue py-3 px-4 pr-20 focus:outline-none ${
+                isLoading ? 'opacity-60 cursor-not-allowed' : ''
+              }`}
             />
           </div>
         </div>
@@ -281,11 +325,9 @@ export const Swap = () => {
 
         <button
           onClick={handleSwap}
-          disabled={invalidWalletConnect || !isValidAmount || isLoading}
+          disabled={swapDisabled}
           className={`w-full py-3 hover:cursor-pointer ${
-            !isValidAmount || isLoading
-              ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-              : 'bg-blue-600 text-white hover:bg-blue-700'
+            swapDisabled ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'
           }`}
         >
           {invalidWalletConnect ? (
@@ -295,7 +337,7 @@ export const Swap = () => {
               <span className="loader mr-2"></span>Processing...
             </div>
           ) : (
-            'Swap'
+            btnText
           )}
         </button>
       </div>
@@ -332,16 +374,18 @@ const ExtensionDropdown = ({
   selectableAssets,
   selectedAsset,
   onChange,
+  disabled = false,
 }: {
   selectableAssets: Asset[];
   selectedAsset?: Asset;
   onChange: (ext: Asset) => void;
+  disabled?: boolean;
 }) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
 
   const handleClickOutside = (event: MouseEvent) => {
-    if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+    if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node) && !disabled) {
       setIsOpen(false);
     }
   };
@@ -361,11 +405,17 @@ const ExtensionDropdown = ({
   return (
     <div>
       <div className="relative w-60" ref={dropdownRef}>
-        <button className="flex items-center space-x-2 bg-off-blue px-4 py-2" onClick={() => setIsOpen(!isOpen)}>
+        <button
+          className={`flex items-center space-x-2 bg-off-blue px-4 py-2 ${
+            disabled ? 'cursor-not-allowed' : 'cursor-pointer'
+          }`}
+          onClick={() => !disabled && setIsOpen(!isOpen)}
+          disabled={disabled}
+        >
           <img src={selectedAsset?.icon} alt={selectedAsset?.ticker} className="w-6 h-6 rounded-full mb-1" />
           <span>{selectedAsset?.ticker}</span>
         </button>
-        {isOpen && (
+        {isOpen && !disabled && (
           <div className="absolute bg-off-blue mt-2 w-full z-10 py-2">
             {selectableAssets.map((asset) => (
               <button

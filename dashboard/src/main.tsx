@@ -21,7 +21,7 @@ import {
   optimismSepolia,
   AppKitNetwork,
 } from '@reown/appkit/networks';
-import { Swap } from './components/swap';
+import { Swap, SwapMode } from './components/swap';
 import { Bridge } from './components/bridge';
 import { EarnerDetails } from './components/earner';
 import { IndexUpdates } from './components/index-updates';
@@ -102,9 +102,13 @@ createRoot(document.getElementById('root')!).render(
                 </div>
               }
             />
-            <Route path="/swap" element={<Swap />} />
+            <Route path="/swap" element={<Swap mode={SwapMode.SWAP} />} />
             <Route path="/bridge" element={<Bridge />} />
             <Route path="/earner/:vault" element={<EarnerDetails />} />
+
+            {/* hidden from navbar */}
+            <Route path="/wrap" element={<Swap mode={SwapMode.WRAP} />} />
+            <Route path="/unwrap" element={<Swap mode={SwapMode.UNWRAP} />} />
           </Routes>
         </BrowserRouter>
       </QueryClientProvider>

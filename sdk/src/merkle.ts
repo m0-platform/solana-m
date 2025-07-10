@@ -64,7 +64,7 @@ export class MerkleTree {
     }
     if (len === 1) {
       this.tree.push(this.leaves);
-      this.root = this.tree[0][0];
+      this.root = this.tree[0][0]; // leaf is already hashed so we don't hash it again
       return;
     }
 
@@ -246,29 +246,20 @@ export class MerkleTree {
     // This doesn't matter for inclusion proofs, but is necessary for some exclusion proofs.
     const rawLen = this.rawLeaves.length;
     if (rawLen % 2 !== 0 && index === rawLen - 1 && useDuplicate) {
-      // console.log("special case triggered");
       index++;
     }
-
-    // console.log("root", this.root);
-    // console.log("tree", this.tree);
-    // console.log("depth", this.depth);
 
     // Iterate through the tree constructing the proof
     let proof: Array<ProofElement> = [];
     for (let i = 0; i < this.depth; i++) {
-      // console.log("level", i);
-      // console.log("index", index);
       // Find the sibling to hash against
       // If the index is even, the sibling is to the right
       // If the index is odd, the sibling is to the left
+      // Handle case where sibling is out of bounds (meaning the node is on the right edge of the tree)
+      // The sibling is then just the node itself, since it should be duplicated
       let siblingOnRight = index % 2 === 0;
-      let siblingIndex = siblingOnRight ? index : index - 1;
+      let siblingIndex = siblingOnRight ? (index === this.tree[i].length - 1 ? index : index + 1) : index - 1;
       let sibling = this.tree[i][siblingIndex];
-
-      // console.log("sibling index", siblingIndex);
-      // console.log("sibling", sibling);
-      // console.log("sibling", Array.from(sibling));
 
       // Add the neighbor to the proof
       proof.push({
@@ -298,12 +289,6 @@ export class MerkleTree {
     neighbors: number[][];
   } {
     let leafBuffer = leaf.toBuffer();
-
-    // console.log("raw leaf", leafBuffer);
-    // console.log("raw leaves", this.rawLeaves);
-    // console.log("leaves", this.leaves);
-    // console.log("tree", this.tree);
-    // console.log("root", this.root);
 
     // Check that the leaf is not in the tree
     let index = this._getLeafIndex(leafBuffer);
@@ -345,7 +330,6 @@ export class MerkleTree {
         neighbors.push(Array.from(neighbor));
         proofs.push([]);
       } else {
-        // console.log("special case: less than smallest value");
         let neighbor = this.rawLeaves[index];
         let { proof } = this.getInclusionProof(new PublicKey(neighbor));
         neighbors.push(Array.from(neighbor));
@@ -357,7 +341,6 @@ export class MerkleTree {
 
     // If the index is the length of the leaves (or + 1), there is only a left neighbor and it's index is len - 1
     if (index >= len) {
-      // console.log("special case: greater than largest value");
       let neighbor = this.rawLeaves[len - 1];
       let { proof } = this.getInclusionProof(new PublicKey(neighbor), true);
       neighbors.push(Array.from(neighbor));
@@ -381,5 +364,59 @@ export class MerkleTree {
     neighbors.push(Array.from(rightNeighbor));
 
     return { proofs, neighbors };
+  }
+
+  public verifyInclusionProof(leaf: PublicKey, proof: ProofElement[]): boolean {
+    let currentHash = this._hashLeaf(leaf.toBuffer());
+
+    // Iterate through the proof, hashing the current hash with each neighbor
+    for (let i = 0; i < proof.length; i++) {
+      let neighbor = Buffer.from(proof[i].node);
+      if (proof[i].onRight) {
+        currentHash = this._hashNode(currentHash, neighbor);
+      } else {
+        currentHash = this._hashNode(neighbor, currentHash);
+      }
+    }
+
+    // Compare the current hash to the root
+    return currentHash.equals(this.root!);
+  }
+
+  public verifyExclusionProof(leaf: PublicKey, proofs: ProofElement[][], neighbors: number[][]): boolean {
+    // Verify each proof against the corresponding neighbor
+    if (proofs.length !== neighbors.length) {
+      throw new Error('Proofs and neighbors length mismatch');
+    }
+
+    // Handle the edge cases where there is only one proof and neighbor
+    if (proofs.length === 1) {
+      if (Buffer.from(neighbors[0]).equals(this.rawLeaves[0])) {
+        // Leaf must be less than the first leaf
+        let proofValid = this.verifyInclusionProof(new PublicKey(neighbors[0]), proofs[0]);
+        return proofValid && (this.tree[0].length == 1 || Buffer.from(neighbors[0]) > leaf.toBuffer());
+      } else if (Buffer.from(neighbors[0]).equals(this.rawLeaves[this.rawLeaves.length - 1])) {
+        // Leaf must be greater than the last leaf
+        let proofValid = this.verifyInclusionProof(new PublicKey(neighbors[0]), proofs[0]);
+        return proofValid && Buffer.from(neighbors[0]) < leaf.toBuffer();
+      } else {
+        // Proof is invalid
+        return false;
+      }
+    } else if (proofs.length === 2) {
+      // If there are two proofs, we need to verify both and ensure the leaf is between the neighbors
+      let proofValid1 = this.verifyInclusionProof(new PublicKey(neighbors[0]), proofs[0]);
+      let proofValid2 = this.verifyInclusionProof(new PublicKey(neighbors[1]), proofs[1]);
+      return (
+        proofValid1 &&
+        proofValid2 &&
+        Buffer.from(neighbors[0]) < leaf.toBuffer() &&
+        Buffer.from(neighbors[1]) > leaf.toBuffer() &&
+        this._getLeafIndex(Buffer.from(neighbors[0])) + 1 === this._getLeafIndex(Buffer.from(neighbors[1]))
+      );
+    } else {
+      // If there are more than two proofs, the proof is invalid
+      throw new Error('Invalid number of proofs');
+    }
   }
 }

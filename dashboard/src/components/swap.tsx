@@ -10,6 +10,7 @@ import { M0SolanaApi } from '@m0-foundation/solana-m-api-sdk';
 import { PublicKey, VersionedTransaction } from '@solana/web3.js';
 import { useDebouncedCallback } from 'use-debounce';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { TbSwitchHorizontal } from 'react-icons/tb';
 
 const additionalStables: Asset[] = [
   {
@@ -205,6 +206,15 @@ export const Swap = () => {
   const isValidAmount = amount !== '' && parseFloat(amount) > 0;
   const invalidWalletConnect = !isConnected || address?.startsWith('0x');
 
+  // Function to swap from/to assets
+  const swapAssets = () => {
+    if (fromAsset && toAsset) {
+      const tempAsset = fromAsset;
+      setFromAsset(toAsset);
+      setToAsset(tempAsset);
+    }
+  };
+
   if (extLoading || balanceLoading)
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -215,10 +225,19 @@ export const Swap = () => {
   return (
     <div className="flex flex-col items-center mt-20">
       <div className="p-6 w-full max-w-md">
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="relative grid grid-cols-3 gap-4 mb-6">
           <div>
             <label className="block mb-2 text-gray-400 text-xs">From</label>
             <ExtensionDropdown selectedAsset={fromAsset} onChange={setFromAsset} selectableAssets={selectableFrom} />
+          </div>
+          <div className="flex justify-center items-end pb-1">
+            <button
+              onClick={swapAssets}
+              className="hover:bg-off-blue text-blue-400 flex justify-center items-center w-10 h-10 hover:cursor-pointer z-10"
+              type="button"
+            >
+              <TbSwitchHorizontal size={20} />
+            </button>
           </div>
           <div>
             <label className="block mb-2 text-gray-400 text-xs">To</label>

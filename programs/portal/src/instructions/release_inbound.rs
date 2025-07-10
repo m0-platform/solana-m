@@ -157,7 +157,7 @@ pub fn release_inbound_mint_multisig<'info>(
         // Get the principal amount of $M tokens to transfer using the multiplier
         let principal = amount_to_principal_down(
             inbox_item.transfer.amount,
-            scaled_ui_config.multiplier.into(),
+            scaled_ui_config.new_multiplier.into(),
         )?;
 
         // Mint then transfer to ensure transfer hook is called

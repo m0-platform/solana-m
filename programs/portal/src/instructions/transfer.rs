@@ -170,7 +170,7 @@ pub fn transfer_burn<'info>(
     // Get the amount of M tokens to transfer using the multiplier
     let mut m_amount = earn::utils::conversion::principal_to_amount_down(
         principal,
-        scaled_ui_config.multiplier.into(),
+        scaled_ui_config.new_multiplier.into(),
     )?;
 
     let trimmed_amount = TrimmedAmount::remove_dust(

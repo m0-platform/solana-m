@@ -157,12 +157,11 @@ endef
 
 define deploy-dashboard
 	railway environment $(1)
-	cd dashboard && \
-	op inject -i $(2) -o .env.production && \
-	docker build --platform linux/amd64 -t ghcr.io/m0-foundation/solana-m:dashboard . && \
-	rm .env.production
-	docker push ghcr.io/m0-foundation/solana-m:dashboard
-	railway redeploy --service dashboard --yes
+	op inject -i dashboard/$(2) -o dashboard/.env.production -f && \
+	docker build --platform linux/amd64 -t ghcr.io/m0-foundation/solana-m:dashboard -f dashboard/Dockerfile . && \
+	rm dashboard/.env.production
+	# docker push ghcr.io/m0-foundation/solana-m:dashboard
+	# railway redeploy --service dashboard --yes
 endef
 
 deploy-yield-bot-devnet:
@@ -221,14 +220,14 @@ publish-sdk:
 	@cd sdk && \
 	pnpm build && \
 	echo "//registry.npmjs.org/:_authToken=$(shell op read "op://Web3/NPM Publish Token m0-foundation/credential")" > .npmrc && \
-	npm publish && \
+	pnpm publish --no-git-checks && \
 	rm .npmrc
 
 publish-api-sdk:
 	@cd services/api/sdk && \
 	pnpm build && \
 	echo "//registry.npmjs.org/:_authToken=$(shell op read "op://Web3/NPM Publish Token m0-foundation/credential")" > .npmrc && \
-	npm publish && \
+	pnpm publish --no-git-checks && \
 	rm .npmrc
 
 #

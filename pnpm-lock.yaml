@@ -6,12 +6,18 @@ settings:
 
 catalogs:
   default:
+    '@coral-xyz/anchor':
+      specifier: 0.31.1
+      version: 0.31.1
     '@solana/spl-token':
       specifier: ~0.4.12
       version: 0.4.13
     '@solana/web3.js':
       specifier: ^1.68.0
       version: 1.98.2
+    '@sqds/multisig':
+      specifier: ~2.1.3
+      version: 2.1.3
     '@types/bn.js':
       specifier: ^5.1.2
       version: 5.1.6
@@ -21,15 +27,48 @@ catalogs:
     '@wormhole-foundation/sdk':
       specifier: 1.16.1
       version: 1.16.1
+    '@wormhole-foundation/sdk-definitions':
+      specifier: 1.16.1
+      version: 1.16.1
     '@wormhole-foundation/sdk-solana':
       specifier: 1.16.1
       version: 1.16.1
+    '@wormhole-foundation/sdk-solana-core':
+      specifier: 1.16.1
+      version: 1.16.1
+    '@wormhole-foundation/sdk-solana-ntt':
+      specifier: 0.7.0-multi-transceiver-alpha.1
+      version: 0.7.0-multi-transceiver-alpha.1
+    bn.js:
+      specifier: ~5.2.1
+      version: 5.2.2
     bs58:
       specifier: ^4.0.1
       version: 4.0.1
+    commander:
+      specifier: 13.1.0
+      version: 13.1.0
+    limiter:
+      specifier: ~3.0.0
+      version: 3.0.0
+    sha3:
+      specifier: ^2.1.4
+      version: 2.1.4
     typescript:
       specifier: '5'
       version: 5.8.3
+    viem:
+      specifier: ~2.23.14
+      version: 2.23.15
+    web3:
+      specifier: ~4.16.0
+      version: 4.16.0
+    winston:
+      specifier: ~3.17.0
+      version: 3.17.0
+    winston-loki:
+      specifier: ~6.1.3
+      version: 6.1.3
 
 importers:
 
@@ -76,8 +115,8 @@ importers:
         specifier: 0.1.6
         version: 0.1.6
       '@m0-foundation/solana-m-sdk':
-        specifier: 'workspace:'
-        version: link:../sdk
+        specifier: 0.2.5
+        version: 0.2.5(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.67)
       '@reown/appkit':
         specifier: ^1.7.2
         version: 1.7.10(@types/react@19.1.8)(bufferutil@4.0.9)(react@19.1.0)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.67)
@@ -1563,6 +1602,9 @@ packages:
 
   '@m0-foundation/solana-m-api-sdk@0.1.6':
     resolution: {integrity: sha512-2IYkxBzUTaQXKd7650zc6VQOx9SvKgiWnpyBricHXSsWlqJoCcHkmDIRojh115GNOhYOUuCCT5Y0JcrCBfycog==}
+
+  '@m0-foundation/solana-m-sdk@0.2.5':
+    resolution: {integrity: sha512-KgUdPUsayRXU1SGnRh4XMpuFIODkKsQm2XI9gt29FMtbJQcAvMbP/fs45IRl99mU9p1ueCmcXbxM5OZHdMUf/A==}
 
   '@metamask/abi-utils@3.0.0':
     resolution: {integrity: sha512-a/l0DiSIr7+CBYVpHygUa3ztSlYLFCQMsklLna+t6qmNY9+eIO5TedNxhyIyvaJ+4cN7TLy0NQFbp9FV3X2ktg==}
@@ -8702,7 +8744,7 @@ snapshots:
   '@eslint/config-array@0.20.1':
     dependencies:
       '@eslint/object-schema': 2.1.6
-      debug: 4.4.1
+      debug: 4.4.1(supports-color@5.5.0)
       minimatch: 3.1.2
     transitivePeerDependencies:
       - supports-color
@@ -8720,7 +8762,7 @@ snapshots:
   '@eslint/eslintrc@3.3.1':
     dependencies:
       ajv: 6.12.6
-      debug: 4.4.1
+      debug: 4.4.1(supports-color@5.5.0)
       espree: 10.4.0
       globals: 14.0.0
       ignore: 5.3.2
@@ -9379,6 +9421,27 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
+  '@m0-foundation/solana-m-sdk@0.2.5(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.67)':
+    dependencies:
+      '@coral-xyz/anchor': 0.31.1(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      '@m0-foundation/solana-m-api-sdk': 0.1.3
+      '@solana/spl-token': 0.4.13(@solana/web3.js@1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      '@solana/web3.js': 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      '@types/bn.js': 5.1.6
+      bn.js: 5.2.2
+      bs58: 4.0.1
+      js-sha256: 0.11.0
+      sha3: 2.1.4
+      viem: 2.23.15(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.67)
+      winston: 3.17.0
+    transitivePeerDependencies:
+      - bufferutil
+      - encoding
+      - fastestsmallesttextencoderdecoder
+      - typescript
+      - utf-8-validate
+      - zod
+
   '@metamask/abi-utils@3.0.0':
     dependencies:
       '@metamask/superstruct': 3.2.1
@@ -9473,7 +9536,7 @@ snapshots:
       bufferutil: 4.0.9
       cross-fetch: 4.1.0
       date-fns: 2.30.0
-      debug: 4.4.1
+      debug: 4.4.1(supports-color@5.5.0)
       eciesjs: 0.4.15
       eventemitter2: 6.4.9
       readable-stream: 3.6.2
@@ -9497,7 +9560,7 @@ snapshots:
       '@paulmillr/qr': 0.2.1
       bowser: 2.11.0
       cross-fetch: 4.1.0
-      debug: 4.4.1
+      debug: 4.4.1(supports-color@5.5.0)
       eciesjs: 0.4.15
       eth-rpc-errors: 4.0.3
       eventemitter2: 6.4.9
@@ -9523,7 +9586,7 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@scure/base': 1.2.6
       '@types/debug': 4.1.12
-      debug: 4.4.1
+      debug: 4.4.1(supports-color@5.5.0)
       pony-cause: 2.1.11
       semver: 7.7.2
       uuid: 9.0.1
@@ -9534,7 +9597,7 @@ snapshots:
     dependencies:
       '@ethereumjs/tx': 4.2.0
       '@types/debug': 4.1.12
-      debug: 4.4.1
+      debug: 4.4.1(supports-color@5.5.0)
       semver: 7.7.2
       superstruct: 1.0.4
     transitivePeerDependencies:
@@ -9547,7 +9610,7 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@scure/base': 1.2.6
       '@types/debug': 4.1.12
-      debug: 4.4.1
+      debug: 4.4.1(supports-color@5.5.0)
       pony-cause: 2.1.11
       semver: 7.7.2
       uuid: 9.0.1
@@ -9561,7 +9624,7 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@scure/base': 1.2.6
       '@types/debug': 4.1.12
-      debug: 4.4.1
+      debug: 4.4.1(supports-color@5.5.0)
       pony-cause: 2.1.11
       semver: 7.7.2
       uuid: 9.0.1
@@ -12538,7 +12601,7 @@ snapshots:
     dependencies:
       '@types/http-cache-semantics': 4.0.4
       '@types/keyv': 3.1.4
-      '@types/node': 22.15.3
+      '@types/node': 22.13.17
       '@types/responselike': 1.0.3
 
   '@types/connect@3.4.38':
@@ -12620,7 +12683,7 @@ snapshots:
 
   '@types/keyv@3.1.4':
     dependencies:
-      '@types/node': 22.15.3
+      '@types/node': 22.13.17
 
   '@types/long@4.0.2': {}
 
@@ -12649,6 +12712,7 @@ snapshots:
   '@types/node@22.15.3':
     dependencies:
       undici-types: 6.21.0
+    optional: true
 
   '@types/node@22.7.5':
     dependencies:
@@ -12680,7 +12744,7 @@ snapshots:
 
   '@types/responselike@1.0.3':
     dependencies:
-      '@types/node': 22.15.3
+      '@types/node': 22.13.17
 
   '@types/secp256k1@4.0.6':
     dependencies:
@@ -12758,7 +12822,7 @@ snapshots:
       '@typescript-eslint/types': 8.34.1
       '@typescript-eslint/typescript-estree': 8.34.1(typescript@5.8.3)
       '@typescript-eslint/visitor-keys': 8.34.1
-      debug: 4.4.1
+      debug: 4.4.1(supports-color@5.5.0)
       eslint: 9.29.0(jiti@2.4.2)
       typescript: 5.8.3
     transitivePeerDependencies:
@@ -12768,7 +12832,7 @@ snapshots:
     dependencies:
       '@typescript-eslint/tsconfig-utils': 8.34.1(typescript@5.8.3)
       '@typescript-eslint/types': 8.34.1
-      debug: 4.4.1
+      debug: 4.4.1(supports-color@5.5.0)
       typescript: 5.8.3
     transitivePeerDependencies:
       - supports-color
@@ -12786,7 +12850,7 @@ snapshots:
     dependencies:
       '@typescript-eslint/typescript-estree': 8.34.1(typescript@5.8.3)
       '@typescript-eslint/utils': 8.34.1(eslint@9.29.0(jiti@2.4.2))(typescript@5.8.3)
-      debug: 4.4.1
+      debug: 4.4.1(supports-color@5.5.0)
       eslint: 9.29.0(jiti@2.4.2)
       ts-api-utils: 2.1.0(typescript@5.8.3)
       typescript: 5.8.3
@@ -12801,7 +12865,7 @@ snapshots:
       '@typescript-eslint/tsconfig-utils': 8.34.1(typescript@5.8.3)
       '@typescript-eslint/types': 8.34.1
       '@typescript-eslint/visitor-keys': 8.34.1
-      debug: 4.4.1
+      debug: 4.4.1(supports-color@5.5.0)
       fast-glob: 3.3.3
       is-glob: 4.0.3
       minimatch: 9.0.5
@@ -15324,10 +15388,6 @@ snapshots:
     dependencies:
       ms: 2.1.3
 
-  debug@4.4.1:
-    dependencies:
-      ms: 2.1.3
-
   debug@4.4.1(supports-color@5.5.0):
     dependencies:
       ms: 2.1.3
@@ -15603,7 +15663,7 @@ snapshots:
       ajv: 6.12.6
       chalk: 4.1.2
       cross-spawn: 7.0.6
-      debug: 4.4.1
+      debug: 4.4.1(supports-color@5.5.0)
       escape-string-regexp: 4.0.0
       eslint-scope: 8.4.0
       eslint-visitor-keys: 4.2.1
@@ -18156,7 +18216,7 @@ snapshots:
   socks-proxy-agent@8.0.5:
     dependencies:
       agent-base: 7.1.3
-      debug: 4.4.1
+      debug: 4.4.1(supports-color@5.5.0)
       socks: 2.8.5
     transitivePeerDependencies:
       - supports-color
@@ -18542,7 +18602,8 @@ snapshots:
 
   undici-types@6.20.0: {}
 
-  undici-types@6.21.0: {}
+  undici-types@6.21.0:
+    optional: true
 
   undici-types@7.11.0: {}
 

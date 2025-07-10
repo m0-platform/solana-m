@@ -10,7 +10,8 @@ service:
       path: /quote
       response: Quote
       errors:
-        - QuoteNotFound
+        - QuoteError
+        - BadQuoteRequest
       request:
         name: GetQuoteRequest
         query-parameters:
@@ -51,6 +52,7 @@ service:
       response: Swap
       errors:
         - QuoteNotFound
+        - SimulationFailed
       request:
         name: GetSwapRequest
         query-parameters:
@@ -107,6 +109,14 @@ types:
 errors:
   QuoteNotFound:
     status-code: 404
+    type: SwapRequestError
+
+  QuoteError:
+    status-code: 500
+    type: SwapRequestError
+
+  BadQuoteRequest:
+    status-code: 400
     type: SwapRequestError
 
   SimulationFailed:

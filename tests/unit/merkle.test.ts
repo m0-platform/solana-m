@@ -135,7 +135,10 @@ describe('MerkleTree unit tests', () => {
         const { proofs, neighbors } = tree.getExclusionProof(otherKey);
         // There will be either 1 or 2 proofs and neighbors depending on where the key is in relationship to the tree
         // The tree has 3 levels before the root so, the proofs should be 3 nodes long
-        if (otherKey < leaves[0] || otherKey > leaves[leaves.length - 1]) {
+        if (
+          Buffer.compare(otherKey.toBuffer(), leaves[0].toBuffer()) < 0 ||
+          Buffer.compare(otherKey.toBuffer(), leaves[leaves.length - 1].toBuffer()) > 0
+        ) {
           expect(proofs.length).toBe(1);
           expect(proofs[0].length).toBe(3);
           expect(neighbors.length).toBe(1);
@@ -207,8 +210,8 @@ describe('MerkleTree unit tests', () => {
           // There will be either 1 or 2 proofs and neighbors depending on where the key is in relationship to the tree
           // The tree has log2(i) levels before the root so, the proofs should be log2(i) nodes long
           if (
-            otherKey.toBuffer() < leaves[0].toBuffer() ||
-            otherKey.toBuffer() > leaves[leaves.length - 1].toBuffer()
+            Buffer.compare(otherKey.toBuffer(), leaves[0].toBuffer()) < 0 ||
+            Buffer.compare(otherKey.toBuffer(), leaves[leaves.length - 1].toBuffer()) > 0
           ) {
             expect(proofs.length).toBe(1);
             expect(proofs[0].length).toBe(Math.ceil(Math.log2(i)));

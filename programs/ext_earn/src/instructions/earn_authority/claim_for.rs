@@ -1,9 +1,6 @@
-// ext_earn_authority
-
 // external dependencies
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{mint_to, Mint, MintTo, Token2022, TokenAccount};
-use earn::instructions::claim_for::RewardsClaim;
 
 // local dependencies
 use crate::{
@@ -197,4 +194,14 @@ fn handle_fee(
     mint_to(cpi_context, fee)?;
 
     Ok(fee)
+}
+
+#[event]
+pub struct RewardsClaim {
+    pub token_account: Pubkey,
+    pub recipient_token_account: Pubkey,
+    pub amount: u64,
+    pub ts: u64,
+    pub index: u64,
+    pub fee: u64,
 }

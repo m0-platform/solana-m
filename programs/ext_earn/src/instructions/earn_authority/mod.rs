@@ -1,5 +1,3 @@
-// ext_earn/instructions/earn_authority/mod.rs
-
 pub mod claim_for;
 pub mod sync;
 

@@ -10,7 +10,9 @@ use crate::{
     state::{ExtGlobal, EXT_GLOBAL_SEED, MINT_AUTHORITY_SEED, M_VAULT_SEED},
 };
 use earn::{
-    state::{Global as EarnGlobal, GLOBAL_SEED as EARN_GLOBAL_SEED},
+    constants::INDEX_SCALE_F64,
+    state::{EarnGlobal, GLOBAL_SEED as EARN_GLOBAL_SEED},
+    utils::conversion::get_scaled_ui_config,
     ID as EARN_PROGRAM,
 };
 
@@ -30,7 +32,7 @@ pub struct Initialize<'info> {
 
     #[account(
         mint::token_program = token_2022,
-        address = m_earn_global_account.mint,
+        address = m_earn_global_account.m_mint,
     )]
     pub m_mint: InterfaceAccount<'info, Mint>,
 
@@ -62,14 +64,21 @@ pub fn handler(ctx: Context<Initialize>, earn_authority: Pubkey) -> Result<()> {
         return err!(ExtError::InvalidMint);
     }
 
+    // Get the initial index from the m_mint
+    let scaled_ui_config = get_scaled_ui_config(&ctx.accounts.m_mint)?;
+    let current_multiplier: f64 = scaled_ui_config.new_multiplier.into();
+    let timestamp: i64 = scaled_ui_config.new_multiplier_effective_timestamp.into();
+    let current_index: u64 = (INDEX_SCALE_F64 * current_multiplier).trunc() as u64;
+
+    // Initialize the ext global account
     ctx.accounts.global_account.set_inner(ExtGlobal {
         admin: ctx.accounts.admin.key(),
         earn_authority,
         ext_mint: ctx.accounts.ext_mint.key(),
         m_mint: ctx.accounts.m_mint.key(),
         m_earn_global_account: ctx.accounts.m_earn_global_account.key(),
-        index: ctx.accounts.m_earn_global_account.index,
-        timestamp: ctx.accounts.m_earn_global_account.timestamp,
+        index: current_index,
+        timestamp: timestamp as u64,
         bump: ctx.bumps.global_account,
         m_vault_bump,
         ext_mint_authority_bump,

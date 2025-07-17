@@ -157,6 +157,7 @@ export const bridgeFromEvm = async (
   amount: Decimal,
   recipient: string,
   fromChain: string,
+  toChain: string,
 ) => {
   if (!address) {
     throw new Error('Wallet not connected');
@@ -169,8 +170,8 @@ export const bridgeFromEvm = async (
     sender.address,
     BigInt(amount.toString()),
     {
-      address: new UniversalAddress(recipient, 'base58'),
-      chain: 'Solana',
+      address: new UniversalAddress(recipient),
+      chain: toChain as any,
     },
     {
       queue: false,
@@ -281,14 +282,3 @@ export const erc20Abi = [
     type: 'function',
   },
 ] as const;
-
-export async function checkERC20Allowance(ownerAddress: `0x${string}`): Promise<bigint> {
-  const { data: allowance } = useReadContract({
-    address: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b',
-    abi: erc20Abi,
-    functionName: 'allowance',
-    args: [ownerAddress, '0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd'],
-  });
-
-  return allowance ?? 0n;
-}

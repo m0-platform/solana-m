@@ -4,12 +4,11 @@ import { type Provider } from '@reown/appkit-adapter-solana/react';
 import { useAppKitProvider } from '@reown/appkit/react';
 import Decimal from 'decimal.js';
 import { toast, ToastContainer } from 'react-toastify';
-import { bridgeFromEvm, bridgeFromSolana, checkERC20Allowance, erc20Abi, NETWORK } from '../services/rpc';
+import { bridgeFromEvm, bridgeFromSolana, erc20Abi, NETWORK } from '../services/rpc';
 import { chainIcons } from './bridges';
-import { useSendTransaction } from 'wagmi';
+import { useReadContract, useSendTransaction } from 'wagmi';
 import { switchChain, waitForTransactionReceipt, writeContract } from '@wagmi/core';
 import { wagmiAdapter } from '../main';
-import { useQuery } from '@tanstack/react-query';
 import { M_EVM, MINTS } from '../services/consts';
 
 type Chain = {
@@ -110,19 +109,27 @@ export const Bridge = () => {
   const [inputChain, setInputChain] = useState<Chain>(chains[0]);
   const [outputChain, setOutputChain] = useState<Chain>(chains[1]);
 
-  const allowanceQuery = useQuery({
-    queryKey: ['allowance', address],
-    queryFn: () => checkERC20Allowance(address! as `0x${string}`),
-    enabled: isConnected && !!address && inputChain.namespace === 'evm',
-    refetchInterval: 5000,
+  const {
+    data: allowanceValue,
+    isError: allowanceIsError,
+    error: allowanceError,
+    ...allowanceQuery
+  } = useReadContract({
+    address: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b',
+    abi: erc20Abi,
+    functionName: 'allowance',
+    args: [address as `0x${string}`, '0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd'],
+    query: { enabled: !!address },
   });
+
+  const allowance = allowanceValue ?? 0n;
 
   // handle allowance check errors
   useEffect(() => {
-    if (allowanceQuery.isError) {
-      toast.error(<div>Failed to check allowance: {allowanceQuery.error.toString()}</div>);
+    if (allowanceIsError) {
+      toast.error(<div>Failed to check allowance: {allowanceError.toString()}</div>);
     }
-  }, [allowanceQuery.isError, allowanceQuery.error]);
+  }, [allowanceIsError, allowanceError]);
 
   // handle connected wallet change
   useEffect(() => {
@@ -139,10 +146,10 @@ export const Bridge = () => {
 
   const handleInputChainChange = async (chain: Chain) => {
     setInputChain(chain);
-    // Ensure briding is from EVM to SVM
-    if (outputChain.namespace === chain.namespace) {
-      // Find the first chain that's not the same namespace
-      const newOutputChain = chains.find((c) => c.namespace !== chain.namespace);
+    // Cannot select the same chain for input and output
+    if (outputChain === chain) {
+      // Find the first chain that's not the same chain
+      const newOutputChain = chains.find((c) => c !== chain);
       if (newOutputChain) {
         setOutputChain(newOutputChain);
       }
@@ -196,7 +203,14 @@ export const Bridge = () => {
       if (inputChain.namespace === 'svm') {
         sig = await bridgeFromSolana(walletProvider, amountValue, recipientAddress, outputChain.label);
       } else {
-        sig = await bridgeFromEvm(sendTransaction, address, amountValue, recipientAddress, inputChain.label);
+        sig = await bridgeFromEvm(
+          sendTransaction,
+          address,
+          amountValue,
+          recipientAddress,
+          inputChain.label,
+          outputChain.label,
+        );
       }
 
       const txUrl = `https://wormholescan.io/#/tx/${sig}`;
@@ -275,8 +289,7 @@ export const Bridge = () => {
   const validWallet = isConnected && (isSolanaWallet ? inputChain.name === 'Solana' : inputChain.name !== 'Solana');
   const buttonDisabled = !isConnected || !isValidAmount || !isValidRecipient || isLoading || !validWallet;
   const hasAllowance =
-    inputChain.name === 'Solana' ||
-    (isValidAmount && (allowanceQuery.data ?? 0n) >= BigInt(new Decimal(amount).mul(1e6).toFixed(0)));
+    inputChain.name === 'Solana' || (isValidAmount && allowance >= BigInt(new Decimal(amount).mul(1e6).toFixed(0)));
 
   return (
     <div className="flex justify-center mt-20">

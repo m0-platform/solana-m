@@ -162,8 +162,8 @@ export const Bridge = () => {
 
   const handleOutputChainChange = (chain: Chain) => {
     setOutputChain(chain);
-    if (inputChain.namespace === chain.namespace) {
-      const newInputChain = chains.find((c) => c.namespace !== chain.namespace);
+    if (inputChain === chain) {
+      const newInputChain = chains.find((c) => c !== chain);
       if (newInputChain) {
         setInputChain(newInputChain);
       }

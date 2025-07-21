@@ -17,7 +17,7 @@ import { SolanaNtt } from '@wormhole-foundation/sdk-solana-ntt';
 import { EvmNtt } from '@wormhole-foundation/sdk-evm-ntt';
 import { SolanaPlatform } from '@wormhole-foundation/sdk-solana';
 import { SendTransactionMutate } from 'wagmi/query';
-import { Config, useReadContract } from 'wagmi';
+import { Config } from 'wagmi';
 import { JsonRpcProvider } from 'ethers';
 import evm from '@wormhole-foundation/sdk/evm';
 import { wormhole } from '@wormhole-foundation/sdk';

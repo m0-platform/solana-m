@@ -99,7 +99,7 @@ const ChainDropdown = ({ selectedChain, onChange }: { selectedChain: Chain; onCh
 };
 
 export const Bridge = () => {
-  const { isConnected, solanaBalances, evmBalances, isSolanaWallet, address, caipAddress } = useAccount();
+  const { isConnected, solanaBalances, evmBalances, isSolanaWallet, isEvmWallet, address, caipAddress } = useAccount();
   const { walletProvider } = useAppKitProvider<Provider>('solana');
   const { sendTransaction, isPending } = useSendTransaction();
 
@@ -119,7 +119,7 @@ export const Bridge = () => {
     abi: erc20Abi,
     functionName: 'allowance',
     args: [address as `0x${string}`, '0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd'],
-    query: { enabled: !!address },
+    query: { enabled: !!address && isEvmWallet },
   });
 
   const allowance = allowanceValue ?? 0n;

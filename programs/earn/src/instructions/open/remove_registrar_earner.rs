@@ -9,7 +9,7 @@ use anchor_spl::{
 // local dependencies
 use crate::{
     errors::EarnError,
-    state::{EarnGlobal, GLOBAL_SEED},
+    state::{EarnGlobal, ESCROW_SEED_PREFIX, GLOBAL_SEED},
     utils::{
         merkle_proof::{verify_not_in_tree, ProofElement},
         token::freeze_token_account,
@@ -63,12 +63,15 @@ pub struct RemoveRegistrarEarner<'info> {
     pub wm_mint: Option<InterfaceAccount<'info, Mint>>,
 
     #[account(
-        mut,
-        associated_token::mint = wm_mint.as_ref().unwrap().key(),
-        associated_token::authority = user_token_account.owner,
-        associated_token::token_program = token_program,
+        init_if_needed,
+        payer = signer,
+        seeds = [ESCROW_SEED_PREFIX, user_token_account.key().as_ref()],
+        bump,
+        token::mint = wm_mint,
+        token::authority = global_account,
+        token::token_program = token_program,
     )]
-    pub user_wm_ata: Option<InterfaceAccount<'info, TokenAccount>>,
+    pub wm_escrow: Option<InterfaceAccount<'info, TokenAccount>>,
 
     pub wm_ext_program: Option<Program<'info, ExtEarn>>,
 
@@ -109,9 +112,10 @@ impl RemoveRegistrarEarner<'_> {
         neighbors: Vec<[u8; 32]>,
     ) -> Result<()> {
         // Check if the token account has a non-zero balance
-        // If so, migrate the existing balance to the owner's wM ATA
-        // We have to do this forced migration in order to make this removal step
-        // permissionless and solely based on the earner list.
+        // If so, migrate the existing balance to wM in an escrow token account to be claimed later by the owner
+        // We have to do this forced migration in order to make this removal step permissionless and solely based on the earner list.
+        // Additionally, we cannot leave a non-zero balance in the frozen M token account since it would continue to
+        // earn yield.
         if ctx.accounts.user_token_account.amount > 0 {
             // Verify optional accounts are present
             let ext_swap_program = ctx
@@ -144,9 +148,9 @@ impl RemoveRegistrarEarner<'_> {
                 .as_ref()
                 .ok_or(EarnError::RequiredAccountMissing)?
                 .to_account_info();
-            let user_wm_ata = ctx
+            let wm_escrow = ctx
                 .accounts
-                .user_wm_ata
+                .wm_escrow
                 .as_ref()
                 .ok_or(EarnError::RequiredAccountMissing)?
                 .to_account_info();
@@ -168,21 +172,20 @@ impl RemoveRegistrarEarner<'_> {
                 .as_ref()
                 .ok_or(EarnError::RequiredAccountMissing)?
                 .to_account_info();
-            let system_program = ctx
-                .accounts
-                .system_program
-                .as_ref()
-                .ok_or(EarnError::RequiredAccountMissing)?
-                .to_account_info();
             let associated_token_program = ctx
                 .accounts
                 .associated_token_program
                 .as_ref()
                 .ok_or(EarnError::RequiredAccountMissing)?
                 .to_account_info();
+            let system_program = ctx
+                .accounts
+                .system_program
+                .as_ref()
+                .ok_or(EarnError::RequiredAccountMissing)?
+                .to_account_info();
 
             // The amount passed is the user's principal balance
-            // TODO: The extension and ext_swap program will need to be updated to handle principals instead of M amounts
             // The global account is the signer here since it is the permanent delegate on the M mint
             // We use the ext_swap program instead of the ext_earn program for wM directly to avoid needing permission
             ext_swap::cpi::wrap(
@@ -197,14 +200,14 @@ impl RemoveRegistrarEarner<'_> {
                         to_mint: wm_mint,
                         m_mint: ctx.accounts.m_mint.to_account_info(),
                         m_token_account: ctx.accounts.user_token_account.to_account_info(),
-                        to_token_account: user_wm_ata,
+                        to_token_account: wm_escrow,
                         to_m_vault_auth: wm_vault_authority,
                         to_mint_authority: wm_mint_authority,
                         to_m_vault: wm_vault,
                         to_token_program: ctx.accounts.token_program.to_account_info(),
                         m_token_program: ctx.accounts.token_program.to_account_info(),
                         to_ext_program: wm_ext_program,
-                        associated_token_program: associated_token_program,
+                        associated_token_program,
                         system_program,
                     },
                     &[&[GLOBAL_SEED, &[ctx.accounts.global_account.bump]]],

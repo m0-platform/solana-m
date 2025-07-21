@@ -1,6 +1,3 @@
-// earn/utils/token.rs
-
-// external dependencies
 use ::spl_token_2022::extension::immutable_owner::ImmutableOwner;
 use ::spl_token_2022::extension::BaseStateWithExtensions;
 use ::spl_token_2022::extension::PodStateWithExtensions;
@@ -8,7 +5,7 @@ use ::spl_token_2022::pod::PodAccount;
 use anchor_lang::{prelude::*, solana_program::program::invoke_signed};
 use anchor_spl::{
     token_2022::spl_token_2022,
-    token_interface::{Mint, Token2022, TokenAccount},
+    token_interface::{transfer_checked, Mint, Token2022, TokenAccount, TransferChecked},
 };
 
 pub fn has_immutable_owner<'info>(token_account: &InterfaceAccount<'info, TokenAccount>) -> bool {
@@ -69,6 +66,34 @@ pub fn thaw_token_account<'info>(
         ],
         authority_seeds,
     )?;
+
+    Ok(())
+}
+
+pub fn transfer_tokens_from_program<'info>(
+    from: &InterfaceAccount<'info, TokenAccount>,
+    to: &InterfaceAccount<'info, TokenAccount>,
+    amount: u64,
+    mint: &InterfaceAccount<'info, Mint>,
+    authority: &AccountInfo<'info>,
+    authority_seeds: &[&[&[u8]]],
+    token_program: &Program<'info, Token2022>,
+) -> Result<()> {
+    // Build the arguments for the transfer instruction
+    let transfer_options = TransferChecked {
+        from: from.to_account_info(),
+        to: to.to_account_info(),
+        mint: mint.to_account_info(),
+        authority: authority.clone(),
+    };
+    let cpi_context = CpiContext::new_with_signer(
+        token_program.to_account_info(),
+        transfer_options,
+        authority_seeds,
+    );
+
+    // Call the transfer instruction
+    transfer_checked(cpi_context, amount, mint.decimals)?;
 
     Ok(())
 }

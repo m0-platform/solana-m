@@ -9,8 +9,15 @@ groups:
           defaultTimeoutInSeconds: 30
         output:
           location: local-file-system
-          path: ../sdk/generated
+          path: ../sdk-ts/generated
         version: 0.51.5
+      - name: fernapi/fern-go-sdk
+        config:
+          importPath: github.com/m0-foundation/solana-m/services/api/sdk-go/generated
+        output:
+          location: local-file-system
+          path: ../sdk-go/generated
+        version: 1.1.0
       - name: fernapi/fern-typescript-express
         config:
           outputSourceFiles: true

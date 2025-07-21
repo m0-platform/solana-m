@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/m0-foundation/solana-m/services/api/sdk-go/generated/core"
+	"github.com/m0-foundation/solana-m/services/api/sdk-go/core"
 	"github.com/stretchr/testify/assert"
 )
 

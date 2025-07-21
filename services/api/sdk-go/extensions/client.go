@@ -4,10 +4,10 @@ package extensions
 
 import (
 	context "context"
-	generated "github.com/m0-foundation/solana-m/services/api/sdk-go/generated"
-	core "github.com/m0-foundation/solana-m/services/api/sdk-go/generated/core"
-	internal "github.com/m0-foundation/solana-m/services/api/sdk-go/generated/internal"
-	option "github.com/m0-foundation/solana-m/services/api/sdk-go/generated/option"
+	sdkgo "github.com/m0-foundation/solana-m/services/api/sdk-go"
+	core "github.com/m0-foundation/solana-m/services/api/sdk-go/core"
+	internal "github.com/m0-foundation/solana-m/services/api/sdk-go/internal"
+	option "github.com/m0-foundation/solana-m/services/api/sdk-go/option"
 	http "net/http"
 )
 
@@ -35,7 +35,7 @@ func NewClient(opts ...option.RequestOption) *Client {
 func (c *Client) Extensions(
 	ctx context.Context,
 	opts ...option.RequestOption,
-) (*generated.Extensions, error) {
+) (*sdkgo.Extensions, error) {
 	options := core.NewRequestOptions(opts...)
 	baseURL := internal.ResolveBaseURL(
 		options.BaseURL,
@@ -48,7 +48,7 @@ func (c *Client) Extensions(
 		options.ToHeader(),
 	)
 
-	var response *generated.Extensions
+	var response *sdkgo.Extensions
 	if err := c.caller.Call(
 		ctx,
 		&internal.CallParams{

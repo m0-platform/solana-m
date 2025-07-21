@@ -3,13 +3,13 @@
 package client
 
 import (
-	core "github.com/m0-foundation/solana-m/services/api/sdk-go/generated/core"
-	events "github.com/m0-foundation/solana-m/services/api/sdk-go/generated/events"
-	extensions "github.com/m0-foundation/solana-m/services/api/sdk-go/generated/extensions"
-	internal "github.com/m0-foundation/solana-m/services/api/sdk-go/generated/internal"
-	option "github.com/m0-foundation/solana-m/services/api/sdk-go/generated/option"
-	swap "github.com/m0-foundation/solana-m/services/api/sdk-go/generated/swap"
-	tokenaccount "github.com/m0-foundation/solana-m/services/api/sdk-go/generated/tokenaccount"
+	core "github.com/m0-foundation/solana-m/services/api/sdk-go/core"
+	events "github.com/m0-foundation/solana-m/services/api/sdk-go/events"
+	extensions "github.com/m0-foundation/solana-m/services/api/sdk-go/extensions"
+	internal "github.com/m0-foundation/solana-m/services/api/sdk-go/internal"
+	option "github.com/m0-foundation/solana-m/services/api/sdk-go/option"
+	swap "github.com/m0-foundation/solana-m/services/api/sdk-go/swap"
+	tokenaccount "github.com/m0-foundation/solana-m/services/api/sdk-go/tokenaccount"
 	http "net/http"
 )
 

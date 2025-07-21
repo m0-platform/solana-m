@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/m0-foundation/solana-m/services/api/sdk-go/generated/core"
+	"github.com/m0-foundation/solana-m/services/api/sdk-go/core"
 )
 
 // ErrorDecoder decodes *http.Response errors and returns a

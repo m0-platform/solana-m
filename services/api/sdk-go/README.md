@@ -12,16 +12,16 @@ Instantiate and use the client with the following:
 package example
 
 import (
-    client "github.com/m0-foundation/solana-m/services/api/sdk-go/generated/client"
+    client "github.com/m0-foundation/solana-m/services/api/sdk-go/client"
     context "context"
-    generated "github.com/m0-foundation/solana-m/services/api/sdk-go/generated"
+    sdk "github.com/m0-foundation/solana-m/services/api/sdk-go"
 )
 
 func do() () {
     client := client.NewClient()
     client.Events.Bridges(
         context.TODO(),
-        &generated.GetBridgesRequest{},
+        &sdk.GetBridgesRequest{},
     )
 }
 ```

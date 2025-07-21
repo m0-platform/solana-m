@@ -4,10 +4,10 @@ package events
 
 import (
 	context "context"
-	generated "github.com/m0-foundation/solana-m/services/api/sdk-go/generated"
-	core "github.com/m0-foundation/solana-m/services/api/sdk-go/generated/core"
-	internal "github.com/m0-foundation/solana-m/services/api/sdk-go/generated/internal"
-	option "github.com/m0-foundation/solana-m/services/api/sdk-go/generated/option"
+	sdkgo "github.com/m0-foundation/solana-m/services/api/sdk-go"
+	core "github.com/m0-foundation/solana-m/services/api/sdk-go/core"
+	internal "github.com/m0-foundation/solana-m/services/api/sdk-go/internal"
+	option "github.com/m0-foundation/solana-m/services/api/sdk-go/option"
 	http "net/http"
 )
 
@@ -34,9 +34,9 @@ func NewClient(opts ...option.RequestOption) *Client {
 // Get latest bridge events
 func (c *Client) Bridges(
 	ctx context.Context,
-	request *generated.GetBridgesRequest,
+	request *sdkgo.GetBridgesRequest,
 	opts ...option.RequestOption,
-) (*generated.Bridges, error) {
+) (*sdkgo.Bridges, error) {
 	options := core.NewRequestOptions(opts...)
 	baseURL := internal.ResolveBaseURL(
 		options.BaseURL,
@@ -56,7 +56,7 @@ func (c *Client) Bridges(
 		options.ToHeader(),
 	)
 
-	var response *generated.Bridges
+	var response *sdkgo.Bridges
 	if err := c.caller.Call(
 		ctx,
 		&internal.CallParams{
@@ -78,9 +78,9 @@ func (c *Client) Bridges(
 // Get latest index update events
 func (c *Client) IndexUpdates(
 	ctx context.Context,
-	request *generated.GetIndexUpdatesRequest,
+	request *sdkgo.GetIndexUpdatesRequest,
 	opts ...option.RequestOption,
-) (*generated.IndexUpdates, error) {
+) (*sdkgo.IndexUpdates, error) {
 	options := core.NewRequestOptions(opts...)
 	baseURL := internal.ResolveBaseURL(
 		options.BaseURL,
@@ -100,7 +100,7 @@ func (c *Client) IndexUpdates(
 		options.ToHeader(),
 	)
 
-	var response *generated.IndexUpdates
+	var response *sdkgo.IndexUpdates
 	if err := c.caller.Call(
 		ctx,
 		&internal.CallParams{
@@ -123,7 +123,7 @@ func (c *Client) IndexUpdates(
 func (c *Client) CurrentIndex(
 	ctx context.Context,
 	opts ...option.RequestOption,
-) (*generated.CurrentIndex, error) {
+) (*sdkgo.CurrentIndex, error) {
 	options := core.NewRequestOptions(opts...)
 	baseURL := internal.ResolveBaseURL(
 		options.BaseURL,
@@ -136,7 +136,7 @@ func (c *Client) CurrentIndex(
 		options.ToHeader(),
 	)
 
-	var response *generated.CurrentIndex
+	var response *sdkgo.CurrentIndex
 	if err := c.caller.Call(
 		ctx,
 		&internal.CallParams{

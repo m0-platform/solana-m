@@ -3,7 +3,7 @@
 package client
 
 import (
-	option "github.com/m0-foundation/solana-m/services/api/sdk-go/generated/option"
+	option "github.com/m0-foundation/solana-m/services/api/sdk-go/option"
 	assert "github.com/stretchr/testify/assert"
 	http "net/http"
 	testing "testing"

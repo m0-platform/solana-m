@@ -4,7 +4,7 @@ package solanaapi
 
 import (
 	json "encoding/json"
-	core "github.com/m0-foundation/solana-m/services/api/sdk-go/generated/core"
+	core "github.com/m0-foundation/solana-m/services/api/sdk-go/core"
 )
 
 type BadQuoteRequest struct {

@@ -5,7 +5,7 @@ package solanaapi
 import (
 	json "encoding/json"
 	fmt "fmt"
-	internal "github.com/m0-foundation/solana-m/services/api/sdk-go/generated/internal"
+	internal "github.com/m0-foundation/solana-m/services/api/sdk-go/internal"
 )
 
 type GetQuoteRequest struct {

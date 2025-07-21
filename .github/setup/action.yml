@@ -50,7 +50,7 @@ runs:
         key: node-modules-${{ inputs.node-version }}
 
     - name: Install Anchor CLI
-      run: npm i -g @coral-xyz/anchor-cli@$0.31.1
+      run: npm i -g @coral-xyz/anchor-cli@0.31.1
       shell: bash
 
     - name: Install Node Dependencies

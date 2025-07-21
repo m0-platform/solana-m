@@ -24,7 +24,7 @@ if (process.env.DISABLE_CACHE === 'true') {
 } else {
   // cache all responses
   const cache = apicache.middleware;
-  app.use(cache('15 seconds'));
+  app.use(cache(process.env.CACHE_DURATION || '60 seconds'));
 }
 
 // basic rate limiting

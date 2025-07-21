@@ -64,7 +64,7 @@ service:
             userPublicKey: 'D76ySoHPwD8U2nnTTDqXeUJQg5UkD9UD1PUE1rnvPAGm'
           response:
             body:
-              simlutionLogs: []
+              simulationLogs: []
               transaction: 'AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAQAGDkS+3LuGTbs......+/oD9qb31dH6i0QZ2IHELXUX3Y1YeW79p9Stkqk12z4yvZFJiQ4GCQwLBwYQBgUEDggNTQ=='
 
 types:
@@ -98,7 +98,7 @@ types:
   Swap:
     properties:
       transaction: string
-      simlutionLogs: list<string>
+      simulationLogs: list<string>
 
   SwapRequestError:
     properties:

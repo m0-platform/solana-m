@@ -344,7 +344,7 @@ export const swap = new SwapService({
 
     res.send({
       transaction: b64,
-      simlutionLogs: logs,
+      simulationLogs: logs,
     });
   },
 });

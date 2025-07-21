@@ -8,12 +8,12 @@ import * as core from "../../../../core";
 
 export const Swap: core.serialization.ObjectSchema<serializers.Swap.Raw, M0SolanaApi.Swap> = core.serialization.object({
     transaction: core.serialization.string(),
-    simlutionLogs: core.serialization.list(core.serialization.string()),
+    simulationLogs: core.serialization.list(core.serialization.string()),
 });
 
 export declare namespace Swap {
     export interface Raw {
         transaction: string;
-        simlutionLogs: string[];
+        simulationLogs: string[];
     }
 }

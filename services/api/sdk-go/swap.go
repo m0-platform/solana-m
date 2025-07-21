@@ -177,8 +177,8 @@ func (r *RoutePlan) String() string {
 }
 
 type Swap struct {
-	Transaction   string   `json:"transaction" url:"transaction"`
-	SimlutionLogs []string `json:"simlutionLogs" url:"simlutionLogs"`
+	Transaction    string   `json:"transaction" url:"transaction"`
+	SimulationLogs []string `json:"simulationLogs" url:"simulationLogs"`
 
 	extraProperties map[string]interface{}
 	rawJSON         json.RawMessage
@@ -191,11 +191,11 @@ func (s *Swap) GetTransaction() string {
 	return s.Transaction
 }
 
-func (s *Swap) GetSimlutionLogs() []string {
+func (s *Swap) GetSimulationLogs() []string {
 	if s == nil {
 		return nil
 	}
-	return s.SimlutionLogs
+	return s.SimulationLogs
 }
 
 func (s *Swap) GetExtraProperties() map[string]interface{} {

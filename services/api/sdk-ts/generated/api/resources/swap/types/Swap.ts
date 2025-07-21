@@ -4,5 +4,5 @@
 
 export interface Swap {
     transaction: string;
-    simlutionLogs: string[];
+    simulationLogs: string[];
 }

@@ -1,6 +1,7 @@
 import cors from 'cors';
 import express from 'express';
 import apicache from 'apicache';
+import { rateLimit } from 'express-rate-limit';
 import { register } from '../generated';
 import { docs } from './docs';
 import { configureLogger } from './logger';
@@ -23,8 +24,17 @@ if (process.env.DISABLE_CACHE === 'true') {
 } else {
   // cache all responses
   const cache = apicache.middleware;
-  app.use(cache('5 minutes'));
+  app.use(cache('15 seconds'));
 }
+
+// basic rate limiting
+app.use(
+  rateLimit({
+    windowMs: 5_000,
+    limit: 5,
+    message: { error: 'Too many requests, please try again later.' },
+  }),
+);
 
 // MongoDB
 connectToDatabase()

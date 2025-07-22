@@ -280,15 +280,11 @@ describe('Portal unit tests', () => {
         .rpc();
     });
     test('initialize extension and swap program', async () => {
-      await swapProgram.methods
-        .initializeGlobal(mint.publicKey)
-        .accounts({ admin: admin.publicKey })
-        .signers([admin])
-        .rpc();
+      await swapProgram.methods.initializeGlobal().accounts({ admin: admin.publicKey }).signers([admin]).rpc();
 
       await swapProgram.methods
-        .whitelistExtension(config.EXT_EARN_PROGRAM)
-        .accounts({ admin: admin.publicKey })
+        .whitelistExtension()
+        .accountsPartial({ admin: admin.publicKey, extProgram: config.EXT_EARN_PROGRAM })
         .signers([admin])
         .rpc();
 
@@ -348,9 +344,9 @@ describe('Portal unit tests', () => {
       await extEarn.methods
         .wrap(new BN(10_000))
         .accounts({
-          mEarnerAccount: null,
           fromMTokenAccount: tokenAccount,
           toExtTokenAccount: ata.address,
+          mEarnGlobalAccount: null,
         })
         .signers([payer])
         .rpc();
@@ -586,10 +582,16 @@ describe('Portal unit tests', () => {
 
       const txIds = await ssw(ctx, getRedeemTxns(), signer);
       const logs = await fetchTransactionLogs(provider, txIds[txIds.length - 1].txid);
-      expect(logs).toContain(
-        // bridge event log
-        'Program data: bEUUGiR+tFmghgEAAAAAAJiSmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+s4GuMrJWH+VN3VKYLnupK10TITmkAVIVRaGiXwYoEbZEgIA',
-      );
+
+      if (
+        !logs.includes(
+          'Program data: bEUUGiR+tFmghgEAAAAAAJiSmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+s4GuMrJWH+VN3VKYLnupK10TITmkAVIVRaGiXwYoEbZEgIA',
+        )
+      ) {
+        console.error('Program data log not found in transaction logs:', logs.join('\n'));
+        throw new Error('Expected program data log to be present');
+      }
+
       expect(logs).toContain('Program log: Index update: 1000000000001 | root update: false');
 
       // verify data was propagated

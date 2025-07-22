@@ -55,12 +55,7 @@ export type ExtSwap = {
           "address": "11111111111111111111111111111111"
         }
       ],
-      "args": [
-        {
-          "name": "mMint",
-          "type": "pubkey"
-        }
-      ]
+      "args": []
     },
     {
       "name": "removeWhitelistedExtension",
@@ -78,7 +73,10 @@ export type ExtSwap = {
         {
           "name": "admin",
           "writable": true,
-          "signer": true
+          "signer": true,
+          "relations": [
+            "swapGlobal"
+          ]
         },
         {
           "name": "swapGlobal",
@@ -98,10 +96,6 @@ export type ExtSwap = {
               }
             ]
           }
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -127,7 +121,10 @@ export type ExtSwap = {
         {
           "name": "admin",
           "writable": true,
-          "signer": true
+          "signer": true,
+          "relations": [
+            "swapGlobal"
+          ]
         },
         {
           "name": "swapGlobal",
@@ -147,10 +144,6 @@ export type ExtSwap = {
               }
             ]
           }
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -309,17 +302,20 @@ export type ExtSwap = {
         },
         {
           "name": "fromMint",
+          "docs": [
+            "Validated by unwrap on the extension program"
+          ],
           "writable": true
         },
         {
           "name": "toMint",
+          "docs": [
+            "Validated by wrap on the extension program"
+          ],
           "writable": true
         },
         {
-          "name": "mMint",
-          "relations": [
-            "swapGlobal"
-          ]
+          "name": "mMint"
         },
         {
           "name": "fromTokenAccount",
@@ -815,13 +811,13 @@ export type ExtSwap = {
         },
         {
           "name": "fromMint",
+          "docs": [
+            "Validated by unwrap on the extension program"
+          ],
           "writable": true
         },
         {
-          "name": "mMint",
-          "relations": [
-            "swapGlobal"
-          ]
+          "name": "mMint"
         },
         {
           "name": "mTokenAccount",
@@ -1088,7 +1084,10 @@ export type ExtSwap = {
         {
           "name": "admin",
           "writable": true,
-          "signer": true
+          "signer": true,
+          "relations": [
+            "swapGlobal"
+          ]
         },
         {
           "name": "swapGlobal",
@@ -1112,14 +1111,12 @@ export type ExtSwap = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "extProgram"
         }
       ],
-      "args": [
-        {
-          "name": "extProgram",
-          "type": "pubkey"
-        }
-      ]
+      "args": []
     },
     {
       "name": "whitelistUnwrapper",
@@ -1137,7 +1134,10 @@ export type ExtSwap = {
         {
           "name": "admin",
           "writable": true,
-          "signer": true
+          "signer": true,
+          "relations": [
+            "swapGlobal"
+          ]
         },
         {
           "name": "swapGlobal",
@@ -1291,13 +1291,13 @@ export type ExtSwap = {
         },
         {
           "name": "toMint",
+          "docs": [
+            "Validated by wrap on the extension program"
+          ],
           "writable": true
         },
         {
-          "name": "mMint",
-          "relations": [
-            "swapGlobal"
-          ]
+          "name": "mMint"
         },
         {
           "name": "mTokenAccount",
@@ -1597,6 +1597,16 @@ export type ExtSwap = {
       "code": 6003,
       "name": "unauthorizedUnwrapper",
       "msg": "Signer is not whitelisted"
+    },
+    {
+      "code": 6004,
+      "name": "notAuthorized",
+      "msg": "Signer is not authorized to perform this action"
+    },
+    {
+      "code": 6005,
+      "name": "invalidAmount",
+      "msg": "Invalid amount"
     }
   ],
   "types": [
@@ -1676,10 +1686,6 @@ export type ExtSwap = {
           },
           {
             "name": "admin",
-            "type": "pubkey"
-          },
-          {
-            "name": "mMint",
             "type": "pubkey"
           },
           {

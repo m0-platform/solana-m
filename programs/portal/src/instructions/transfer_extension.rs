@@ -40,7 +40,6 @@ pub struct TransferExtensionBurn<'info> {
     pub ext_mint: InterfaceAccount<'info, Mint>,
 
     #[account(
-        has_one = m_mint,
         seeds = [GLOBAL_SEED],
         seeds::program = ext_swap::ID,
         bump = swap_global.bump,

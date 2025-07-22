@@ -49,12 +49,7 @@
           "address": "11111111111111111111111111111111"
         }
       ],
-      "args": [
-        {
-          "name": "m_mint",
-          "type": "pubkey"
-        }
-      ]
+      "args": []
     },
     {
       "name": "remove_whitelisted_extension",
@@ -72,7 +67,10 @@
         {
           "name": "admin",
           "writable": true,
-          "signer": true
+          "signer": true,
+          "relations": [
+            "swap_global"
+          ]
         },
         {
           "name": "swap_global",
@@ -92,10 +90,6 @@
               }
             ]
           }
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -121,7 +115,10 @@
         {
           "name": "admin",
           "writable": true,
-          "signer": true
+          "signer": true,
+          "relations": [
+            "swap_global"
+          ]
         },
         {
           "name": "swap_global",
@@ -141,10 +138,6 @@
               }
             ]
           }
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -303,17 +296,20 @@
         },
         {
           "name": "from_mint",
+          "docs": [
+            "Validated by unwrap on the extension program"
+          ],
           "writable": true
         },
         {
           "name": "to_mint",
+          "docs": [
+            "Validated by wrap on the extension program"
+          ],
           "writable": true
         },
         {
-          "name": "m_mint",
-          "relations": [
-            "swap_global"
-          ]
+          "name": "m_mint"
         },
         {
           "name": "from_token_account",
@@ -809,13 +805,13 @@
         },
         {
           "name": "from_mint",
+          "docs": [
+            "Validated by unwrap on the extension program"
+          ],
           "writable": true
         },
         {
-          "name": "m_mint",
-          "relations": [
-            "swap_global"
-          ]
+          "name": "m_mint"
         },
         {
           "name": "m_token_account",
@@ -1082,7 +1078,10 @@
         {
           "name": "admin",
           "writable": true,
-          "signer": true
+          "signer": true,
+          "relations": [
+            "swap_global"
+          ]
         },
         {
           "name": "swap_global",
@@ -1106,14 +1105,12 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "ext_program"
         }
       ],
-      "args": [
-        {
-          "name": "ext_program",
-          "type": "pubkey"
-        }
-      ]
+      "args": []
     },
     {
       "name": "whitelist_unwrapper",
@@ -1131,7 +1128,10 @@
         {
           "name": "admin",
           "writable": true,
-          "signer": true
+          "signer": true,
+          "relations": [
+            "swap_global"
+          ]
         },
         {
           "name": "swap_global",
@@ -1285,13 +1285,13 @@
         },
         {
           "name": "to_mint",
+          "docs": [
+            "Validated by wrap on the extension program"
+          ],
           "writable": true
         },
         {
-          "name": "m_mint",
-          "relations": [
-            "swap_global"
-          ]
+          "name": "m_mint"
         },
         {
           "name": "m_token_account",
@@ -1591,6 +1591,16 @@
       "code": 6003,
       "name": "UnauthorizedUnwrapper",
       "msg": "Signer is not whitelisted"
+    },
+    {
+      "code": 6004,
+      "name": "NotAuthorized",
+      "msg": "Signer is not authorized to perform this action"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidAmount",
+      "msg": "Invalid amount"
     }
   ],
   "types": [
@@ -1670,10 +1680,6 @@
           },
           {
             "name": "admin",
-            "type": "pubkey"
-          },
-          {
-            "name": "m_mint",
             "type": "pubkey"
           },
           {

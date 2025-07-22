@@ -9,7 +9,7 @@ inputs:
     description: 'Solana version'
     required: false
     default: 'v2.1.0'
-  anchor-version:
+  anchor_version:
     description: 'Anchor version'
     required: false
     default: '0.31.1'
@@ -54,12 +54,29 @@ runs:
         key: node-modules-${{ inputs.node-version }}
 
     - name: Install Anchor CLI
-      run: |
-        cargo install --git https://github.com/coral-xyz/anchor avm
-        avm install ${{ inputs.anchor-version }}
-        avm use ${{ inputs.anchor-version }}
-        anchor --version
+      run: curl --proto '=https' --tlsv1.2 -sSfL https://solana-install.solana.workers.dev | bash
       shell: bash
+
+    - uses: actions/cache@v4
+      if: inputs.anchor_version != ''
+      name: Cache Anchor Cli
+      id: cache-anchor-cli
+      with:
+        path: |
+          ~/.cargo/bin/anchor
+        key: anchor-cli-${{ runner.os }}-v0003-${{ inputs.anchor_version }}
+
+    - name: Install Anchor CLI
+      shell: bash
+      if: steps.cache-anchor-cli.outputs.cache-hit != 'true' && inputs.anchor_version != ''
+      run: |
+        cargo install --git https://github.com/coral-xyz/anchor --tag "v${{ inputs.anchor_version  }}" anchor-cli --force
+        anchor --version
+
+    - name: Verify Anchor Installation
+      if: inputs.anchor_version != ''
+      shell: bash
+      run: anchor --version
 
     - name: Install Node Dependencies
       run: npm i -g pnpm && pnpm install

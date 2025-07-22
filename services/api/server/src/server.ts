@@ -27,8 +27,9 @@ if (process.env.DISABLE_CACHE === 'true') {
   app.use(cache(process.env.CACHE_DURATION || '60 seconds'));
 }
 
-// basic rate limiting
+// basic rate limiting to swap endpoints
 app.use(
+  '/swap',
   rateLimit({
     windowMs: 5_000,
     limit: 5,

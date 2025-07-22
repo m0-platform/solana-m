@@ -116,6 +116,13 @@ pub mod portal {
         instructions::release_inbound_mint_multisig(ctx, args)
     }
 
+    pub fn release_inbound_mint_extension_multisig<'info>(
+        ctx: Context<'_, '_, '_, 'info, ReleaseInboundMintExtensionMultisig<'info>>,
+        args: ReleaseInboundArgs,
+    ) -> Result<()> {
+        instructions::release_inbound_mint_extension_multisig(ctx, args)
+    }
+
     pub fn transfer_ownership(ctx: Context<TransferOwnership>) -> Result<()> {
         instructions::transfer_ownership(ctx)
     }

@@ -59,7 +59,7 @@ pub struct TransferExtensionBurn<'info> {
         seeds::program = ext_program.key(),
         bump,
     )]
-    /// CHECK: CPI will validate the account
+    /// CHECK: unwrap CPI will validate the account
     pub ext_global: AccountInfo<'info>,
 
     /// Account the receives M on unwrap before it gets burned

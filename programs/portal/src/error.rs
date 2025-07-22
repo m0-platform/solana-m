@@ -61,8 +61,6 @@ pub enum NTTError {
     IncorrectRentPayer,
     #[msg("InvalidMultisig")]
     InvalidMultisig,
-    #[msg("InvalidRemainingAccount")]
-    InvalidRemainingAccount,
 }
 
 impl From<ScalingError> for NTTError {

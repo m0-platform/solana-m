@@ -837,6 +837,17 @@ dependencies = [
 [[package]]
 name = "earn"
 version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "cfg-if",
+ "solana-security-txt",
+ "spl-token-2022 7.0.0",
+]
+
+[[package]]
+name = "earn"
+version = "0.1.0"
 source = "git+https://github.com/m0-foundation/solana-m?branch=develop#7cfcac4988e613298e893be2cc41de6b2e92a908"
 dependencies = [
  "anchor-lang",
@@ -846,6 +857,7 @@ dependencies = [
  "spl-token-2022 7.0.0",
 ]
 
+[[package]]
 name = "ed25519"
 version = "1.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

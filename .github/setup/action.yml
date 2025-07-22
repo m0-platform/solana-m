@@ -40,21 +40,11 @@ runs:
           ~/.config/solana
         key: solana-cli-${{ inputs.solana-version }}
 
-    - name: Install Solana CLI
+    - name: Install Anchor CLI
       run: |
         mkdir -p ~/.local/share/solana
-        sh -c "$(curl -sSfL https://release.anza.xyz/v${{ inputs.solana-version }}/install)"
+        curl --proto '=https' --tlsv1.2 -sSfL https://solana-install.solana.workers.dev | bash
         echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
-      shell: bash
-
-    - name: Cache node_modules
-      uses: actions/cache@v3
-      with:
-        path: ./node_modules/
-        key: node-modules-${{ inputs.node-version }}
-
-    - name: Install Anchor CLI
-      run: curl --proto '=https' --tlsv1.2 -sSfL https://solana-install.solana.workers.dev | bash
       shell: bash
 
     - uses: actions/cache@v4
@@ -77,6 +67,12 @@ runs:
       if: inputs.anchor_version != ''
       shell: bash
       run: anchor --version
+
+    - name: Cache node_modules
+      uses: actions/cache@v3
+      with:
+        path: ./node_modules/
+        key: node-modules-${{ inputs.node-version }}
 
     - name: Install Node Dependencies
       run: npm i -g pnpm && pnpm install

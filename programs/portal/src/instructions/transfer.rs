@@ -55,8 +55,8 @@ pub struct Transfer<'info> {
         mut,
         token::mint = mint,
     )]
-    /// CHECK: the spl token program will check that the session_authority
-    ///        account can spend these tokens.
+    /// CHECK: the spl token program will check that the session_authority account can spend these tokens
+    /// TODO: support frozen accounts
     pub from: InterfaceAccount<'info, token_interface::TokenAccount>,
 
     pub token_program: Interface<'info, token_interface::TokenInterface>,
@@ -274,12 +274,21 @@ fn insert_into_outbox(
     recipient_address: [u8; 32],
     should_queue: bool,
 ) -> Result<()> {
-    let release_timestamp = release_amount(
-        &mut common.outbox_rate_limit,
-        inbox_rate_limit,
-        amount,
-        should_queue,
-    )?;
+    // consume the rate limit, or delay the transfer if it's outside the limit
+    let release_timestamp = match common.outbox_rate_limit.rate_limit.consume_or_delay(amount) {
+        RateLimitResult::Consumed(now) => {
+            // When sending a transfer, we refill the inbound rate limit for
+            // that chain the same amount (we call this "backflow")
+            inbox_rate_limit.rate_limit.refill(now, amount);
+            now
+        }
+        RateLimitResult::Delayed(release_timestamp) => {
+            if !should_queue {
+                return Err(NTTError::TransferExceedsRateLimit.into());
+            }
+            release_timestamp
+        }
+    };
 
     common.outbox_item.set_inner(OutboxItem {
         amount: trimmed_amount,
@@ -293,27 +302,4 @@ fn insert_into_outbox(
     });
 
     Ok(())
-}
-
-pub(crate) fn release_amount(
-    outbox_rate_limit: &mut OutboxRateLimit,
-    inbox_rate_limit: &mut InboxRateLimit,
-    amount: u64,
-    should_queue: bool,
-) -> Result<i64> {
-    // consume the rate limit, or delay the transfer if it's outside the limit
-    match outbox_rate_limit.rate_limit.consume_or_delay(amount) {
-        RateLimitResult::Consumed(now) => {
-            // When sending a transfer, we refill the inbound rate limit for
-            // that chain the same amount (we call this "backflow")
-            inbox_rate_limit.rate_limit.refill(now, amount);
-            Ok(now)
-        }
-        RateLimitResult::Delayed(release_timestamp) => {
-            if !should_queue {
-                return Err(NTTError::TransferExceedsRateLimit.into());
-            }
-            Ok(release_timestamp)
-        }
-    }
 }

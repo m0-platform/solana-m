@@ -103,7 +103,7 @@ pub fn release_inbound_mint_extension_multisig<'info>(
     let sub_ctx: Context<'_, '_, '_, 'info, ReleaseInboundMintMultisig<'info>> = Context::new(
         ctx.program_id,
         &mut ctx.accounts.common,
-        &[], // Do not pass remaining accounts here as we already propogated the index
+        ctx.remaining_accounts,
         ReleaseInboundMintMultisigBumps {
             common: ctx.bumps.common.common,
         },

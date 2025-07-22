@@ -1017,7 +1017,7 @@ const prepWrap = async (
   accounts.mMint = mMint.publicKey;
   accounts.extMint = extMint.publicKey;
   accounts.globalAccount = getExtGlobalAccount();
-  accounts.mEarnerAccount = extEarn.programId;
+  accounts.mEarnGlobalAccount = extEarn.programId;
   accounts.mVault = mVault;
   accounts.extMintAuthority = getExtMintAuthority();
   accounts.fromMTokenAccount = fromMTokenAccount ?? (await getATA(mMint.publicKey, signer.publicKey));
@@ -1062,7 +1062,7 @@ const prepUnwrap = async (
   accounts.mMint = mMint.publicKey;
   accounts.extMint = extMint.publicKey;
   accounts.globalAccount = getExtGlobalAccount();
-  accounts.mEarnerAccount = extEarn.programId;
+  accounts.mEarnGlobalAccount = extEarn.programId;
   accounts.mVault = mVault;
   accounts.extMintAuthority = getExtMintAuthority();
   accounts.toMTokenAccount = toMTokenAccount ?? (await getATA(mMint.publicKey, signer.publicKey));
@@ -3477,7 +3477,7 @@ describe('ExtEarn unit tests', () => {
         await prepWrap(earnerOne, wrongATA);
 
         // Attempt to send the transaction
-        // Expect revert with TokenOwner error
+        // Expect revert on the token program due to permissions
         await expectSystemError(
           extEarn.methods
             .wrap(mintAmount)
@@ -3723,7 +3723,7 @@ describe('ExtEarn unit tests', () => {
       });
 
       // given the signer is not the authority on the user M token account
-      // it reverts with a ConstraintTokenOwner error
+      // it reverts with an error on the token program
       test('Signer is not the authority on the from Ext token account - reverts', async () => {
         // Get the ATA for another user
         const mATA = await getATA(mMint.publicKey, earnerOne.publicKey);
@@ -3733,14 +3733,13 @@ describe('ExtEarn unit tests', () => {
         await prepUnwrap(earnerOne, mATA, wrongExtATA);
 
         // Attempt to send the transaction
-        // Expect revert with TokenOwner error
-        await expectAnchorError(
+        // Expect revert in token program due to permissions error
+        await expectSystemError(
           extEarn.methods
             .unwrap(wrappedAmount)
             .accountsPartial({ ...accounts })
             .signers([earnerOne])
             .rpc(),
-          'ConstraintTokenOwner',
         );
       });
 

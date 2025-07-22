@@ -32,7 +32,7 @@ pub struct Unwrap<'info> {
     pub global_account: Account<'info, ExtGlobal>,
 
     /// CHECK: Only added to conform to unwrap interface
-    pub _m_earner_account: Option<AccountInfo<'info>>,
+    pub _m_earn_global_account: Option<AccountInfo<'info>>,
 
     /// CHECK: This account is validated by the seed, it stores no data
     #[account(
@@ -51,6 +51,7 @@ pub struct Unwrap<'info> {
     #[account(
         mut,
         token::mint = m_mint,
+        token::token_program = m_token_program,
     )]
     pub to_m_token_account: InterfaceAccount<'info, TokenAccount>,
 
@@ -58,14 +59,14 @@ pub struct Unwrap<'info> {
         mut,
         associated_token::mint = m_mint,
         associated_token::authority = m_vault,
-        associated_token::token_program = token_2022,
+        associated_token::token_program = m_token_program,
     )]
     pub vault_m_token_account: InterfaceAccount<'info, TokenAccount>,
 
     #[account(
         mut,
         token::mint = ext_mint,
-        token::authority = token_authority,
+        token::token_program = token_2022,
     )]
     pub from_ext_token_account: InterfaceAccount<'info, TokenAccount>,
 

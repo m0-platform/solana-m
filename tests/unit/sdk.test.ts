@@ -424,9 +424,9 @@ describe('SDK unit tests', () => {
       expect(auth['global'].distributed!.toNumber()).toBe(0);
 
       // will throw on simulation or validation errors
-      const [ixs, amount] = await auth.simulateAndValidateClaimIxs(claimIxs);
+      const amount = await auth.simulateAndValidateClaimIxs(claimIxs);
 
-      expect(ixs).toHaveLength(1);
+      expect(claimIxs).toHaveLength(1);
       expect(amount.toNumber()).toEqual(40200000000);
 
       const logWaiter = new Promise((resolve: (value: void) => void, reject) => {

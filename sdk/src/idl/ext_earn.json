@@ -197,6 +197,55 @@
       ]
     },
     {
+      "name": "add_wrap_authority",
+      "discriminator": [
+        234,
+        104,
+        99,
+        10,
+        191,
+        202,
+        68,
+        43
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "global_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "new_wrap_authority",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
       "name": "claim_for",
       "discriminator": [
         245,
@@ -859,6 +908,53 @@
       "args": []
     },
     {
+      "name": "remove_wrap_authority",
+      "discriminator": [
+        218,
+        60,
+        185,
+        181,
+        112,
+        63,
+        60,
+        152
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "global_account"
+          ]
+        },
+        {
+          "name": "global_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "wrap_authority",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
       "name": "set_earn_authority",
       "discriminator": [
         241,
@@ -1387,8 +1483,13 @@
       ],
       "accounts": [
         {
-          "name": "signer",
+          "name": "token_authority",
           "signer": true
+        },
+        {
+          "name": "program_authority",
+          "signer": true,
+          "optional": true
         },
         {
           "name": "m_mint",
@@ -1422,6 +1523,10 @@
           }
         },
         {
+          "name": "_m_earner_account",
+          "optional": true
+        },
+        {
           "name": "m_vault",
           "pda": {
             "seeds": [
@@ -1435,6 +1540,32 @@
                   117,
                   108,
                   116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "_ext_mint_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
                 ]
               }
             ]
@@ -1506,6 +1637,10 @@
           "writable": true
         },
         {
+          "name": "m_token_program",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+        },
+        {
           "name": "token_2022",
           "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         }
@@ -1531,8 +1666,13 @@
       ],
       "accounts": [
         {
-          "name": "signer",
+          "name": "token_authority",
           "signer": true
+        },
+        {
+          "name": "program_authority",
+          "signer": true,
+          "optional": true
         },
         {
           "name": "m_mint",
@@ -1564,6 +1704,10 @@
               }
             ]
           }
+        },
+        {
+          "name": "_m_earner_account",
+          "optional": true
         },
         {
           "name": "m_vault",
@@ -1674,6 +1818,10 @@
         {
           "name": "to_ext_token_account",
           "writable": true
+        },
+        {
+          "name": "m_token_program",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         },
         {
           "name": "token_2022",
@@ -1915,6 +2063,12 @@
           {
             "name": "ext_mint_authority_bump",
             "type": "u8"
+          },
+          {
+            "name": "wrap_authorities",
+            "type": {
+              "vec": "pubkey"
+            }
           }
         ]
       }

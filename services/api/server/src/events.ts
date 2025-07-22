@@ -4,16 +4,36 @@ import { database } from './db';
 import { getCurrentIndex } from './evm';
 import { parseTimeFilter, parseLimitFilter } from './query';
 
-const parseLimitQuery = (reqQuery: { skip?: number; limit?: number }) => {
-  return { skip: Number(reqQuery?.skip ?? 0), limit: Math.min(Number(reqQuery?.limit ?? 100), 1000) };
-};
-
 export const events = new EventsService({
   bridges: async (req, res, next) => {
-    const { limit, skip } = parseLimitQuery(req.query);
+    const cursor = database.collection('events').aggregate([
+      {
+        $match: {
+          event: 'bridge',
+        },
+      },
+      {
+        $lookup: {
+          from: 'transactions',
+          localField: 'signature',
+          foreignField: 'signature',
+          as: 'transaction',
+        },
+      },
+      {
+        $unwind: {
+          path: '$transaction',
+        },
+      },
+      ...parseTimeFilter(req.query),
+      {
+        $sort: {
+          'transaction.block_height': -1,
+        },
+      },
+      ...parseLimitFilter(req.query),
+    ]);
 
-    const coll = database.collection('bridge_events');
-    const cursor = coll.find({}, { limit, skip });
     const result = await cursor.toArray();
 
     res.send({
@@ -34,8 +54,34 @@ export const events = new EventsService({
   },
 
   indexUpdates: async (req, res, next) => {
-    const coll = database.collection('index_updates');
-    const cursor = coll.aggregate([...parseTimeFilter(req.query), ...parseLimitFilter(req.query)]);
+    const cursor = database.collection('events').aggregate([
+      {
+        $match: {
+          event: 'index_update',
+        },
+      },
+      {
+        $lookup: {
+          from: 'transactions',
+          localField: 'signature',
+          foreignField: 'signature',
+          as: 'transaction',
+        },
+      },
+      {
+        $unwind: {
+          path: '$transaction',
+        },
+      },
+      ...parseTimeFilter(req.query),
+      {
+        $sort: {
+          'transaction.block_height': -1,
+        },
+      },
+      ...parseLimitFilter(req.query),
+    ]);
+
     const result = await cursor.toArray();
 
     res.send({

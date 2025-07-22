@@ -14,6 +14,8 @@ service:
         query-parameters:
           skip: optional<integer>
           limit: optional<integer>
+          from_time: optional<integer>
+          to_time: optional<integer>
       examples:
         - response:
             body:

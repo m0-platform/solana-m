@@ -224,7 +224,7 @@ publish-sdk:
 	rm .npmrc
 
 publish-api-sdk:
-	@cd services/api/sdk && \
+	@cd services/api/sdk-ts && \
 	pnpm build && \
 	echo "//registry.npmjs.org/:_authToken=$(shell op read "op://Web3/NPM Publish Token m0-foundation/credential")" > .npmrc && \
 	pnpm publish --no-git-checks && \

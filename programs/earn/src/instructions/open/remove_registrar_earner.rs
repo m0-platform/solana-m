@@ -20,7 +20,7 @@ declare_program!(ext_swap);
 use ext_swap::{accounts::SwapGlobal, program::ExtSwap};
 
 declare_program!(wm_ext);
-use wm_ext::{accounts::ExtGlobal, program::ExtEarn};
+use wm_ext::{accounts::ExtGlobalV2, program::MExt};
 
 #[derive(Accounts)]
 pub struct RemoveRegistrarEarner<'info> {
@@ -73,7 +73,7 @@ pub struct RemoveRegistrarEarner<'info> {
     )]
     pub wm_escrow: Option<InterfaceAccount<'info, TokenAccount>>,
 
-    pub wm_ext_program: Option<Program<'info, ExtEarn>>,
+    pub wm_ext_program: Option<Program<'info, MExt>>,
 
     /// CHECK: This is validated in the CPI call to ext_swap
     pub wm_mint_authority: Option<UncheckedAccount<'info>>,
@@ -85,7 +85,7 @@ pub struct RemoveRegistrarEarner<'info> {
     pub wm_vault: Option<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut)]
-    pub wm_ext_global: Option<Account<'info, ExtGlobal>>,
+    pub wm_ext_global: Option<Account<'info, ExtGlobalV2>>,
 
     pub associated_token_program: Option<Program<'info, AssociatedToken>>,
 

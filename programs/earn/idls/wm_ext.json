@@ -1,10 +1,10 @@
 {
   "address": "wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko",
   "metadata": {
-    "name": "ext_earn",
-    "version": "0.1.0",
+    "name": "m_ext",
+    "version": "0.2.0",
     "spec": "0.1.0",
-    "description": "Created with Anchor"
+    "description": "M extension program with various yield distribution options chosen at compile time"
   },
   "instructions": [
     {
@@ -136,7 +136,8 @@
         {
           "name": "admin",
           "writable": true,
-          "signer": true
+          "signer": true,
+          "relations": ["global_account"]
         },
         {
           "name": "global_account",
@@ -168,8 +169,7 @@
       "accounts": [
         {
           "name": "earn_authority",
-          "signer": true,
-          "relations": ["global_account"]
+          "signer": true
         },
         {
           "name": "global_account",
@@ -220,12 +220,12 @@
               },
               {
                 "kind": "account",
-                "path": "token_2022"
+                "path": "m_token_program"
               },
               {
                 "kind": "account",
                 "path": "global_account.m_mint",
-                "account": "ExtGlobal"
+                "account": "ExtGlobalV2"
               }
             ],
             "program": {
@@ -283,8 +283,11 @@
           "writable": true
         },
         {
-          "name": "token_2022",
+          "name": "m_token_program",
           "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+        },
+        {
+          "name": "ext_token_program"
         }
       ],
       "args": [
@@ -369,7 +372,56 @@
           "name": "m_mint"
         },
         {
-          "name": "ext_mint"
+          "name": "ext_mint",
+          "writable": true
+        },
+        {
+          "name": "ext_mint_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [109, 105, 110, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121]
+              }
+            ]
+          }
+        },
+        {
+          "name": "m_vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [109, 95, 118, 97, 117, 108, 116]
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_m_token_account",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "m_vault"
+              },
+              {
+                "kind": "account",
+                "path": "m_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "m_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16,
+                132, 4, 142, 123, 216, 219, 233, 248, 89
+              ]
+            }
+          }
         },
         {
           "name": "m_earn_global_account",
@@ -383,15 +435,18 @@
             "program": {
               "kind": "const",
               "value": [
-                5, 96, 203, 194, 112, 168, 176, 78, 85, 26, 180, 224, 26, 229, 153, 66, 23, 208, 230, 56, 28, 164, 98,
-                240, 154, 37, 49, 118, 130, 244, 142, 245
+                11, 134, 11, 7, 229, 245, 33, 49, 225, 170, 183, 171, 210, 177, 147, 110, 166, 55, 182, 49, 97, 242, 35,
+                170, 152, 135, 152, 108, 102, 78, 112, 208
               ]
             }
           }
         },
         {
-          "name": "token_2022",
+          "name": "m_token_program",
           "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+        },
+        {
+          "name": "ext_token_program"
         },
         {
           "name": "system_program",
@@ -399,6 +454,12 @@
         }
       ],
       "args": [
+        {
+          "name": "wrap_authorities",
+          "type": {
+            "vec": "pubkey"
+          }
+        },
         {
           "name": "earn_authority",
           "type": "pubkey"
@@ -494,71 +555,12 @@
       "args": []
     },
     {
-      "name": "remove_orphaned_earner",
-      "discriminator": [39, 184, 151, 237, 10, 244, 132, 6],
-      "accounts": [
-        {
-          "name": "signer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "global_account",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [103, 108, 111, 98, 97, 108]
-              }
-            ]
-          }
-        },
-        {
-          "name": "earner_account",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [101, 97, 114, 110, 101, 114]
-              },
-              {
-                "kind": "account",
-                "path": "earner_account.user_token_account",
-                "account": "Earner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "earn_manager_account",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [101, 97, 114, 110, 95, 109, 97, 110, 97, 103, 101, 114]
-              },
-              {
-                "kind": "account",
-                "path": "earner_account.earn_manager",
-                "account": "Earner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": []
-    },
-    {
       "name": "remove_wrap_authority",
       "discriminator": [218, 60, 185, 181, 112, 63, 60, 152],
       "accounts": [
         {
           "name": "admin",
+          "writable": true,
           "signer": true,
           "relations": ["global_account"]
         },
@@ -573,6 +575,10 @@
               }
             ]
           }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -606,111 +612,10 @@
       ],
       "args": [
         {
-          "name": "new_earn_authority",
+          "name": "earn_authority",
           "type": "pubkey"
         }
       ]
-    },
-    {
-      "name": "set_m_mint",
-      "discriminator": [235, 27, 65, 160, 39, 11, 1, 2],
-      "accounts": [
-        {
-          "name": "admin",
-          "signer": true,
-          "relations": ["global_account"]
-        },
-        {
-          "name": "global_account",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [103, 108, 111, 98, 97, 108]
-              }
-            ]
-          }
-        },
-        {
-          "name": "m_vault",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [109, 95, 118, 97, 117, 108, 116]
-              }
-            ]
-          }
-        },
-        {
-          "name": "m_mint",
-          "relations": ["global_account"]
-        },
-        {
-          "name": "vault_m_token_account",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "m_vault"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  6, 221, 246, 225, 238, 117, 143, 222, 24, 66, 93, 188, 228, 108, 205, 218, 182, 26, 252, 77, 131, 185,
-                  13, 39, 254, 189, 249, 40, 216, 161, 139, 252
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "global_account.m_mint",
-                "account": "ExtGlobal"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16,
-                132, 4, 142, 123, 216, 219, 233, 248, 89
-              ]
-            }
-          }
-        },
-        {
-          "name": "new_m_mint"
-        },
-        {
-          "name": "new_vault_m_token_account",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "m_vault"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  6, 221, 246, 225, 238, 117, 143, 222, 24, 66, 93, 188, 228, 108, 205, 218, 182, 26, 252, 77, 131, 185,
-                  13, 39, 254, 189, 249, 40, 216, 161, 139, 252
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "new_m_mint"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16,
-                132, 4, 142, 123, 216, 219, 233, 248, 89
-              ]
-            }
-          }
-        }
-      ],
-      "args": []
     },
     {
       "name": "set_recipient",
@@ -761,11 +666,10 @@
       "accounts": [
         {
           "name": "earn_authority",
-          "signer": true,
-          "relations": ["global_account"]
+          "signer": true
         },
         {
-          "name": "m_earn_global_account",
+          "name": "m_mint",
           "relations": ["global_account"]
         },
         {
@@ -855,7 +759,7 @@
           "signer": true
         },
         {
-          "name": "program_authority",
+          "name": "unwrap_authority",
           "signer": true,
           "optional": true
         },
@@ -870,6 +774,7 @@
         },
         {
           "name": "global_account",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -878,10 +783,6 @@
               }
             ]
           }
-        },
-        {
-          "name": "_m_earner_account",
-          "optional": true
         },
         {
           "name": "m_vault",
@@ -895,7 +796,7 @@
           }
         },
         {
-          "name": "_ext_mint_authority",
+          "name": "ext_mint_authority",
           "pda": {
             "seeds": [
               {
@@ -920,7 +821,7 @@
               },
               {
                 "kind": "account",
-                "path": "token_2022"
+                "path": "m_token_program"
               },
               {
                 "kind": "account",
@@ -945,8 +846,7 @@
           "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         },
         {
-          "name": "token_2022",
-          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+          "name": "ext_token_program"
         }
       ],
       "args": [
@@ -965,7 +865,7 @@
           "signer": true
         },
         {
-          "name": "program_authority",
+          "name": "wrap_authority",
           "signer": true,
           "optional": true
         },
@@ -980,6 +880,7 @@
         },
         {
           "name": "global_account",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -988,10 +889,6 @@
               }
             ]
           }
-        },
-        {
-          "name": "_m_earner_account",
-          "optional": true
         },
         {
           "name": "m_vault",
@@ -1030,7 +927,7 @@
               },
               {
                 "kind": "account",
-                "path": "token_2022"
+                "path": "m_token_program"
               },
               {
                 "kind": "account",
@@ -1055,8 +952,7 @@
           "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         },
         {
-          "name": "token_2022",
-          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+          "name": "ext_token_program"
         }
       ],
       "args": [
@@ -1069,6 +965,10 @@
   ],
   "accounts": [
     {
+      "name": "EarnGlobal",
+      "discriminator": [229, 50, 25, 132, 207, 93, 185, 23]
+    },
+    {
       "name": "EarnManager",
       "discriminator": [60, 115, 54, 201, 127, 74, 217, 18]
     },
@@ -1077,15 +977,19 @@
       "discriminator": [236, 126, 51, 96, 46, 225, 103, 207]
     },
     {
-      "name": "ExtGlobal",
-      "discriminator": [157, 61, 26, 72, 16, 241, 83, 140]
-    },
-    {
-      "name": "Global",
-      "discriminator": [167, 232, 232, 177, 200, 108, 114, 127]
+      "name": "ExtGlobalV2",
+      "discriminator": [116, 209, 219, 83, 70, 143, 55, 127]
     }
   ],
   "events": [
+    {
+      "name": "FeesClaimed",
+      "discriminator": [22, 104, 110, 222, 38, 157, 14, 62]
+    },
+    {
+      "name": "RewardsClaim",
+      "discriminator": [84, 168, 212, 108, 203, 10, 250, 107]
+    },
     {
       "name": "SyncIndexUpdate",
       "discriminator": [170, 178, 107, 120, 158, 139, 32, 113]
@@ -1094,51 +998,115 @@
   "errors": [
     {
       "code": 6000,
-      "name": "AlreadyClaimed",
-      "msg": "Already claimed for user."
-    },
-    {
-      "code": 6001,
       "name": "NotAuthorized",
       "msg": "Invalid signer."
     },
     {
-      "code": 6002,
+      "code": 6001,
       "name": "InvalidParam",
       "msg": "Invalid parameter."
     },
     {
-      "code": 6003,
+      "code": 6002,
       "name": "InvalidAccount",
       "msg": "Account does not match the expected key."
     },
     {
-      "code": 6004,
+      "code": 6003,
       "name": "Active",
       "msg": "Account is currently active."
     },
     {
-      "code": 6005,
+      "code": 6004,
       "name": "NotActive",
       "msg": "Account is not currently active."
     },
     {
-      "code": 6006,
-      "name": "MutableOwner",
-      "msg": "Token account owner is required to be immutable."
-    },
-    {
-      "code": 6007,
+      "code": 6005,
       "name": "InsufficientCollateral",
       "msg": "Not enough M."
     },
     {
-      "code": 6008,
+      "code": 6006,
       "name": "InvalidMint",
       "msg": "Invalid Mint."
+    },
+    {
+      "code": 6007,
+      "name": "MathOverflow",
+      "msg": "Math overflow error."
+    },
+    {
+      "code": 6008,
+      "name": "MathUnderflow",
+      "msg": "Math underflow error."
+    },
+    {
+      "code": 6009,
+      "name": "TypeConversionError",
+      "msg": "Type conversion error."
+    },
+    {
+      "code": 6010,
+      "name": "InvalidInput",
+      "msg": "Invalid value provided for calculation"
+    },
+    {
+      "code": 6011,
+      "name": "InvalidAmount",
+      "msg": "Invalid amount"
+    },
+    {
+      "code": 6012,
+      "name": "AlreadyClaimed",
+      "msg": "Already claimed for user."
+    },
+    {
+      "code": 6013,
+      "name": "SerializationError",
+      "msg": "Failed to serialize account data."
+    },
+    {
+      "code": 6014,
+      "name": "InvalidTokenProgram",
+      "msg": "Invalid token program provided."
     }
   ],
   "types": [
+    {
+      "name": "EarnGlobal",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "m_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "wm_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "portal_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "earner_merkle_root",
+            "type": {
+              "array": ["u8", 32]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
     {
       "name": "EarnManager",
       "type": {
@@ -1206,16 +1174,12 @@
       }
     },
     {
-      "name": "ExtGlobal",
+      "name": "ExtGlobalV2",
       "type": {
         "kind": "struct",
         "fields": [
           {
             "name": "admin",
-            "type": "pubkey"
-          },
-          {
-            "name": "earn_authority",
             "type": "pubkey"
           },
           {
@@ -1231,14 +1195,6 @@
             "type": "pubkey"
           },
           {
-            "name": "index",
-            "type": "u64"
-          },
-          {
-            "name": "timestamp",
-            "type": "u64"
-          },
-          {
             "name": "bump",
             "type": "u8"
           },
@@ -1251,6 +1207,14 @@
             "type": "u8"
           },
           {
+            "name": "yield_config",
+            "type": {
+              "defined": {
+                "name": "YieldConfig"
+              }
+            }
+          },
+          {
             "name": "wrap_authorities",
             "type": {
               "vec": "pubkey"
@@ -1260,63 +1224,53 @@
       }
     },
     {
-      "name": "Global",
+      "name": "FeesClaimed",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "admin",
+            "name": "recipient_token_account",
             "type": "pubkey"
           },
           {
-            "name": "earn_authority",
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "principal",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RewardsClaim",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "token_account",
             "type": "pubkey"
           },
           {
-            "name": "mint",
+            "name": "recipient_token_account",
             "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "ts",
+            "type": "u64"
           },
           {
             "name": "index",
             "type": "u64"
           },
           {
-            "name": "timestamp",
+            "name": "fee",
             "type": "u64"
-          },
-          {
-            "name": "claim_cooldown",
-            "type": "u64"
-          },
-          {
-            "name": "max_supply",
-            "type": "u64"
-          },
-          {
-            "name": "max_yield",
-            "type": "u64"
-          },
-          {
-            "name": "distributed",
-            "type": "u64"
-          },
-          {
-            "name": "claim_complete",
-            "type": "bool"
-          },
-          {
-            "name": "earner_merkle_root",
-            "type": {
-              "array": ["u8", 32]
-            }
-          },
-          {
-            "name": "portal_authority",
-            "type": "pubkey"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
           }
         ]
       }
@@ -1333,6 +1287,54 @@
           {
             "name": "ts",
             "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "YieldConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "yield_variant",
+            "type": {
+              "defined": {
+                "name": "YieldVariant"
+              }
+            }
+          },
+          {
+            "name": "earn_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "index",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "YieldVariant",
+      "repr": {
+        "kind": "rust"
+      },
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "NoYield"
+          },
+          {
+            "name": "ScaledUi"
+          },
+          {
+            "name": "Crank"
           }
         ]
       }

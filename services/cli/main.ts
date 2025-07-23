@@ -87,7 +87,7 @@ async function main() {
   program
     .command('print-addresses')
     .description('Print the addresses of all the relevant programs and accounts')
-    .action(() => {
+    .action(async () => {
       const [mMint, wmMint, multisig] = keysFromEnv(['M_MINT_KEYPAIR', 'WM_MINT_KEYPAIR', 'M_MINT_MULTISIG_KEYPAIR']);
       const [portalTokenAuthPda] = PublicKey.findProgramAddressSync([Buffer.from('token_authority')], PROGRAMS.portal);
       const [earnTokenAuthPda] = PublicKey.findProgramAddressSync([Buffer.from('token_authority')], PROGRAMS.earn);
@@ -126,6 +126,20 @@ async function main() {
       }));
 
       console.table(tableData);
+
+      // log wM earners
+      const extEarn = new Program<ExtEarn>(EXT_EARN_IDL, anchorProvider(connection, new Keypair()));
+      const earners = await extEarn.account.earner.all();
+
+      const earnerData = earners.map((earner) => ({
+        pubkey: earner.publicKey.toBase58(),
+        user: earner.account.user.toBase58(),
+        earnManager: earner.account.earnManager?.toBase58(),
+        recipientTokenAccount: earner.account.recipientTokenAccount?.toBase58(),
+      }));
+
+      console.log('wM Earners:');
+      console.table(earnerData);
     });
 
   program

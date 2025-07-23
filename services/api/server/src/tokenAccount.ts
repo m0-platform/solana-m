@@ -19,7 +19,7 @@ export const tokenAccount = new TokenAccountService({
       });
     }
 
-    const cursor = database.collection('balance_updates').aggregate([
+    const cursor = database.collection('events').aggregate([
       {
         $match: {
           event: 'claim',

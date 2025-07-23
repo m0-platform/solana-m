@@ -15,11 +15,18 @@
     "outDir": "dist"
   },
   "dependencies": {
+    "@coral-xyz/anchor": "catalog:",
+    "@jup-ag/api": "^6.0.44",
+    "@solana-program/token-2022": "^0.4.2",
+    "@solana/kit": "^2.1.1",
+    "@solana/web3.js": "catalog:",
     "apicache": "^1.6.3",
     "cors": "^2.8.5",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.0.1",
     "express-winston": "^4.2.0",
     "mongodb": "^6.16.0",
+    "node-cache": "^5.1.2",
     "viem": "catalog:",
     "winston": "catalog:",
     "winston-loki": "catalog:"

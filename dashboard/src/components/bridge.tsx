@@ -1,16 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAccount } from '../hooks/useAccount';
 import { type Provider } from '@reown/appkit-adapter-solana/react';
-import { PublicKey } from '@solana/web3.js';
 import { useAppKitProvider } from '@reown/appkit/react';
 import Decimal from 'decimal.js';
 import { toast, ToastContainer } from 'react-toastify';
-import { bridgeFromEvm, bridgeFromSolana, checkERC20Allowance, erc20Abi, NETWORK } from '../services/rpc';
+import { bridgeFromEvm, bridgeFromSolana, erc20Abi, NETWORK } from '../services/rpc';
 import { chainIcons } from './bridges';
-import { useSendTransaction } from 'wagmi';
+import { useReadContract, useSendTransaction } from 'wagmi';
 import { switchChain, waitForTransactionReceipt, writeContract } from '@wagmi/core';
 import { wagmiAdapter } from '../main';
-import { useQuery } from '@tanstack/react-query';
+import { M_EVM, MINTS } from '../services/consts';
 
 type Chain = {
   name: string;
@@ -100,7 +99,7 @@ const ChainDropdown = ({ selectedChain, onChange }: { selectedChain: Chain; onCh
 };
 
 export const Bridge = () => {
-  const { isConnected, solanaBalances, evmBalances, isSolanaWallet, address, caipAddress } = useAccount();
+  const { isConnected, solanaBalances, evmBalances, isSolanaWallet, isEvmWallet, address, caipAddress } = useAccount();
   const { walletProvider } = useAppKitProvider<Provider>('solana');
   const { sendTransaction, isPending } = useSendTransaction();
 
@@ -110,22 +109,27 @@ export const Bridge = () => {
   const [inputChain, setInputChain] = useState<Chain>(chains[0]);
   const [outputChain, setOutputChain] = useState<Chain>(chains[1]);
 
-  const [displayNonceInput, setDisplayNonceInput] = useState<boolean>(false);
-  const [nonceAccount, setNonceAccount] = useState<string>('');
-
-  const allowanceQuery = useQuery({
-    queryKey: ['allowance', address],
-    queryFn: () => checkERC20Allowance(address! as `0x${string}`),
-    enabled: isConnected && !!address && inputChain.namespace === 'evm',
-    refetchInterval: 5000,
+  const {
+    data: allowanceValue,
+    isError: allowanceIsError,
+    error: allowanceError,
+    ...allowanceQuery
+  } = useReadContract({
+    address: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b',
+    abi: erc20Abi,
+    functionName: 'allowance',
+    args: [address as `0x${string}`, '0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd'],
+    query: { enabled: !!address && isEvmWallet },
   });
+
+  const allowance = allowanceValue ?? 0n;
 
   // handle allowance check errors
   useEffect(() => {
-    if (allowanceQuery.isError) {
-      toast.error(<div>Failed to check allowance: {allowanceQuery.error.toString()}</div>);
+    if (allowanceIsError) {
+      toast.error(<div>Failed to check allowance: {allowanceError.toString()}</div>);
     }
-  }, [allowanceQuery.isError, allowanceQuery.error]);
+  }, [allowanceIsError, allowanceError]);
 
   // handle connected wallet change
   useEffect(() => {
@@ -142,10 +146,10 @@ export const Bridge = () => {
 
   const handleInputChainChange = async (chain: Chain) => {
     setInputChain(chain);
-    // Ensure briding is from EVM to SVM
-    if (outputChain.namespace === chain.namespace) {
-      // Find the first chain that's not the same namespace
-      const newOutputChain = chains.find((c) => c.namespace !== chain.namespace);
+    // Cannot select the same chain for input and output
+    if (outputChain === chain) {
+      // Find the first chain that's not the same chain
+      const newOutputChain = chains.find((c) => c !== chain);
       if (newOutputChain) {
         setOutputChain(newOutputChain);
       }
@@ -158,8 +162,8 @@ export const Bridge = () => {
 
   const handleOutputChainChange = (chain: Chain) => {
     setOutputChain(chain);
-    if (inputChain.namespace === chain.namespace) {
-      const newInputChain = chains.find((c) => c.namespace !== chain.namespace);
+    if (inputChain === chain) {
+      const newInputChain = chains.find((c) => c !== chain);
       if (newInputChain) {
         setInputChain(newInputChain);
       }
@@ -180,9 +184,13 @@ export const Bridge = () => {
     setRecipientAddress(e.target.value.trim());
   };
 
+  const getMBalance = () => {
+    const balances = inputChain.name === 'Solana' ? solanaBalances[MINTS.M.toBase58()] : evmBalances[M_EVM];
+    return balances?.balance ?? new Decimal(0);
+  };
+
   const handleMaxClick = () => {
-    const balances = inputChain.name === 'Solana' ? solanaBalances : evmBalances;
-    setAmount(balances.M?.toString() ?? '0');
+    setAmount(getMBalance().toString());
   };
 
   const handleBridge = async () => {
@@ -193,19 +201,16 @@ export const Bridge = () => {
 
       let sig: string;
       if (inputChain.namespace === 'svm') {
-        if (nonceAccount === '') {
-          sig = await bridgeFromSolana(walletProvider, amountValue, recipientAddress, outputChain.label);
-        } else {
-          let noncePubkey;
-          try {
-            noncePubkey = new PublicKey(nonceAccount);
-          } catch (error) {
-            throw new Error('Invalid nonce account address');
-          }
-          sig = await bridgeFromSolana(walletProvider, amountValue, recipientAddress, outputChain.label, noncePubkey);
-        }
+        sig = await bridgeFromSolana(walletProvider, amountValue, recipientAddress, outputChain.label);
       } else {
-        sig = await bridgeFromEvm(sendTransaction, address, amountValue, recipientAddress, inputChain.label);
+        sig = await bridgeFromEvm(
+          sendTransaction,
+          address,
+          amountValue,
+          recipientAddress,
+          inputChain.label,
+          outputChain.label,
+        );
       }
 
       const txUrl = `https://wormholescan.io/#/tx/${sig}`;
@@ -284,35 +289,19 @@ export const Bridge = () => {
   const validWallet = isConnected && (isSolanaWallet ? inputChain.name === 'Solana' : inputChain.name !== 'Solana');
   const buttonDisabled = !isConnected || !isValidAmount || !isValidRecipient || isLoading || !validWallet;
   const hasAllowance =
-    inputChain.name === 'Solana' || (isValidAmount && (allowanceQuery.data ?? 0n) >= BigInt(new Decimal(amount).mul(1e6).toFixed(0)));
-
-  const handleNonceCheckBox = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const checked = e.target.checked;
-    setDisplayNonceInput(checked);
-  };
-
-  const handleNonceAccountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-
-    // allow base58 address
-    if (value === '' || /^[1-9A-HJ-NP-Za-km-z]+$/.test(value)) {
-      setNonceAccount(value);
-    }
-  };
+    inputChain.name === 'Solana' || (isValidAmount && allowance >= BigInt(new Decimal(amount).mul(1e6).toFixed(0)));
 
   return (
     <div className="flex justify-center mt-20">
       <div className="p-6 w-full max-w-md">
-        <div className="mb-6">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block mb-2 text-gray-400 text-xs">Input Chain</label>
-              <ChainDropdown selectedChain={inputChain} onChange={handleInputChainChange} />
-            </div>
-            <div>
-              <label className="block mb-2 text-gray-400 text-xs">Output Chain</label>
-              <ChainDropdown selectedChain={outputChain} onChange={handleOutputChainChange} />
-            </div>
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div>
+            <label className="block mb-2 text-gray-400 text-xs">Input Chain</label>
+            <ChainDropdown selectedChain={inputChain} onChange={handleInputChainChange} />
+          </div>
+          <div>
+            <label className="block mb-2 text-gray-400 text-xs">Output Chain</label>
+            <ChainDropdown selectedChain={outputChain} onChange={handleOutputChainChange} />
           </div>
         </div>
 
@@ -320,7 +309,7 @@ export const Bridge = () => {
           <div className="flex justify-between items-center mb-2 text-gray-400 text-xs">
             <label>M Amount</label>
             <div>
-              Balance: {(inputChain.name === 'Solana' ? solanaBalances : evmBalances).M?.toFixed(4) ?? '0.00'}
+              Balance: {getMBalance().toFixed(4) ?? '0.00'}
               <button onClick={handleMaxClick} className="ml-2 text-blue-400 hover:text-blue-300 hover:cursor-pointer">
                 MAX
               </button>
@@ -355,30 +344,6 @@ export const Bridge = () => {
             />
           </div>
         </div>
-
-        {inputChain.namespace === 'svm' && (
-          <div className="mb-6 text-xs text-gray-400 flex items-center">
-            <input type="checkbox" onChange={handleNonceCheckBox} id="durableNonce" className="mr-2" />
-            <label htmlFor="durableNonce">
-              Use durable nonce? Allows for signing operations that take more than ~90 seconds to complete.
-            </label>
-          </div>
-        )}
-
-        {inputChain.namespace === 'svm' && displayNonceInput && (
-          <div className="mb-6">
-            <div className="mb-2 text-gray-400 text-xs">
-              <label>Nonce Account Pubkey</label>
-            </div>
-            <input
-              type="text"
-              value={nonceAccount}
-              onChange={handleNonceAccountChange}
-              placeholder=""
-              className="w-full bg-off-blue py-3 px-4 focus:outline-none"
-            />
-          </div>
-        )}
 
         <button
           onClick={hasAllowance ? handleBridge : handleApprove}

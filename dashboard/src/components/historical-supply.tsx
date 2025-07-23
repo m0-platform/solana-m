@@ -1,19 +1,24 @@
 import { AreaChart, Area, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, XAxis } from 'recharts';
-import { bridgeEvents } from '../services/subgraph';
 import { LoadingSkeleton } from './loading';
 import { getMintsRPC } from '../services/rpc';
 import Decimal from 'decimal.js';
 import { useQuery } from '@tanstack/react-query';
+import { ApiClient } from '../services/sdk';
 
 export const HistoricalSupply = () => {
   const { data: mintData } = useQuery({ queryKey: ['mints'], queryFn: getMintsRPC });
-  const { data, isLoading } = useQuery({ queryKey: ['bridges'], queryFn: () => bridgeEvents() });
+  const { data, isLoading } = useQuery({
+    queryKey: ['bridge-events'],
+    queryFn: () => ApiClient.events.bridges({ limit: 100 }),
+  });
 
   if (isLoading) {
     return <LoadingSkeleton h={60} />;
   }
 
-  const events = data?.events.map(({ ts, tokenSupply }) => ({ ts, supply: tokenSupply.toNumber() })).reverse() ?? [];
+  const events =
+    data?.bridges.map(({ ts, tokenSupply }) => ({ ts: ts.getTime() / 1000, supply: tokenSupply / 1e6 })).reverse() ??
+    [];
 
   // append current mint supply
   if (mintData) {

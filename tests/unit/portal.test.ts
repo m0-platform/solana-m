@@ -595,19 +595,19 @@ describe('Portal unit tests', () => {
     });
 
     it('extension tokens', async () => {
+      const { address: extAta } = await spl.getOrCreateAssociatedTokenAccount(
+        connection,
+        payer,
+        extMint.publicKey,
+        payer.publicKey,
+        true,
+        undefined,
+        undefined,
+        TOKEN_PROGRAM,
+      );
+
       const getRedeemTxns = redeem(
-        [
-          {
-            pubkey: config.EARN_PROGRAM,
-            isSigner: false,
-            isWritable: false,
-          },
-          {
-            pubkey: config.EARN_GLOBAL_ACCOUNT,
-            isSigner: false,
-            isWritable: true,
-          },
-        ],
+        additionalRedeemAccounts(mint.publicKey, extMint.publicKey, extAta),
         undefined,
         'release_inbound_mint_extension_multisig',
       );
@@ -874,4 +874,102 @@ function buildTransferExtensionIx(
       Buffer.from([0]), // should_queue
     ]),
   });
+}
+
+function additionalRedeemAccounts(mMint: PublicKey, extMint: PublicKey, extAta: PublicKey): AccountMeta[] {
+  return [
+    {
+      pubkey: config.EARN_PROGRAM,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: config.EARN_GLOBAL_ACCOUNT,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      // ext mint
+      pubkey: extMint,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      // swap global
+      pubkey: PublicKey.findProgramAddressSync([Buffer.from('global')], config.SWAP_PROGRAM)[0],
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      // m global
+      pubkey: config.EARN_GLOBAL_ACCOUNT,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      // ext global
+      pubkey: PublicKey.findProgramAddressSync([Buffer.from('global')], config.EXT_EARN_PROGRAM)[0],
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      // ext m vault auth
+      pubkey: PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_EARN_PROGRAM)[0],
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      // ext mint auth
+      pubkey: PublicKey.findProgramAddressSync([Buffer.from('mint_authority')], config.EXT_EARN_PROGRAM)[0],
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      // ext m vault
+      pubkey: getAssociatedTokenAddressSync(
+        mMint,
+        PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_EARN_PROGRAM)[0],
+        true,
+        TOKEN_PROGRAM,
+      ),
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      // ext token account
+      pubkey: extAta,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      // swap program
+      pubkey: config.SWAP_PROGRAM,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      // ext program
+      pubkey: config.EXT_EARN_PROGRAM,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      // ext token program
+      pubkey: TOKEN_PROGRAM,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      // ata program
+      pubkey: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      // system program
+      pubkey: SYSTEM_PROGRAM_ID,
+      isSigner: false,
+      isWritable: false,
+    },
+  ];
 }

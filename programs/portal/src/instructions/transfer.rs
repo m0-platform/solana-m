@@ -55,8 +55,8 @@ pub struct Transfer<'info> {
         mut,
         token::mint = mint,
     )]
-    /// CHECK: the spl token program will check that the session_authority account can spend these tokens
-    /// TODO: support frozen accounts
+    /// CHECK: the spl token program will check that the session_authority
+    ///        account can spend these tokens.
     pub from: InterfaceAccount<'info, token_interface::TokenAccount>,
 
     pub token_program: Interface<'info, token_interface::TokenInterface>,
@@ -109,36 +109,17 @@ impl TransferArgs {
 }
 
 #[derive(Accounts)]
-#[instruction(args: TransferArgs)]
 pub struct TransferBurn<'info> {
     #[account(
         constraint = common.config.mode == Mode::Burning @ NTTError::InvalidMode,
     )]
     pub common: Transfer<'info>,
 
-    #[account(
-        mut,
-        seeds = [InboxRateLimit::SEED_PREFIX, args.recipient_chain.id.to_be_bytes().as_ref()],
-        bump = inbox_rate_limit.bump,
-    )]
-    // NOTE: it would be nice to put these into `common`, but that way we don't
-    // have access to the instruction args
+    #[account(mut)]
     pub inbox_rate_limit: Account<'info, InboxRateLimit>,
 
-    #[account(
-        seeds = [NttManagerPeer::SEED_PREFIX, args.recipient_chain.id.to_be_bytes().as_ref()],
-        bump = peer.bump,
-    )]
     pub peer: Account<'info, NttManagerPeer>,
 
-    #[account(
-        seeds = [
-            crate::SESSION_AUTHORITY_SEED,
-            common.from.owner.as_ref(),
-            args.keccak256().as_ref()
-        ],
-        bump,
-    )]
     /// CHECK: The seeds constraint enforces that this is the correct account.
     /// See [`crate::SESSION_AUTHORITY_SEED`] for an explanation of the flow.
     pub session_authority: UncheckedAccount<'info>,
@@ -151,10 +132,54 @@ pub struct TransferBurn<'info> {
     pub token_authority: UncheckedAccount<'info>,
 }
 
+impl<'info> TransferBurn<'info> {
+    // manually validate accounts instead of using anchor constraints
+    // so that the context can be shared (nested contexts do not support instruction args)
+    pub fn validate_accounts(&self, args: &TransferArgs) -> Result<(u8, u8, u8)> {
+        let (inbox_rate_limit, inbox_rate_limit_bump) = Pubkey::find_program_address(
+            &[
+                InboxRateLimit::SEED_PREFIX,
+                args.recipient_chain.id.to_be_bytes().as_ref(),
+            ],
+            &crate::ID,
+        );
+        if !self.inbox_rate_limit.key().eq(&inbox_rate_limit) {
+            return err!(ErrorCode::ConstraintAddress);
+        }
+
+        let (peer, peer_bump) = Pubkey::find_program_address(
+            &[
+                NttManagerPeer::SEED_PREFIX,
+                args.recipient_chain.id.to_be_bytes().as_ref(),
+            ],
+            &crate::ID,
+        );
+        if !self.peer.key().eq(&peer) {
+            return err!(ErrorCode::ConstraintAddress);
+        }
+
+        let (session_authority, session_authority_bump) = Pubkey::find_program_address(
+            &[
+                crate::SESSION_AUTHORITY_SEED,
+                self.common.from.owner.as_ref(),
+                args.keccak256().as_ref(),
+            ],
+            &crate::ID,
+        );
+        if !self.session_authority.key().eq(&session_authority) {
+            return err!(ErrorCode::ConstraintAddress);
+        }
+
+        Ok((inbox_rate_limit_bump, peer_bump, session_authority_bump))
+    }
+}
+
 pub fn transfer_burn<'info>(
     ctx: Context<'_, '_, '_, 'info, TransferBurn<'info>>,
     args: TransferArgs,
 ) -> Result<()> {
+    let (_, _, session_authority_bump) = ctx.accounts.validate_accounts(&args)?;
+
     let accs = ctx.accounts;
 
     let TransferArgs {
@@ -203,7 +228,7 @@ pub fn transfer_burn<'info>(
             crate::SESSION_AUTHORITY_SEED,
             accs.common.from.owner.as_ref(),
             args.keccak256().as_ref(),
-            &[ctx.bumps.session_authority],
+            &[session_authority_bump],
         ]],
     )?;
 

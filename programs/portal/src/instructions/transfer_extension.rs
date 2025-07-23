@@ -15,7 +15,6 @@ use crate::{
 };
 
 #[derive(Accounts)]
-#[instruction(args: TransferArgs)]
 pub struct TransferExtensionBurn<'info> {
     pub common: TransferBurn<'info>,
 
@@ -127,7 +126,6 @@ pub fn transfer_extension_burn<'info>(
         ctx.remaining_accounts,
         TransferBurnBumps {
             common: ctx.bumps.common.common,
-            session_authority: ctx.bumps.common.session_authority,
             token_authority: ctx.bumps.common.token_authority,
         },
     );

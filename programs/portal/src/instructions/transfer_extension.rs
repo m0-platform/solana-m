@@ -27,7 +27,7 @@ pub struct TransferExtensionBurn<'info> {
         seeds::program = ext_swap::ID,
         bump = swap_global.bump,
     )]
-    pub swap_global: Account<'info, SwapGlobal>,
+    pub swap_global: Box<Account<'info, SwapGlobal>>,
 
     #[account(
         seeds = [GLOBAL_SEED],
@@ -46,7 +46,7 @@ pub struct TransferExtensionBurn<'info> {
     pub ext_global: AccountInfo<'info>,
 
     #[account(mut)]
-    pub ext_token_account: InterfaceAccount<'info, TokenAccount>,
+    pub ext_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -73,7 +73,7 @@ pub struct TransferExtensionBurn<'info> {
     pub ext_mint_authority: AccountInfo<'info>,
 
     /// CHECK: checked against whitelisted extensions
-    pub ext_program: UncheckedAccount<'info>,
+    pub ext_program: AccountInfo<'info>,
 
     pub swap_program: Program<'info, ExtSwap>,
 

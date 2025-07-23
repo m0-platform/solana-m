@@ -508,7 +508,7 @@ describe('Portal unit tests', () => {
 
     let inboxItem: PublicKey;
 
-    const redeem = (remaining_accounts: AccountMeta[], additionalPayload?: string) => {
+    const redeem = (additionalAccounts: AccountMeta[], additionalPayload?: string, ixOverride?: string) => {
       additionalPayload ??= utils.encodePacked(
         { type: 'uint64', value: 1_000_000_000_001n }, // index
         { type: 'bytes32', value: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b' }, // destination
@@ -544,7 +544,15 @@ describe('Portal unit tests', () => {
                 }),
             );
 
-            ixs[ixs.length - 1].keys.push(...remaining_accounts);
+            ixs[ixs.length - 1].keys.push(...additionalAccounts);
+
+            // rewrite instruction discriminator
+            if (ixOverride) {
+              ixs[ixs.length - 1].data = Buffer.concat([
+                Buffer.from(sha256(`global:${ixOverride}`).subarray(0, 8)),
+                ixs[ixs.length - 1].data.subarray(8),
+              ]);
+            }
 
             const redeemTx = new Transaction().add(...ixs);
             redeemTx.feePayer = owner.publicKey;
@@ -556,17 +564,7 @@ describe('Portal unit tests', () => {
       };
     };
 
-    it('tokens (no remaining accounts)', async () => {
-      const getRedeemTxns = redeem([]);
-      try {
-        await ssw(ctx, getRedeemTxns(), signer);
-        fail('Expected transaction to fail');
-      } catch (e: any) {
-        expect(e.message).toContain('Error Code: InvalidRemainingAccount');
-      }
-    });
-
-    it('tokens (with remaining accounts)', async () => {
+    it('$M tokens', async () => {
       const getRedeemTxns = redeem([
         {
           pubkey: config.EARN_PROGRAM,
@@ -583,15 +581,8 @@ describe('Portal unit tests', () => {
       const txIds = await ssw(ctx, getRedeemTxns(), signer);
       const logs = await fetchTransactionLogs(provider, txIds[txIds.length - 1].txid);
 
-      if (
-        !logs.includes(
-          'Program data: bEUUGiR+tFmghgEAAAAAAJiSmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+s4GuMrJWH+VN3VKYLnupK10TITmkAVIVRaGiXwYoEbZEgIA',
-        )
-      ) {
-        console.error('Program data log not found in transaction logs:', logs.join('\n'));
-        throw new Error('Expected program data log to be present');
-      }
-
+      // bridge event log exists
+      expect(logs[logs.length - 3].startsWith('Program data: bEUUGiR+tFmghgEAAAAAA')).toBeTruthy();
       expect(logs).toContain('Program log: Index update: 1000000000001 | root update: false');
 
       // verify data was propagated
@@ -603,26 +594,38 @@ describe('Portal unit tests', () => {
       expect(JSON.stringify(item.releaseStatus.released)).toBeDefined();
     });
 
-    it('tokens (incorrect remaining accounts)', async () => {
-      const getRedeemTxns = redeem([
-        {
-          pubkey: config.PORTAL_PROGRAM_ID, // incorrect
-          isSigner: false,
-          isWritable: false,
-        },
-        {
-          pubkey: config.EARN_GLOBAL_ACCOUNT,
-          isSigner: false,
-          isWritable: true,
-        },
-      ]);
+    it('extension tokens', async () => {
+      const getRedeemTxns = redeem(
+        [
+          {
+            pubkey: config.EARN_PROGRAM,
+            isSigner: false,
+            isWritable: false,
+          },
+          {
+            pubkey: config.EARN_GLOBAL_ACCOUNT,
+            isSigner: false,
+            isWritable: true,
+          },
+        ],
+        undefined,
+        'release_inbound_mint_extension_multisig',
+      );
 
-      try {
-        await ssw(ctx, getRedeemTxns(), signer);
-        fail('Expected transaction to fail');
-      } catch (e: any) {
-        expect(e.message).toContain('Error Code: InvalidRemainingAccount');
-      }
+      const txIds = await ssw(ctx, getRedeemTxns(), signer);
+      const logs = await fetchTransactionLogs(provider, txIds[txIds.length - 1].txid);
+
+      // bridge event log exists
+      expect(logs[logs.length - 3].startsWith('Program data: bEUUGiR+tFmghgEAAAAAA')).toBeTruthy();
+      expect(logs).toContain('Program log: Index update: 1000000000001 | root update: false');
+
+      // verify data was propagated
+      const global = await earn.account.global.fetch(config.EARN_GLOBAL_ACCOUNT);
+      expect(global.index.toString()).toBe('1000000000001');
+
+      // verify inbox item was released
+      const item = await ntt.program.account.inboxItem.fetch(inboxItem);
+      expect(JSON.stringify(item.releaseStatus.released)).toBeDefined();
     });
 
     it('tokens with merkle roots', async () => {
@@ -719,6 +722,73 @@ function buildTransferExtensionIx(
         isWritable: true,
       },
       {
+        // from (m token account)
+        pubkey: mAta,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // m token program
+        pubkey: TOKEN_PROGRAM,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // outbox item
+        pubkey: outboxItem,
+        isSigner: true,
+        isWritable: true,
+      },
+      {
+        // outbox rate limit
+        pubkey: ntt.pdas.outboxRateLimitAccount(),
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // custody
+        pubkey: ntt.config!.custody,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // system program
+        pubkey: SYSTEM_PROGRAM_ID,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // inbox rate limit
+        pubkey: ntt.pdas.inboxRateLimitAccount('Ethereum'),
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // peer
+        pubkey: ntt.pdas.peerAccount('Ethereum'),
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // session auth
+        pubkey: ntt.pdas.sessionAuthority(new PublicKey(signer), {
+          amount: new BN(amount),
+          recipientChain: {
+            id: 2, // Ethereum
+          },
+          recipientAddress: [...Array(32)],
+          shouldQueue: false,
+        }),
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // token auth
+        pubkey: PublicKey.findProgramAddressSync([Buffer.from('token_authority')], config.PORTAL_PROGRAM_ID)[0],
+        isSigner: false,
+        isWritable: false,
+      },
+      {
         // ext mint
         pubkey: extMint,
         isSigner: false,
@@ -739,12 +809,6 @@ function buildTransferExtensionIx(
       {
         // ext global
         pubkey: PublicKey.findProgramAddressSync([Buffer.from('global')], config.EXT_EARN_PROGRAM)[0],
-        isSigner: false,
-        isWritable: true,
-      },
-      {
-        // m token account
-        pubkey: mAta,
         isSigner: false,
         isWritable: true,
       },
@@ -778,36 +842,6 @@ function buildTransferExtensionIx(
         isWritable: false,
       },
       {
-        // token auth
-        pubkey: PublicKey.findProgramAddressSync([Buffer.from('token_authority')], config.PORTAL_PROGRAM_ID)[0],
-        isSigner: false,
-        isWritable: false,
-      },
-      {
-        // outbox item
-        pubkey: outboxItem,
-        isSigner: true,
-        isWritable: true,
-      },
-      {
-        // outbox rate limit
-        pubkey: ntt.pdas.outboxRateLimitAccount(),
-        isSigner: false,
-        isWritable: true,
-      },
-      {
-        // inbox rate limit
-        pubkey: ntt.pdas.inboxRateLimitAccount('Ethereum'),
-        isSigner: false,
-        isWritable: true,
-      },
-      {
-        // peer
-        pubkey: ntt.pdas.peerAccount('Ethereum'),
-        isSigner: false,
-        isWritable: false,
-      },
-      {
         // ext program
         pubkey: config.EXT_EARN_PROGRAM,
         isSigner: false,
@@ -826,20 +860,8 @@ function buildTransferExtensionIx(
         isWritable: false,
       },
       {
-        // m token program
-        pubkey: TOKEN_PROGRAM,
-        isSigner: false,
-        isWritable: false,
-      },
-      {
         // ata program
         pubkey: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
-        isSigner: false,
-        isWritable: false,
-      },
-      {
-        // system program
-        pubkey: SYSTEM_PROGRAM_ID,
         isSigner: false,
         isWritable: false,
       },

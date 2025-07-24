@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { Navbar } from './components/navbar';
 import { StatsBar } from './components/statsbar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Holders } from './components/holders';
+import { Extensions } from './components/extensions';
 import { Route, BrowserRouter, Routes } from 'react-router-dom';
 import { HistoricalSupply } from './components/historical-supply';
 import { Bridges } from './components/bridges';
@@ -21,14 +21,12 @@ import {
   optimismSepolia,
   AppKitNetwork,
 } from '@reown/appkit/networks';
-import { Wrap } from './components/wrap';
-import { Simulate } from './components/simulate';
-import './index.css';
+import { Swap, SwapMode } from './components/swap';
 import { Bridge } from './components/bridge';
-import { Links } from './components/links';
+import { EarnerDetails } from './components/earner';
 import { IndexUpdates } from './components/index-updates';
 import { WagmiProvider } from 'wagmi';
-import { EarnerDetails } from './components/earner';
+import './index.css';
 
 console.table(
   Object.entries(import.meta.env).reduce((acc, [key, value]) => {
@@ -45,12 +43,13 @@ const queryClient = new QueryClient({
   },
 });
 
-const SVM_NETWORKS: AppKitNetwork[] = [import.meta.env.VITE_NETWORK === 'devnet' ? solanaDevnet : solana];
+const SVM_NETWORKS = [import.meta.env.VITE_NETWORK === 'devnet' ? solanaDevnet : solana] as AppKitNetwork[];
 
-const EVM_NETWORKS: AppKitNetwork[] =
+const EVM_NETWORKS = (
   import.meta.env.VITE_NETWORK === 'devnet'
     ? [sepolia, arbitrumSepolia, optimismSepolia]
-    : [mainnet, arbitrum, optimism];
+    : [mainnet, arbitrum, optimism]
+) as AppKitNetwork[];
 
 export const wagmiAdapter = new WagmiAdapter({
   ssr: false,
@@ -63,7 +62,7 @@ const solanaWeb3JsAdapter = new SolanaAdapter();
 const metadata = {
   name: 'Solana - M',
   description: 'M dashboard and utilities for Solana',
-  url: 'https://dashboard-development-a79e.up.railway.app/',
+  url: 'https://dashboard-production-9afa.up.railway.app/',
   icons: ['https://media.m0.org/logos/svg/M_Symbol_512.svg'],
 };
 
@@ -96,19 +95,20 @@ createRoot(document.getElementById('root')!).render(
                   <StatsBar />
                   <div className="max-w-6xl mx-auto py-10 space-y-16 px-2">
                     <HistoricalSupply />
-                    <Holders token="M" />
-                    <Holders token="wM" />
+                    <Extensions />
                     <Bridges />
                     <IndexUpdates />
                   </div>
                 </div>
               }
             />
-            <Route path="/wrap" element={<Wrap />} />
+            <Route path="/swap" element={<Swap mode={SwapMode.SWAP} />} />
             <Route path="/bridge" element={<Bridge />} />
-            <Route path="/simulate" element={<Simulate />} />
-            <Route path="/links" element={<Links />} />
-            <Route path="/earner/:mint/:pubkey" element={<EarnerDetails />} />
+            <Route path="/earner/:vault" element={<EarnerDetails />} />
+
+            {/* hidden from navbar */}
+            <Route path="/wrap" element={<Swap mode={SwapMode.WRAP} />} />
+            <Route path="/unwrap" element={<Swap mode={SwapMode.UNWRAP} />} />
           </Routes>
         </BrowserRouter>
       </QueryClientProvider>

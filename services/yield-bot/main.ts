@@ -45,12 +45,17 @@ export interface ParsedOptions extends EnvOptions {
 }
 
 // all programs and extensions that require yield distribution
-const programsMainnet = [PROGRAM_ID, new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko')];
+const programsMainnet = [
+  PROGRAM_ID,
+  new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'), // wM
+  new PublicKey('extMahs9bUFMYcviKCvnSRaXgs5PcqmMzcnHRtTqE85'), // USDKY
+];
 
 const programsDevnet = [
   PROGRAM_ID,
-  new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'),
-  new PublicKey('3PskKTHgboCbUSQPMcCAZdZNFHbNvSoZ8zEFYANCdob7'),
+  new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'), // wM
+  new PublicKey('3PskKTHgboCbUSQPMcCAZdZNFHbNvSoZ8zEFYANCdob7'), // USDKY
+  new PublicKey('extUkDFf3HLekkxbcZ3XRUizMjbxMJgKBay3p9xGVmg'), // Fuse USD
 ];
 
 // entrypoint for the yield bot command
@@ -216,7 +221,11 @@ async function buildAndSendTransaction(
   for (const [i, txn] of (await buildTransactions(opt, ixs, priorityFee, batchSize, memo)).entries()) {
     // return serialized transaction instead on dry run
     if (opt.dryRun) {
-      returnData.push(Buffer.from(txn.serialize()).toString('base64'));
+      const base64Txn = Buffer.from(txn.serialize()).toString('base64');
+      returnData.push(base64Txn);
+      logger.debug('dry run transaction', {
+        base64: base64Txn,
+      });
       continue;
     }
 

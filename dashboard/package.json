@@ -1,7 +1,7 @@
 {
   "name": "solana-m-dashbaord",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "devnet": "op run --env-file='.env.dev.template' -- vite",
@@ -15,11 +15,13 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-icons": "^5.5.0",
-    "react-router-dom": "^7.4.1"
+    "react-router-dom": "^7.4.1",
+    "use-debounce": "^10.0.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
-    "@m0-foundation/solana-m-sdk": "^0.1.7",
+    "@m0-foundation/solana-m-api-sdk": "0.1.7",
+    "@m0-foundation/solana-m-sdk": "0.2.5",
     "@reown/appkit": "^1.7.2",
     "@reown/appkit-adapter-solana": "^1.7.2",
     "@reown/appkit-adapter-wagmi": "^1.7.2",
@@ -35,13 +37,15 @@
     "@types/react-dom": "^19.0.4",
     "@vitejs/plugin-react-swc": "^3.8.0",
     "@wagmi/core": "^2.16.7",
-    "@wormhole-foundation/sdk-evm-ntt": "catalog:",
+    "@wormhole-foundation/sdk-evm-ntt": "1.0.2",
     "@wormhole-foundation/sdk-solana": "catalog:",
-    "@wormhole-foundation/sdk-solana-ntt": "catalog:",
+    "@wormhole-foundation/sdk-solana-ntt": "1.0.2",
+    "bs58": "catalog:",
     "decimal.js": "^10.5.0",
     "eslint": "^9.21.0",
     "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-react-refresh": "^0.4.19",
+    "ethers": "^6.14.4",
     "globals": "^15.15.0",
     "graphql": "^16.10.0",
     "graphql-request": "^7.1.2",

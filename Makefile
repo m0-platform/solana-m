@@ -25,6 +25,10 @@ test-sdk:
 	kill -9 $$(lsof -ti:8899) & kill -9 $$(lsof -ti:8545); \
 	exit $$e
 
+test-merkle:
+	@cd sdk && pnpm build
+	cd tests && pnpm jest --preset ts-jest tests/unit/merkle.test.ts; exit $$?
+
 test-local-validator:
 	solana-test-validator --deactivate-feature EenyoWx9UMXYKpR8mW5Jmfmy2fRjzUtM7NduYMY8bx33 -r \
 		--account 2yVjuQwpsvdsrywzsJJVs9Ueh4zayyo5DYJbBNc3DDpn tests/accounts/core_bridge_config.json \
@@ -105,7 +109,7 @@ define propose_upgrade_program
 		--keypair $(DEVNET_KEYPAIR) \
 		--max-sign-attempts $(MAX_SIGN_ATTEMPTS) \
 		--buffer temp-buffer.json \
-		target/deploy/$(1).so 
+		target/verifiable/$(1).so 
 	@echo "Transfering buffer $$(solana address --keypair temp-buffer.json) authority to Squads" 
 	@solana program set-buffer-authority $$(solana address --keypair temp-buffer.json) \
 		--new-buffer-authority $(SQUADS_VAULT) \
@@ -157,10 +161,9 @@ endef
 
 define deploy-dashboard
 	railway environment $(1)
-	cd dashboard && \
-	op inject -i $(2) -o .env.production && \
-	docker build --platform linux/amd64 -t ghcr.io/m0-foundation/solana-m:dashboard . && \
-	rm .env.production
+	op inject -i dashboard/$(2) -o dashboard/.env.production -f && \
+	docker build --platform linux/amd64 -t ghcr.io/m0-foundation/solana-m:dashboard -f dashboard/Dockerfile . && \
+	rm dashboard/.env.production
 	docker push ghcr.io/m0-foundation/solana-m:dashboard
 	railway redeploy --service dashboard --yes
 endef
@@ -221,7 +224,14 @@ publish-sdk:
 	@cd sdk && \
 	pnpm build && \
 	echo "//registry.npmjs.org/:_authToken=$(shell op read "op://Web3/NPM Publish Token m0-foundation/credential")" > .npmrc && \
-	npm publish && \
+	pnpm publish --no-git-checks && \
+	rm .npmrc
+
+publish-api-sdk:
+	@cd services/api/sdk-ts && \
+	pnpm build && \
+	echo "//registry.npmjs.org/:_authToken=$(shell op read "op://Web3/NPM Publish Token m0-foundation/credential")" > .npmrc && \
+	pnpm publish --no-git-checks && \
 	rm .npmrc
 
 #
@@ -246,13 +256,6 @@ update-switchboard-feed-mainnet:
 simulate-switchboard-jobs:
 	$(call run-switchboard,simulate-jobs,dev)
 
-publish-api-sdk:
-	@cd services/api/sdk && \
-	pnpm build && \
-	echo "//registry.npmjs.org/:_authToken=$(shell op read "op://Web3/NPM Publish Token m0-foundation/credential")" > .npmrc && \
-	npm publish && \
-	rm .npmrc
-
 #
 # API
 #
@@ -271,5 +274,6 @@ build-api-server:
 run-api-locally:
 	@export MONGO_CONNECTION_STRING="$(shell op read "op://Solana Dev/Mongo Read Access/connection string")" && \
 	export EVM_RPC="$(shell op read "op://Solana Dev/Alchemy/mainnet")" && \
+	export SVM_RPC="$(shell op read "op://Solana Dev/Helius/prod rpc")" && \
 	export DISABLE_CACHE=true && \
 	cd services/api/server && pnpm run dev

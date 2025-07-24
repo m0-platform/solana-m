@@ -614,6 +614,10 @@ describe('Portal unit tests', () => {
     });
 
     it('extension tokens', async () => {
+      const c = svm.getClock();
+      c.unixTimestamp += 20000000n;
+      svm.setClock(c); // advance clock to avoid rate limit issues
+
       const { address: extAta } = await spl.getOrCreateAssociatedTokenAccount(
         connection,
         payer,
@@ -635,7 +639,7 @@ describe('Portal unit tests', () => {
       const logs = await fetchTransactionLogs(provider, txIds[txIds.length - 1].txid);
 
       // bridge event log exists
-      expect(logs[logs.length - 3].startsWith('Program data: bEUUGiR+tFmghgEAAAAAA')).toBeTruthy();
+      expect(logs[15].startsWith('Program data: bEUUGiR+tFmghgEAAAAAA')).toBeTruthy();
       expect(logs).toContain('Program log: Index update: 1000000000001 | root update: false');
 
       // verify data was propagated

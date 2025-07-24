@@ -16,7 +16,7 @@ pub struct ReleaseInboundMintExtensionMultisig<'info> {
     common: ReleaseInboundMintMultisig<'info>,
 
     #[account(mut)]
-    pub ext_mint: InterfaceAccount<'info, Mint>,
+    pub ext_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /*
      * Globals
@@ -26,7 +26,7 @@ pub struct ReleaseInboundMintExtensionMultisig<'info> {
         seeds::program = ext_swap::ID,
         bump = swap_global.bump,
     )]
-    pub swap_global: Account<'info, SwapGlobal>,
+    pub swap_global: Box<Account<'info, SwapGlobal>>,
 
     #[account(
         seeds = [GLOBAL_SEED],
@@ -75,7 +75,7 @@ pub struct ReleaseInboundMintExtensionMultisig<'info> {
     pub ext_m_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut)]
-    pub ext_token_account: InterfaceAccount<'info, TokenAccount>,
+    pub ext_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /*
      * Programs
@@ -83,7 +83,7 @@ pub struct ReleaseInboundMintExtensionMultisig<'info> {
     pub swap_program: Program<'info, ExtSwap>,
 
     /// CHECK: checked against whitelisted extensions
-    pub ext_program: UncheckedAccount<'info>,
+    pub ext_program: AccountInfo<'info>,
 
     pub ext_token_program: Interface<'info, TokenInterface>,
 
@@ -99,18 +99,19 @@ pub fn release_inbound_mint_extension_multisig<'info>(
     let m_pre_balance = ctx.accounts.common.common.recipient.amount;
     let token_auth_bump = ctx.bumps.common.common.token_authority;
 
-    // Build the context for the release_inbound_mint_multisig function
-    let sub_ctx: Context<'_, '_, '_, 'info, ReleaseInboundMintMultisig<'info>> = Context::new(
-        ctx.program_id,
-        &mut ctx.accounts.common,
-        ctx.remaining_accounts,
-        ReleaseInboundMintMultisigBumps {
-            common: ctx.bumps.common.common,
-        },
-    );
-
     // Release bridged $M
-    release_inbound_mint_multisig(sub_ctx, args)?;
+    release_inbound_mint_multisig(
+        Context::new(
+            ctx.program_id,
+            &mut ctx.accounts.common,
+            ctx.remaining_accounts,
+            ReleaseInboundMintMultisigBumps {
+                common: ctx.bumps.common.common,
+            },
+        ),
+        args,
+    )?;
+
     ctx.accounts.common.common.recipient.reload()?;
 
     let wrap_amount = ctx

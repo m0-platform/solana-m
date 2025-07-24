@@ -79,11 +79,11 @@ pub struct ReleaseInboundMintMultisig<'info> {
          multisig.m == 1 && multisig.signers.contains(&common.token_authority.key())
             @ NTTError::InvalidMultisig,
     )]
-    pub multisig: InterfaceAccount<'info, SplMultisig>,
+    pub multisig: Box<InterfaceAccount<'info, SplMultisig>>,
 
     pub earn_program: Program<'info, Earn>,
 
-    pub earn_global: Account<'info, Global>,
+    pub earn_global: Box<Account<'info, Global>>,
 }
 
 pub fn release_inbound_mint_multisig<'info>(

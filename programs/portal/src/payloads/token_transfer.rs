@@ -98,7 +98,7 @@ impl Writeable for NativeTokenTransfer {
 #[derive(Debug, PartialEq, Eq, Default, Clone, AnchorSerialize, AnchorDeserialize, InitSpace)]
 pub struct AdditionalPayload {
     pub index: u64,
-    pub destination_token: [u8; 32], // address of the token (M or Wrapped M) on the destination chain
+    pub destination_token: [u8; 32], // destination mint (M, wM, extension...)
     pub earner_root: Option<[u8; 32]>,
 }
 

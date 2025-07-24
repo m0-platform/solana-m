@@ -98,6 +98,13 @@ pub mod portal {
         instructions::transfer_burn(ctx, args)
     }
 
+    pub fn transfer_extension_burn<'info>(
+        ctx: Context<'_, '_, '_, 'info, TransferExtensionBurn<'info>>,
+        args: TransferArgs,
+    ) -> Result<()> {
+        instructions::transfer_extension_burn(ctx, args)
+    }
+
     pub fn redeem(ctx: Context<Redeem>, args: RedeemArgs) -> Result<()> {
         instructions::redeem(ctx, args)
     }
@@ -107,6 +114,12 @@ pub mod portal {
         args: ReleaseInboundArgs,
     ) -> Result<()> {
         instructions::release_inbound_mint_multisig(ctx, args)
+    }
+
+    pub fn release_inbound_mint_extension_multisig<'info>(
+        ctx: Context<'_, '_, '_, 'info, ReleaseInboundMintExtensionMultisig<'info>>,
+    ) -> Result<()> {
+        instructions::release_inbound_mint_extension_multisig(ctx)
     }
 
     pub fn transfer_ownership(ctx: Context<TransferOwnership>) -> Result<()> {

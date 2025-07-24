@@ -55,12 +55,7 @@ export type ExtSwap = {
           "address": "11111111111111111111111111111111"
         }
       ],
-      "args": [
-        {
-          "name": "mMint",
-          "type": "pubkey"
-        }
-      ]
+      "args": []
     },
     {
       "name": "removeWhitelistedExtension",
@@ -78,7 +73,10 @@ export type ExtSwap = {
         {
           "name": "admin",
           "writable": true,
-          "signer": true
+          "signer": true,
+          "relations": [
+            "swapGlobal"
+          ]
         },
         {
           "name": "swapGlobal",
@@ -98,10 +96,6 @@ export type ExtSwap = {
               }
             ]
           }
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -127,7 +121,10 @@ export type ExtSwap = {
         {
           "name": "admin",
           "writable": true,
-          "signer": true
+          "signer": true,
+          "relations": [
+            "swapGlobal"
+          ]
         },
         {
           "name": "swapGlobal",
@@ -147,10 +144,6 @@ export type ExtSwap = {
               }
             ]
           }
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -253,82 +246,19 @@ export type ExtSwap = {
           }
         },
         {
-          "name": "fromMEarner",
+          "name": "mGlobal",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  101,
+                  103,
+                  108,
+                  111,
+                  98,
                   97,
-                  114,
-                  110,
-                  101,
-                  114
+                  108
                 ]
-              },
-              {
-                "kind": "account",
-                "path": "fromMVault"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
-                78,
-                85,
-                26,
-                180,
-                224,
-                26,
-                229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
-                49,
-                118,
-                130,
-                244,
-                142,
-                245
-              ]
-            }
-          }
-        },
-        {
-          "name": "toMEarner",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  101,
-                  97,
-                  114,
-                  110,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "toMVault"
               }
             ],
             "program": {
@@ -372,17 +302,20 @@ export type ExtSwap = {
         },
         {
           "name": "fromMint",
+          "docs": [
+            "Validated by unwrap on the extension program"
+          ],
           "writable": true
         },
         {
           "name": "toMint",
+          "docs": [
+            "Validated by wrap on the extension program"
+          ],
           "writable": true
         },
         {
-          "name": "mMint",
-          "relations": [
-            "swapGlobal"
-          ]
+          "name": "mMint"
         },
         {
           "name": "fromTokenAccount",
@@ -822,23 +755,19 @@ export type ExtSwap = {
           }
         },
         {
-          "name": "mEarnerAccount",
+          "name": "mGlobal",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  101,
+                  103,
+                  108,
+                  111,
+                  98,
                   97,
-                  114,
-                  110,
-                  101,
-                  114
+                  108
                 ]
-              },
-              {
-                "kind": "account",
-                "path": "fromMVault"
               }
             ],
             "program": {
@@ -882,13 +811,13 @@ export type ExtSwap = {
         },
         {
           "name": "fromMint",
+          "docs": [
+            "Validated by unwrap on the extension program"
+          ],
           "writable": true
         },
         {
-          "name": "mMint",
-          "relations": [
-            "swapGlobal"
-          ]
+          "name": "mMint"
         },
         {
           "name": "mTokenAccount",
@@ -1155,7 +1084,10 @@ export type ExtSwap = {
         {
           "name": "admin",
           "writable": true,
-          "signer": true
+          "signer": true,
+          "relations": [
+            "swapGlobal"
+          ]
         },
         {
           "name": "swapGlobal",
@@ -1179,14 +1111,12 @@ export type ExtSwap = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "extProgram"
         }
       ],
-      "args": [
-        {
-          "name": "extProgram",
-          "type": "pubkey"
-        }
-      ]
+      "args": []
     },
     {
       "name": "whitelistUnwrapper",
@@ -1204,7 +1134,10 @@ export type ExtSwap = {
         {
           "name": "admin",
           "writable": true,
-          "signer": true
+          "signer": true,
+          "relations": [
+            "swapGlobal"
+          ]
         },
         {
           "name": "swapGlobal",
@@ -1302,23 +1235,19 @@ export type ExtSwap = {
           }
         },
         {
-          "name": "mEarnerAccount",
+          "name": "mGlobal",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  101,
+                  103,
+                  108,
+                  111,
+                  98,
                   97,
-                  114,
-                  110,
-                  101,
-                  114
+                  108
                 ]
-              },
-              {
-                "kind": "account",
-                "path": "toMVault"
               }
             ],
             "program": {
@@ -1362,13 +1291,13 @@ export type ExtSwap = {
         },
         {
           "name": "toMint",
+          "docs": [
+            "Validated by wrap on the extension program"
+          ],
           "writable": true
         },
         {
-          "name": "mMint",
-          "relations": [
-            "swapGlobal"
-          ]
+          "name": "mMint"
         },
         {
           "name": "mTokenAccount",
@@ -1622,16 +1551,16 @@ export type ExtSwap = {
   ],
   "accounts": [
     {
-      "name": "earner",
+      "name": "global",
       "discriminator": [
-        236,
-        126,
-        51,
-        96,
-        46,
-        225,
-        103,
-        207
+        167,
+        232,
+        232,
+        177,
+        200,
+        108,
+        114,
+        127
       ]
     },
     {
@@ -1668,33 +1597,80 @@ export type ExtSwap = {
       "code": 6003,
       "name": "unauthorizedUnwrapper",
       "msg": "Signer is not whitelisted"
+    },
+    {
+      "code": 6004,
+      "name": "notAuthorized",
+      "msg": "Signer is not authorized to perform this action"
+    },
+    {
+      "code": 6005,
+      "name": "invalidAmount",
+      "msg": "Invalid amount"
     }
   ],
   "types": [
     {
-      "name": "earner",
+      "name": "global",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "lastClaimIndex",
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "earnAuthority",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "index",
             "type": "u64"
           },
           {
-            "name": "lastClaimTimestamp",
+            "name": "timestamp",
             "type": "u64"
+          },
+          {
+            "name": "claimCooldown",
+            "type": "u64"
+          },
+          {
+            "name": "maxSupply",
+            "type": "u64"
+          },
+          {
+            "name": "maxYield",
+            "type": "u64"
+          },
+          {
+            "name": "distributed",
+            "type": "u64"
+          },
+          {
+            "name": "claimComplete",
+            "type": "bool"
+          },
+          {
+            "name": "earnerMerkleRoot",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "portalAuthority",
+            "type": "pubkey"
           },
           {
             "name": "bump",
             "type": "u8"
-          },
-          {
-            "name": "user",
-            "type": "pubkey"
-          },
-          {
-            "name": "userTokenAccount",
-            "type": "pubkey"
           }
         ]
       }
@@ -1710,10 +1686,6 @@ export type ExtSwap = {
           },
           {
             "name": "admin",
-            "type": "pubkey"
-          },
-          {
-            "name": "mMint",
             "type": "pubkey"
           },
           {

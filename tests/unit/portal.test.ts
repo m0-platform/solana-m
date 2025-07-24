@@ -36,21 +36,30 @@ import {
   createMintToInstruction,
   createSetAuthorityInstruction,
   getAssociatedTokenAddressSync,
+  createApproveInstruction,
 } from '@solana/spl-token';
 import NodeWallet from '@coral-xyz/anchor/dist/cjs/nodewallet';
 import { utils } from 'web3';
 import { BN, Program } from '@coral-xyz/anchor';
 import { Earn } from '../../target/types/earn';
+import { sha256 } from '@noble/hashes/sha256';
+import { SYSTEM_PROGRAM_ID } from '@coral-xyz/anchor/dist/cjs/native/system';
+import { ExtSwap } from '../programs/ext_swap';
+import { ExtEarn } from '../../target/types/ext_earn';
 const EARN_IDL = require('../../target/idl/earn.json');
+const SWAP_IDL = require('../programs/ext_swap.json');
+const EXT_EARN_IDL = require('../../target/idl/ext_earn.json');
 
 const TOKEN_PROGRAM = spl.TOKEN_2022_PROGRAM_ID;
+export const WORMHOLE_SOLANA = new PublicKey('worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth');
 
 const config = {
   GUARDIAN_KEY: 'cfb12303a19cde580bb4dd771639b0d26bc68353645571a8cff516ab2ee113a0',
-  CORE_BRIDGE_ADDRESS: 'worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth',
+  CORE_BRIDGE_ADDRESS: WORMHOLE_SOLANA,
   PORTAL_PROGRAM_ID: new PublicKey('mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY'),
   EARN_PROGRAM: new PublicKey('MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c'),
-  WORMHOLE_PID: new PublicKey('worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth'),
+  EXT_EARN_PROGRAM: new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'),
+  WORMHOLE_PID: WORMHOLE_SOLANA,
   WORMHOLE_BRIDGE_CONFIG: new PublicKey('2yVjuQwpsvdsrywzsJJVs9Ueh4zayyo5DYJbBNc3DDpn'),
   WORMHOLE_BRIDGE_FEE_COLLECTOR: new PublicKey('9bFNrXNb2WTx8fMHXCheaZqkLZ3YCCaiqTftHxeintHy'),
   EVM_M: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b',
@@ -59,10 +68,11 @@ const config = {
     [Buffer.from('global')],
     new PublicKey('MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c'),
   )[0],
+  SWAP_PROGRAM: new PublicKey('MSwapi3WhNKMUGm9YrxGhypgUEt7wYQH3ZgG32XoWzH'),
 };
 
 describe('Portal unit tests', () => {
-  let ntt: SolanaNtt<'Devnet', 'Solana'>;
+  let ntt: SolanaNtt<'Mainnet', 'Solana'>;
   let signer: Signer;
   let sender: AccountAddress<'Solana'>;
   let multisig = Keypair.generate();
@@ -70,6 +80,7 @@ describe('Portal unit tests', () => {
   let tokenAccount: PublicKey;
   const mint = loadKeypair('keys/mint.json');
   const tokenAddress = mint.publicKey.toBase58();
+  const extMint = Keypair.generate();
 
   const payer = loadKeypair('keys/user.json');
   const admin = loadKeypair('keys/admin.json');
@@ -79,6 +90,9 @@ describe('Portal unit tests', () => {
 
   // Wormhole program
   svm.addProgramFromFile(config.WORMHOLE_PID, 'programs/core_bridge.so');
+
+  // Swap program for wrapping
+  svm.addProgramFromFile(config.SWAP_PROGRAM, 'programs/ext_swap.so');
 
   // Add necessary wormhole accounts
   svm.setAccount(config.WORMHOLE_BRIDGE_CONFIG, {
@@ -121,6 +135,10 @@ describe('Portal unit tests', () => {
   const connection = provider.connection;
   const earn = new Program<Earn>(EARN_IDL, provider);
 
+  // Programs for testing bridging to extension
+  const swapProgram = new Program<ExtSwap>(SWAP_IDL, provider);
+  const extEarn = new Program<ExtEarn>(EXT_EARN_IDL, provider);
+
   const { ctx, ...wc } = getWormholeContext(connection);
 
   beforeAll(async () => {
@@ -129,21 +147,27 @@ describe('Portal unit tests', () => {
     signer = new SolanaSendSigner(connection, 'Solana', payer, false, {});
     sender = Wormhole.parseAddress('Solana', signer.address());
 
-    const mintLen = spl.getMintLen([]);
-    const lamports = await connection.getMinimumBalanceForRentExemption(mintLen);
+    for (const m of [mint, extMint]) {
+      const mintLen = spl.getMintLen([]);
+      const lamports = await connection.getMinimumBalanceForRentExemption(mintLen);
 
-    const tx = new Transaction().add(
-      SystemProgram.createAccount({
-        fromPubkey: payer.publicKey,
-        newAccountPubkey: mint.publicKey,
-        space: mintLen,
-        lamports,
-        programId: TOKEN_PROGRAM,
-      }),
-      spl.createInitializeMintInstruction(mint.publicKey, 9, owner.publicKey, null, TOKEN_PROGRAM),
-    );
+      const mintAuth = m.publicKey.equals(mint.publicKey)
+        ? owner.publicKey
+        : PublicKey.findProgramAddressSync([Buffer.from('mint_authority')], config.EXT_EARN_PROGRAM)[0];
 
-    await provider.sendAndConfirm!(tx, [payer, mint]);
+      const tx = new Transaction().add(
+        SystemProgram.createAccount({
+          fromPubkey: payer.publicKey,
+          newAccountPubkey: m.publicKey,
+          space: mintLen,
+          lamports,
+          programId: TOKEN_PROGRAM,
+        }),
+        spl.createInitializeMintInstruction(m.publicKey, 9, mintAuth, null, TOKEN_PROGRAM),
+      );
+
+      await provider.sendAndConfirm!(tx, [payer, m]);
+    }
 
     tokenAccount = spl.getAssociatedTokenAddressSync(mint.publicKey, payer.publicKey, false, TOKEN_PROGRAM);
 
@@ -163,7 +187,7 @@ describe('Portal unit tests', () => {
 
     // contract client
     ntt = new SolanaNtt(
-      'Devnet',
+      'Mainnet',
       'Solana',
       connection,
       {
@@ -175,6 +199,7 @@ describe('Portal unit tests', () => {
             wormhole: config.PORTAL_PROGRAM_ID.toBase58(),
           },
         },
+        coreBridge: config.CORE_BRIDGE_ADDRESS.toBase58(),
       },
       '3.0.0',
     );
@@ -219,7 +244,7 @@ describe('Portal unit tests', () => {
       });
       // TODO: creating the LUT throws an error due to recent slot checks
       async function* onlyInit() {
-        yield (await initTxs.next()).value as SolanaUnsignedTransaction<'Devnet', 'Solana'>;
+        yield (await initTxs.next()).value as SolanaUnsignedTransaction<'Mainnet', 'Solana'>;
       }
       await ssw(ctx, onlyInit(), signer);
 
@@ -253,6 +278,78 @@ describe('Portal unit tests', () => {
           admin: admin.publicKey,
         })
         .signers([admin])
+        .rpc();
+    });
+    test('initialize extension and swap program', async () => {
+      await swapProgram.methods.initializeGlobal().accounts({ admin: admin.publicKey }).signers([admin]).rpc();
+
+      await swapProgram.methods
+        .whitelistExtension()
+        .accountsPartial({ admin: admin.publicKey, extProgram: config.EXT_EARN_PROGRAM })
+        .signers([admin])
+        .rpc();
+
+      await extEarn.methods
+        .initialize(admin.publicKey)
+        .accounts({
+          admin: admin.publicKey,
+          mMint: mint.publicKey,
+          extMint: extMint.publicKey,
+        })
+        .signers([admin])
+        .rpc();
+
+      const portalAuth = PublicKey.findProgramAddressSync(
+        [Buffer.from('token_authority')],
+        config.PORTAL_PROGRAM_ID,
+      )[0];
+
+      // Add wrap authorities to extension
+      await extEarn.methods.addWrapAuthority(portalAuth).accounts({ admin: admin.publicKey }).signers([admin]).rpc();
+      await extEarn.methods
+        .addWrapAuthority(payer.publicKey)
+        .accounts({ admin: admin.publicKey })
+        .signers([admin])
+        .rpc();
+
+      // Let Portal program unwrap
+      await swapProgram.methods
+        .whitelistUnwrapper(portalAuth)
+        .accounts({ admin: admin.publicKey })
+        .signers([admin])
+        .rpc();
+
+      await spl.getOrCreateAssociatedTokenAccount(
+        connection,
+        payer,
+        mint.publicKey,
+        PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_EARN_PROGRAM)[0],
+        true,
+        undefined,
+        undefined,
+        TOKEN_PROGRAM,
+      );
+
+      const ata = await spl.getOrCreateAssociatedTokenAccount(
+        connection,
+        payer,
+        extMint.publicKey,
+        payer.publicKey,
+        true,
+        undefined,
+        undefined,
+        TOKEN_PROGRAM,
+      );
+
+      // Get extension tokens for testing
+      await extEarn.methods
+        .wrap(new BN(10_000))
+        .accounts({
+          fromMTokenAccount: tokenAccount,
+          toExtTokenAccount: ata.address,
+          mEarnGlobalAccount: null,
+        })
+        .signers([payer])
         .rpc();
     });
   });
@@ -292,7 +389,111 @@ describe('Portal unit tests', () => {
       // get from balance
       const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
       const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
-      expect(parsedTokenAccount.amount).toBe(9900000n);
+      expect(parsedTokenAccount.amount).toBe(9890000n);
+    });
+
+    test('can send extension tokens', async () => {
+      const outboxItem = Keypair.generate();
+
+      // init token accounts
+      const { address: mAta } = await spl.getOrCreateAssociatedTokenAccount(
+        connection,
+        payer,
+        mint.publicKey,
+        payer.publicKey,
+        true,
+        undefined,
+        undefined,
+        TOKEN_PROGRAM,
+      );
+      const { address: extAta } = await spl.getOrCreateAssociatedTokenAccount(
+        connection,
+        payer,
+        extMint.publicKey,
+        payer.publicKey,
+        true,
+        undefined,
+        undefined,
+        TOKEN_PROGRAM,
+      );
+
+      const amount = 1_000;
+
+      // create generator that returns transfer_extension instruction
+      async function* transferExtension() {
+        const tx = new Transaction().add(
+          // spending approval for custodian
+          createApproveInstruction(
+            mAta,
+            ntt.pdas.sessionAuthority(payer.publicKey, {
+              amount: new BN(amount),
+              recipientChain: {
+                id: 2,
+              },
+              recipientAddress: [...Array(32)],
+              shouldQueue: false,
+            }),
+            payer.publicKey,
+            amount,
+            [],
+            spl.TOKEN_2022_PROGRAM_ID,
+          ),
+          buildTransferExtensionIx(
+            ntt,
+            amount,
+            signer.address(),
+            outboxItem.publicKey,
+            mint.publicKey,
+            extMint.publicKey,
+            mAta,
+            extAta,
+          ),
+        );
+
+        tx.feePayer = payer.publicKey;
+        tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+        tx.sign(outboxItem);
+
+        yield ntt.createUnsignedTx({ transaction: tx }, 'Ntt.Transfer');
+
+        // release
+        const whTransceiver = await ntt.getWormholeTransceiver();
+        const release = new Transaction().add(
+          await whTransceiver!.createReleaseWormholeOutboundIx(payer.publicKey, outboxItem.publicKey, true),
+        );
+
+        release.feePayer = payer.publicKey;
+        release.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+        yield ntt.createUnsignedTx({ transaction: release }, 'Ntt.Release');
+      }
+
+      await ssw(ctx, transferExtension(), signer);
+
+      // assert that released bitmap has transceiver bits set
+      const outboxItemInfo = await ntt.program.account.outboxItem.fetch(outboxItem.publicKey);
+      expect(outboxItemInfo.released.map.bitLength()).toBe(1);
+
+      const [wormholeMessage] = PublicKey.findProgramAddressSync(
+        [Buffer.from('message'), outboxItem.publicKey.toBytes()],
+        config.PORTAL_PROGRAM_ID,
+      );
+
+      const unsignedVaa = await wc.coreBridge.parsePostMessageAccount(wormholeMessage);
+      const payloadHex = Buffer.from(unsignedVaa.payload).toString('hex').slice(272);
+      const payloadAmount = BigInt('0x' + payloadHex.slice(10, 26));
+
+      // assert that amount is what we expect
+      expect(payloadAmount.toString()).toBe('100');
+
+      // $M balance did not change (we unwrapped an extension token)
+      const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
+      const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
+      expect(parsedTokenAccount.amount).toBe(9890000n);
+
+      // verify that 1000 extension tokens were sent
+      const extTokenAccountInfo = await connection.getAccountInfo(extAta);
+      const extParsedTokenAccount = spl.unpackAccount(tokenAccount, extTokenAccountInfo, TOKEN_PROGRAM);
+      expect(extParsedTokenAccount.amount).toBe(9000n);
     });
   });
 
@@ -326,7 +527,7 @@ describe('Portal unit tests', () => {
 
     let inboxItem: PublicKey;
 
-    const redeem = (remaining_accounts: AccountMeta[], additionalPayload?: string) => {
+    const redeem = (additionalAccounts: AccountMeta[], additionalPayload?: string, extension?: boolean) => {
       additionalPayload ??= utils.encodePacked(
         { type: 'uint64', value: 1_000_000_000_001n }, // index
         { type: 'bytes32', value: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b' }, // destination
@@ -362,7 +563,15 @@ describe('Portal unit tests', () => {
                 }),
             );
 
-            ixs[ixs.length - 1].keys.push(...remaining_accounts);
+            ixs[ixs.length - 1].keys.push(...additionalAccounts);
+
+            // rewrite instruction discriminator
+            if (extension) {
+              ixs[ixs.length - 1].data = Buffer.concat([
+                Buffer.from(sha256('global:release_inbound_mint_extension_multisig').subarray(0, 8)),
+                ixs[ixs.length - 1].data.subarray(8, ixs[ixs.length - 1].data.length - 1), // remove revert bool arg
+              ]);
+            }
 
             const redeemTx = new Transaction().add(...ixs);
             redeemTx.feePayer = owner.publicKey;
@@ -374,17 +583,7 @@ describe('Portal unit tests', () => {
       };
     };
 
-    it('tokens (no remaining accounts)', async () => {
-      const getRedeemTxns = redeem([]);
-      try {
-        await ssw(ctx, getRedeemTxns(), signer);
-        fail('Expected transaction to fail');
-      } catch (e: any) {
-        expect(e.message).toContain('Error Code: InvalidRemainingAccount');
-      }
-    });
-
-    it('tokens (with remaining accounts)', async () => {
+    it('$M tokens', async () => {
       const getRedeemTxns = redeem([
         {
           pubkey: config.EARN_PROGRAM,
@@ -400,10 +599,9 @@ describe('Portal unit tests', () => {
 
       const txIds = await ssw(ctx, getRedeemTxns(), signer);
       const logs = await fetchTransactionLogs(provider, txIds[txIds.length - 1].txid);
-      expect(logs).toContain(
-        // bridge event log
-        'Program data: bEUUGiR+tFmghgEAAAAAAICWmAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+s4GuMrJWH+VN3VKYLnupK10TITmkAVIVRaGiXwYoEbZEgIA',
-      );
+
+      // bridge event log exists
+      expect(logs[logs.length - 3].startsWith('Program data: bEUUGiR+tFmghgEAAAAAA')).toBeTruthy();
       expect(logs).toContain('Program log: Index update: 1000000000001 | root update: false');
 
       // verify data was propagated
@@ -413,28 +611,55 @@ describe('Portal unit tests', () => {
       // verify inbox item was released
       const item = await ntt.program.account.inboxItem.fetch(inboxItem);
       expect(JSON.stringify(item.releaseStatus.released)).toBeDefined();
+
+      // check balance
+      const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
+      const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
+      expect(parsedTokenAccount.amount).toBe(9990000n);
     });
 
-    it('tokens (incorrect remaining accounts)', async () => {
-      const getRedeemTxns = redeem([
-        {
-          pubkey: config.PORTAL_PROGRAM_ID, // incorrect
-          isSigner: false,
-          isWritable: false,
-        },
-        {
-          pubkey: config.EARN_GLOBAL_ACCOUNT,
-          isSigner: false,
-          isWritable: true,
-        },
-      ]);
+    it('extension tokens', async () => {
+      const { address: extAta } = await spl.getOrCreateAssociatedTokenAccount(
+        connection,
+        payer,
+        extMint.publicKey,
+        payer.publicKey,
+        true,
+        undefined,
+        undefined,
+        TOKEN_PROGRAM,
+      );
 
-      try {
-        await ssw(ctx, getRedeemTxns(), signer);
-        fail('Expected transaction to fail');
-      } catch (e: any) {
-        expect(e.message).toContain('Error Code: InvalidRemainingAccount');
-      }
+      const getRedeemTxns = redeem(
+        additionalRedeemAccounts(mint.publicKey, extMint.publicKey, extAta),
+        undefined,
+        true,
+      );
+
+      const txIds = await ssw(ctx, getRedeemTxns(), signer);
+      const logs = await fetchTransactionLogs(provider, txIds[txIds.length - 1].txid);
+
+      // bridge event log exists
+      expect(logs[15].startsWith('Program data: bEUUGiR+tFmghgEAAAAAA')).toBeTruthy();
+      expect(logs).toContain('Program log: Index update: 1000000000001 | root update: false');
+
+      // verify data was propagated
+      const global = await earn.account.global.fetch(config.EARN_GLOBAL_ACCOUNT);
+      expect(global.index.toString()).toBe('1000000000001');
+
+      // verify inbox item was released
+      const item = await ntt.program.account.inboxItem.fetch(inboxItem);
+      expect(JSON.stringify(item.releaseStatus.released)).toBeDefined();
+
+      // check balance
+      const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
+      const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
+      expect(parsedTokenAccount.amount).toBe(9990000n); // should be unchanged
+
+      // check balance
+      const extTokenAccountInfo = await connection.getAccountInfo(extAta);
+      const extParsedTokenAccount = spl.unpackAccount(extAta, extTokenAccountInfo, TOKEN_PROGRAM);
+      expect(extParsedTokenAccount.amount).toBe(109000n);
     });
 
     it('tokens with merkle roots', async () => {
@@ -499,3 +724,286 @@ describe('Portal unit tests', () => {
     });
   });
 });
+
+function buildTransferExtensionIx(
+  ntt: SolanaNtt<'Mainnet', 'Solana'>,
+  amount: number,
+  signer: string,
+  outboxItem: PublicKey,
+  mMint: PublicKey,
+  extMint: PublicKey,
+  mAta: PublicKey,
+  extAta: PublicKey,
+): TransactionInstruction {
+  return new TransactionInstruction({
+    programId: config.PORTAL_PROGRAM_ID,
+    keys: [
+      {
+        pubkey: new PublicKey(signer),
+        isSigner: true,
+        isWritable: true,
+      },
+      {
+        // config
+        pubkey: ntt.pdas.configAccount(),
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // m mint
+        pubkey: mMint,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // from (m token account)
+        pubkey: mAta,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // m token program
+        pubkey: TOKEN_PROGRAM,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // outbox item
+        pubkey: outboxItem,
+        isSigner: true,
+        isWritable: true,
+      },
+      {
+        // outbox rate limit
+        pubkey: ntt.pdas.outboxRateLimitAccount(),
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // custody
+        pubkey: ntt.config!.custody,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // system program
+        pubkey: SYSTEM_PROGRAM_ID,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // inbox rate limit
+        pubkey: ntt.pdas.inboxRateLimitAccount('Ethereum'),
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // peer
+        pubkey: ntt.pdas.peerAccount('Ethereum'),
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // session auth
+        pubkey: ntt.pdas.sessionAuthority(new PublicKey(signer), {
+          amount: new BN(amount),
+          recipientChain: {
+            id: 2, // Ethereum
+          },
+          recipientAddress: [...Array(32)],
+          shouldQueue: false,
+        }),
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // token auth
+        pubkey: PublicKey.findProgramAddressSync([Buffer.from('token_authority')], config.PORTAL_PROGRAM_ID)[0],
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // ext mint
+        pubkey: extMint,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // swap global
+        pubkey: PublicKey.findProgramAddressSync([Buffer.from('global')], config.SWAP_PROGRAM)[0],
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // m global
+        pubkey: config.EARN_GLOBAL_ACCOUNT,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // ext global
+        pubkey: PublicKey.findProgramAddressSync([Buffer.from('global')], config.EXT_EARN_PROGRAM)[0],
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // ext token account
+        pubkey: extAta,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // ext m vault
+        pubkey: getAssociatedTokenAddressSync(
+          mMint,
+          PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_EARN_PROGRAM)[0],
+          true,
+          TOKEN_PROGRAM,
+        ),
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        // ext m vault auth
+        pubkey: PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_EARN_PROGRAM)[0],
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // ext mint auth
+        pubkey: PublicKey.findProgramAddressSync([Buffer.from('mint_authority')], config.EXT_EARN_PROGRAM)[0],
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // ext program
+        pubkey: config.EXT_EARN_PROGRAM,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // swap program
+        pubkey: config.SWAP_PROGRAM,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // ext token program
+        pubkey: TOKEN_PROGRAM,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        // ata program
+        pubkey: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
+        isSigner: false,
+        isWritable: false,
+      },
+    ],
+    data: Buffer.concat([
+      Buffer.from(sha256('global:transfer_extension_burn').subarray(0, 8)),
+      new BN(amount).toArrayLike(Buffer, 'le', 8), // amount
+      new BN(2).toArrayLike(Buffer, 'le', 2), // chain: ethereum
+      Buffer.alloc(32), // recipient_address
+      Buffer.from([0]), // should_queue
+    ]),
+  });
+}
+
+function additionalRedeemAccounts(mMint: PublicKey, extMint: PublicKey, extAta: PublicKey): AccountMeta[] {
+  return [
+    {
+      pubkey: config.EARN_PROGRAM,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: config.EARN_GLOBAL_ACCOUNT,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      // ext mint
+      pubkey: extMint,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      // swap global
+      pubkey: PublicKey.findProgramAddressSync([Buffer.from('global')], config.SWAP_PROGRAM)[0],
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      // m global
+      pubkey: config.EARN_GLOBAL_ACCOUNT,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      // ext global
+      pubkey: PublicKey.findProgramAddressSync([Buffer.from('global')], config.EXT_EARN_PROGRAM)[0],
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      // ext m vault auth
+      pubkey: PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_EARN_PROGRAM)[0],
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      // ext mint auth
+      pubkey: PublicKey.findProgramAddressSync([Buffer.from('mint_authority')], config.EXT_EARN_PROGRAM)[0],
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      // ext m vault
+      pubkey: getAssociatedTokenAddressSync(
+        mMint,
+        PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_EARN_PROGRAM)[0],
+        true,
+        TOKEN_PROGRAM,
+      ),
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      // ext token account
+      pubkey: extAta,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      // swap program
+      pubkey: config.SWAP_PROGRAM,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      // ext program
+      pubkey: config.EXT_EARN_PROGRAM,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      // ext token program
+      pubkey: TOKEN_PROGRAM,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      // ata program
+      pubkey: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      // system program
+      pubkey: SYSTEM_PROGRAM_ID,
+      isSigner: false,
+      isWritable: false,
+    },
+  ];
+}

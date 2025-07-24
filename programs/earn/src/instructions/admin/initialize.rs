@@ -1,16 +1,36 @@
-// earn/instructions/admin/initialitze.rs
-
 // external dependencies
 use anchor_lang::prelude::*;
-use anchor_spl::token_interface::{Mint, Token2022};
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    token_2022::spl_token_2022::state::AccountState,
+    token_2022_extensions::{
+        spl_pod::optional_keys::OptionalNonZeroPubkey,
+    },
+    token_interface::{Mint, Token2022, TokenAccount},
+};
+use spl_token_2022::{
+    extension::{
+        default_account_state::DefaultAccountState, // permanent_delegate::PermanentDelegate,
+        scaled_ui_amount::ScaledUiAmountConfig,
+        BaseStateWithExtensions,
+        ExtensionType,
+        StateWithExtensions,
+    },
+};
 
 // local dependencies
 use crate::{
-    constants::ANCHOR_DISCRIMINATOR_SIZE,
-    constants::PORTAL_PROGRAM,
+    constants::{ANCHOR_DISCRIMINATOR_SIZE, PORTAL_PROGRAM},
     errors::EarnError,
-    state::{Global, GLOBAL_SEED, TOKEN_AUTHORITY_SEED},
+    state::{EarnGlobal, GLOBAL_SEED, TOKEN_AUTHORITY_SEED},
+    utils::{conversion::update_multiplier, token::thaw_token_account},
 };
+
+declare_program!(old_earn);
+use old_earn::{accounts::Global as OldGlobal, ID as OLD_EARN_PROGRAM_ID};
+
+declare_program!(ext_swap);
+use ext_swap::{constants::GLOBAL_SEED as SWAP_GLOBAL_SEED, ID as EXT_SWAP_PROGRAM_ID};
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -20,52 +40,164 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = admin,
-        space = ANCHOR_DISCRIMINATOR_SIZE + Global::INIT_SPACE,
+        space = ANCHOR_DISCRIMINATOR_SIZE + EarnGlobal::INIT_SPACE,
         seeds = [GLOBAL_SEED],
         bump
     )]
-    pub global_account: Account<'info, Global>,
+    pub global_account: Account<'info, EarnGlobal>,
 
-    #[account(mint::token_program = Token2022::id())]
-    pub mint: InterfaceAccount<'info, Mint>,
+    #[account(
+        seeds = [GLOBAL_SEED],
+        seeds::program = OLD_EARN_PROGRAM_ID,
+        bump = old_global_account.bump,
+    )]
+    pub old_global_account: Account<'info, OldGlobal>,
+
+    #[account(mint::token_program = token_program)]
+    pub m_mint: InterfaceAccount<'info, Mint>,
+
+    /// CHECK: This account is validated by its seeds
+    #[account(
+        seeds = [TOKEN_AUTHORITY_SEED],
+        seeds::program = PORTAL_PROGRAM,
+        bump,
+    )]
+    pub portal_token_authority: UncheckedAccount<'info>,
+
+    /// CHECK: This account is validated by its seeds
+    #[account(
+        seeds = [SWAP_GLOBAL_SEED],
+        seeds::program = EXT_SWAP_PROGRAM_ID,
+        bump,
+    )]
+    pub ext_swap_global: UncheckedAccount<'info>,
+
+    #[account(
+        init_if_needed,
+        payer = admin,
+        associated_token::mint = m_mint,
+        associated_token::authority = portal_token_authority,
+        associated_token::token_program = token_program,
+    )]
+    pub portal_m_account: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(
+        init_if_needed,
+        payer = admin,
+        associated_token::mint = m_mint,
+        associated_token::authority = ext_swap_global,
+        associated_token::token_program = token_program,
+    )]
+    pub ext_swap_m_account: InterfaceAccount<'info, TokenAccount>,
 
     pub system_program: Program<'info, System>,
+
+    pub token_program: Program<'info, Token2022>,
+
+    pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
-pub fn handler(
-    ctx: Context<Initialize>,
-    earn_authority: Pubkey,
-    initial_index: u64,
-    claim_cooldown: u64,
-) -> Result<()> {
-    // Check that the initial index is at least 1 (with 12 decimals)
-    if initial_index < 1_000_000_000_000 {
-        return err!(EarnError::InvalidParam);
+impl Initialize<'_> {
+    fn validate(&self) -> Result<()> {
+        // Get the mint account data once and reuse it
+        let account_info = self.m_mint.to_account_info();
+        let mint_data = account_info.try_borrow_data()?;
+        let mint_ext_data = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
+
+        // Validate the m_mint has the correct extensions and that the global account has been given the appropriate permissions
+        let extensions = mint_ext_data.get_extension_types()?;
+        let global_key = &self.global_account.key();
+
+        // 1. Must have the ScaledUiAmount extension and global account must be the authority
+        if !extensions.contains(&ExtensionType::ScaledUiAmount) {
+            return err!(EarnError::InvalidMint);
+        }
+
+        let scaled_ui_config = mint_ext_data.get_extension::<ScaledUiAmountConfig>()?;
+        if scaled_ui_config.authority != OptionalNonZeroPubkey(*global_key) {
+            return err!(EarnError::InvalidMint);
+        }
+
+        // 2. Must have the Default Account State extension
+        // and the global account as the freeze authority
+        if !extensions.contains(&ExtensionType::DefaultAccountState) {
+            return err!(EarnError::InvalidMint);
+        }
+        let default_account_state_config = mint_ext_data.get_extension::<DefaultAccountState>()?;
+        if AccountState::try_from(default_account_state_config.state)
+            .or(err!(EarnError::TypeConversionError))?
+            != AccountState::Frozen
+        {
+            // TODO could also just update it, but this is more explicit
+            return err!(EarnError::InvalidMint);
+        }
+
+        if self.m_mint.freeze_authority.is_none()
+            || self.m_mint.freeze_authority.unwrap() != *global_key
+        {
+            return err!(EarnError::InvalidMint);
+        }
+
+        // // 3. Must have the Permanent Delegate extension
+        // // and the global account as the delegate
+        // // The reason this is required is to enable forced exits to wM in the event
+        // // an earner is removed from the earner list.
+        // if !extensions.contains(&ExtensionType::PermanentDelegate) {
+        //     return err!(EarnError::InvalidMint);
+        // }
+        // let permanent_delegate_config = mint_ext_data.get_extension::<PermanentDelegate>()?;
+        // if permanent_delegate_config.delegate != OptionalNonZeroPubkey(*global_key) {
+        //     return err!(EarnError::InvalidMint);
+        // }
+
+        Ok(())
     }
 
-    // Check that the claim cooldown is not longer than 1 week
-    if claim_cooldown > 604800 {
-        return err!(EarnError::InvalidParam);
+    #[access_control(ctx.accounts.validate())]
+    pub fn handler(ctx: Context<Initialize>) -> Result<()> {
+        // Portal authority that will propagate indexes and roots
+        let portal_authority =
+            Pubkey::find_program_address(&[TOKEN_AUTHORITY_SEED], &PORTAL_PROGRAM).0;
+
+        // Set global state
+        ctx.accounts.global_account.set_inner(EarnGlobal {
+            admin: ctx.accounts.admin.key(),
+            m_mint: ctx.accounts.m_mint.key(),
+            portal_authority,
+            earner_merkle_root: ctx.accounts.old_global_account.earner_merkle_root,
+            bump: ctx.bumps.global_account,
+        });
+
+        // Set the multiplier on the m_mint to the current index and timestamp on the old earn program
+        update_multiplier(
+            &mut ctx.accounts.m_mint,                         // mint
+            &ctx.accounts.global_account.to_account_info(),   // authority
+            &[&[GLOBAL_SEED, &[ctx.bumps.global_account]]],   // authority seeds
+            &ctx.accounts.token_program,                      // token program
+            ctx.accounts.old_global_account.index,            // index
+            ctx.accounts.old_global_account.timestamp as i64, // timestamp
+        )?;
+
+        // Thaw the portal and ext swap token accounts so they can be used (if not already thawed)
+        if ctx.accounts.portal_m_account.state == AccountState::Frozen {
+            thaw_token_account(
+                &ctx.accounts.portal_m_account,
+                &ctx.accounts.m_mint,
+                &ctx.accounts.global_account.to_account_info(),
+                &[&[GLOBAL_SEED, &[ctx.bumps.global_account]]],
+                &ctx.accounts.token_program,
+            )?;
+        }
+        if ctx.accounts.ext_swap_m_account.state == AccountState::Frozen {
+            thaw_token_account(
+                &ctx.accounts.ext_swap_m_account,
+                &ctx.accounts.m_mint,
+                &ctx.accounts.global_account.to_account_info(),
+                &[&[GLOBAL_SEED, &[ctx.bumps.global_account]]],
+                &ctx.accounts.token_program,
+            )?;
+        }
+
+        Ok(())
     }
-
-    // Portal authority that will propagate index and roots
-    let portal_authority = Pubkey::find_program_address(&[TOKEN_AUTHORITY_SEED], &PORTAL_PROGRAM).0;
-
-    ctx.accounts.global_account.set_inner(Global {
-        admin: ctx.accounts.admin.key(),
-        earn_authority,
-        portal_authority,
-        mint: ctx.accounts.mint.key(),
-        index: initial_index,
-        timestamp: 0, // Set this to 0 initially so we can call propagate immediately
-        claim_cooldown,
-        max_supply: 0,
-        max_yield: 0,
-        distributed: 0,
-        claim_complete: true,
-        earner_merkle_root: [0; 32],
-        bump: ctx.bumps.global_account,
-    });
-
-    Ok(())
 }

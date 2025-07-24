@@ -183,15 +183,23 @@ pub fn transfer_burn<'info>(
     let accs = ctx.accounts;
 
     let TransferArgs {
-        mut amount,
+        amount: principal,
         recipient_chain,
         recipient_address,
         should_queue,
     } = args;
 
-    // TODO: should we revert if we have dust?
+    // The provided "amount" is the principal amount of M to bridge.
+    // We scale this up to M units using the scaled UI config multiplier.
+    let scaled_ui_config = earn::utils::conversion::get_scaled_ui_config(&accs.common.mint)?;
+    // Get the amount of M tokens to transfer using the multiplier
+    let mut m_amount = earn::utils::conversion::principal_to_amount_down(
+        principal,
+        scaled_ui_config.new_multiplier.into(),
+    )?;
+
     let trimmed_amount = TrimmedAmount::remove_dust(
-        &mut amount,
+        &mut m_amount,
         accs.common.mint.decimals,
         accs.peer.token_decimals,
     )
@@ -222,7 +230,7 @@ pub fn transfer_burn<'info>(
         accs.common.custody.to_account_info(),
         accs.session_authority.to_account_info(),
         ctx.remaining_accounts,
-        amount,
+        principal,
         accs.common.mint.decimals,
         &[&[
             crate::SESSION_AUTHORITY_SEED,
@@ -243,7 +251,7 @@ pub fn transfer_burn<'info>(
             },
             &[&[crate::TOKEN_AUTHORITY_SEED, &[ctx.bumps.token_authority]]],
         ),
-        amount,
+        principal,
     )?;
 
     accs.common.custody.reload()?;
@@ -268,7 +276,7 @@ pub fn transfer_burn<'info>(
     insert_into_outbox(
         &mut accs.common,
         &mut accs.inbox_rate_limit,
-        amount,
+        m_amount,
         trimmed_amount,
         recipient_chain,
         recipient_ntt_manager,
@@ -279,7 +287,7 @@ pub fn transfer_burn<'info>(
     accs.common.mint.reload()?;
 
     emit!(BridgeEvent {
-        amount: -(amount as i64),
+        amount: -(m_amount as i64),
         token_supply: accs.common.mint.supply,
         to: recipient_address,
         from: accs.common.from.owner.to_bytes(),

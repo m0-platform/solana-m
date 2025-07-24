@@ -135,26 +135,29 @@ pub struct TransferBurn<'info> {
 impl<'info> TransferBurn<'info> {
     // Manually validate accounts instead of using anchor constraints
     // so that the context can be shared (nested contexts do not support instruction args)
-    pub fn validate_accounts(&self, args: &TransferArgs) -> Result<(u8, u8, u8)> {
-        let (inbox_rate_limit, inbox_rate_limit_bump) = Pubkey::find_program_address(
+    pub fn validate_accounts(&self, args: &TransferArgs) -> Result<u8> {
+        let inbox_rate_limit = Pubkey::create_program_address(
             &[
                 InboxRateLimit::SEED_PREFIX,
                 args.recipient_chain.id.to_be_bytes().as_ref(),
+                &[self.inbox_rate_limit.bump],
             ],
             &crate::ID,
         );
-        if !self.inbox_rate_limit.key().eq(&inbox_rate_limit) {
+        if inbox_rate_limit.is_err() || !self.inbox_rate_limit.key().eq(&inbox_rate_limit.unwrap())
+        {
             return err!(ErrorCode::ConstraintAddress);
         }
 
-        let (peer, peer_bump) = Pubkey::find_program_address(
+        let peer = Pubkey::create_program_address(
             &[
                 NttManagerPeer::SEED_PREFIX,
                 args.recipient_chain.id.to_be_bytes().as_ref(),
+                &[self.peer.bump],
             ],
             &crate::ID,
         );
-        if !self.peer.key().eq(&peer) {
+        if peer.is_err() || !self.peer.key().eq(&peer.unwrap()) {
             return err!(ErrorCode::ConstraintAddress);
         }
 
@@ -170,7 +173,7 @@ impl<'info> TransferBurn<'info> {
             return err!(ErrorCode::ConstraintAddress);
         }
 
-        Ok((inbox_rate_limit_bump, peer_bump, session_authority_bump))
+        Ok(session_authority_bump)
     }
 }
 
@@ -178,7 +181,7 @@ pub fn transfer_burn<'info>(
     ctx: Context<'_, '_, '_, 'info, TransferBurn<'info>>,
     args: TransferArgs,
 ) -> Result<()> {
-    let (_, _, session_authority_bump) = ctx.accounts.validate_accounts(&args)?;
+    let session_authority_bump = ctx.accounts.validate_accounts(&args)?;
 
     let accs = ctx.accounts;
 

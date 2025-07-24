@@ -4,8 +4,10 @@ use anchor_spl::token_2022_extensions::spl_pod::optional_keys::OptionalNonZeroPu
 use anchor_spl::token_interface::{Mint, Token2022};
 use spl_token_2022::{
     extension::{
-        default_account_state::DefaultAccountState, permanent_delegate::PermanentDelegate,
-        scaled_ui_amount::ScaledUiAmountConfig, BaseStateWithExtensions, ExtensionType,
+        default_account_state::DefaultAccountState, // permanent_delegate::PermanentDelegate,
+        scaled_ui_amount::ScaledUiAmountConfig,
+        BaseStateWithExtensions,
+        ExtensionType,
         StateWithExtensions,
     },
     state::AccountState,
@@ -45,12 +47,6 @@ pub struct Initialize<'info> {
 
     #[account(mint::token_program = token_program)]
     pub m_mint: InterfaceAccount<'info, Mint>,
-
-    #[account(
-        mint::token_program = token_program,
-        mint::decimals = m_mint.decimals,
-    )]
-    pub wm_mint: InterfaceAccount<'info, Mint>,
 
     pub system_program: Program<'info, System>,
 
@@ -98,20 +94,17 @@ impl Initialize<'_> {
             return err!(EarnError::InvalidMint);
         }
 
-        // 3. Must have the Permanent Delegate extension
-        // and the global account as the delegate
-        // The reason this is required is to enable forced exits to wM in the event
-        // an earner is removed from the earner list.
-        if !extensions.contains(&ExtensionType::PermanentDelegate) {
-            return err!(EarnError::InvalidMint);
-        }
-        let permanent_delegate_config = mint_ext_data.get_extension::<PermanentDelegate>()?;
-        if permanent_delegate_config.delegate != OptionalNonZeroPubkey(*global_key) {
-            return err!(EarnError::InvalidMint);
-        }
-
-        // TODO it would be nice to validate that the wM mint is whitelisted on the ext swap program
-        // but this requires an indirect lookup on the extension program, which doesn't have a consistent interface currently.
+        // // 3. Must have the Permanent Delegate extension
+        // // and the global account as the delegate
+        // // The reason this is required is to enable forced exits to wM in the event
+        // // an earner is removed from the earner list.
+        // if !extensions.contains(&ExtensionType::PermanentDelegate) {
+        //     return err!(EarnError::InvalidMint);
+        // }
+        // let permanent_delegate_config = mint_ext_data.get_extension::<PermanentDelegate>()?;
+        // if permanent_delegate_config.delegate != OptionalNonZeroPubkey(*global_key) {
+        //     return err!(EarnError::InvalidMint);
+        // }
 
         Ok(())
     }
@@ -126,7 +119,6 @@ impl Initialize<'_> {
         ctx.accounts.global_account.set_inner(EarnGlobal {
             admin: ctx.accounts.admin.key(),
             m_mint: ctx.accounts.m_mint.key(),
-            wm_mint: ctx.accounts.wm_mint.key(),
             portal_authority,
             earner_merkle_root: ctx.accounts.old_global_account.earner_merkle_root,
             bump: ctx.bumps.global_account,

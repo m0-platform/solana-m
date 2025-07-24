@@ -66,10 +66,4 @@ pub mod earn {
     ) -> Result<()> {
         RemoveRegistrarEarner::handler(ctx, proofs, neighbors)
     }
-
-    // Removed earner instructions
-
-    pub fn claim_escrow(ctx: Context<ClaimEscrow>) -> Result<()> {
-        ClaimEscrow::handler(ctx)
-    }
 }

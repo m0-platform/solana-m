@@ -12,7 +12,6 @@ pub const GLOBAL_SEED: &[u8] = b"global";
 pub struct EarnGlobal {
     pub admin: Pubkey,                // can update config values
     pub m_mint: Pubkey,               // $M mint
-    pub wm_mint: Pubkey,              // $wM mint, used for forced exits
     pub portal_authority: Pubkey,     // portal authority that propogates indexes and roots
     pub earner_merkle_root: [u8; 32], // merkle root for earners
     pub bump: u8,                     // bump seed on this PDA
@@ -22,5 +21,3 @@ pub struct EarnGlobal {
 // We include it here as a convenience instead of importing it from the Portal program.
 // This avoids a circular dependency between the earn and portal programs.
 pub const TOKEN_AUTHORITY_SEED: &[u8] = b"token_authority";
-
-pub const ESCROW_SEED_PREFIX: &[u8] = b"escrow";

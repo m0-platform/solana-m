@@ -133,7 +133,7 @@ pub struct TransferBurn<'info> {
 }
 
 impl<'info> TransferBurn<'info> {
-    // manually validate accounts instead of using anchor constraints
+    // Manually validate accounts instead of using anchor constraints
     // so that the context can be shared (nested contexts do not support instruction args)
     pub fn validate_accounts(&self, args: &TransferArgs) -> Result<(u8, u8, u8)> {
         let (inbox_rate_limit, inbox_rate_limit_bump) = Pubkey::find_program_address(

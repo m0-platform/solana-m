@@ -36,6 +36,7 @@ import {
   createMintToInstruction,
   createSetAuthorityInstruction,
   getAssociatedTokenAddressSync,
+  createApproveInstruction,
 } from '@solana/spl-token';
 import NodeWallet from '@coral-xyz/anchor/dist/cjs/nodewallet';
 import { utils } from 'web3';
@@ -416,12 +417,30 @@ describe('Portal unit tests', () => {
         TOKEN_PROGRAM,
       );
 
+      const amount = 1_000;
+
       // create generator that returns transfer_extension instruction
       async function* transferExtension() {
         const tx = new Transaction().add(
+          // spending approval for custodian
+          createApproveInstruction(
+            mAta,
+            ntt.pdas.sessionAuthority(payer.publicKey, {
+              amount: new BN(amount),
+              recipientChain: {
+                id: 2,
+              },
+              recipientAddress: [...Array(32)],
+              shouldQueue: false,
+            }),
+            payer.publicKey,
+            amount,
+            [],
+            spl.TOKEN_2022_PROGRAM_ID,
+          ),
           buildTransferExtensionIx(
             ntt,
-            1_000,
+            amount,
             signer.address(),
             outboxItem.publicKey,
             mint.publicKey,

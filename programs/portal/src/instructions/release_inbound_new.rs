@@ -1,6 +1,6 @@
 use anchor_lang::{prelude::*, solana_program::program::invoke_signed};
 use anchor_spl::{associated_token::get_associated_token_address_with_program_id, token_interface};
-use earn::{cpi::accounts::PropagateIndex, utils::conversion::amount_to_principal_down};
+use earn::{cpi::accounts::PropagateIndex, program::Earn, state::Global};
 
 use spl_token_2022::onchain;
 
@@ -9,7 +9,7 @@ use crate::{
     error::NTTError,
     instructions::BridgeEvent,
     ntt_messages::Mode,
-    queue::inbox::{InboxItem, ReleaseStatus},
+    queue::inbox::{InboxItem, ReleaseStatus, TokenTransfer},
     spl_multisig::SplMultisig,
 };
 
@@ -25,15 +25,13 @@ pub struct ReleaseInbound<'info> {
 
     #[account(
         mut,
-        address = if inbox_item.transfer.amount > 0 {
-            get_associated_token_address_with_program_id(
-                &inbox_item.transfer.recipient,
-                &mint.key(),
-                &token_program.key(),
-            )
-        } else {
-            recipient.key()
-        }
+        address = get_recipient_token_account(
+            &inbox_item.transfer,
+            &inbox_item.destination_mint,
+            &mint.key(),
+            &token_program.key,
+            &token_authority.key()
+        ).unwrap_or(recipient.key()),
     )]
     pub recipient: InterfaceAccount<'info, token_interface::TokenAccount>,
 
@@ -71,14 +69,18 @@ pub struct ReleaseInboundMintMultisig<'info> {
     #[account(
         constraint = common.config.mode == Mode::Burning @ NTTError::InvalidMode,
     )]
-    common: ReleaseInbound<'info>,
+    pub common: ReleaseInbound<'info>,
 
     #[account(
         constraint =
          multisig.m == 1 && multisig.signers.contains(&common.token_authority.key())
             @ NTTError::InvalidMultisig,
     )]
-    pub multisig: InterfaceAccount<'info, SplMultisig>,
+    pub multisig: Box<InterfaceAccount<'info, SplMultisig>>,
+
+    pub earn_program: Program<'info, Earn>,
+
+    pub earn_global: Box<Account<'info, Global>>,
 }
 
 pub fn release_inbound_mint_multisig<'info>(
@@ -102,64 +104,27 @@ pub fn release_inbound_mint_multisig<'info>(
         &[ctx.bumps.common.token_authority],
     ]];
 
-    // Send update to the earn program
-    // Must be done before minting tokens
-    {
-        let expected_accounts = &ctx
-            .accounts
-            .common
-            .config
-            .release_inbound_remaining_accounts;
+    let propogate_ctx = CpiContext::new_with_signer(
+        ctx.accounts.earn_program.to_account_info(),
+        PropagateIndex {
+            signer: ctx.accounts.common.token_authority.to_account_info(),
+            global_account: ctx.accounts.earn_global.to_account_info(),
+            mint: ctx.accounts.common.mint.to_account_info(),
+        },
+        token_authority_sig,
+    );
 
-        // Remaining accounts required for CPI to earn program
-        if ctx.remaining_accounts.len() < expected_accounts.len() {
-            return err!(NTTError::InvalidRemainingAccount);
-        }
+    // Propagate the index update before minting tokens
+    let earner_root = inbox_item.earners_root_update.unwrap_or_default();
+    earn::cpi::propagate_index(propogate_ctx, inbox_item.index_update, earner_root)?;
 
-        for (i, account) in expected_accounts.iter().enumerate() {
-            if account.pubkey != ctx.remaining_accounts[i].key() {
-                return err!(NTTError::InvalidRemainingAccount);
-            }
-        }
+    msg!(
+        "Index update: {} | root update: {}",
+        inbox_item.index_update,
+        inbox_item.earners_root_update.is_some()
+    );
 
-        let ctx = CpiContext::new_with_signer(
-            ctx.remaining_accounts[0].clone(),
-            PropagateIndex {
-                signer: ctx.accounts.common.token_authority.to_account_info(),
-                global_account: ctx.remaining_accounts[1].clone(),
-                m_mint: ctx.accounts.common.mint.to_account_info(),
-                token_program: ctx.accounts.common.token_program.to_account_info(),
-            },
-            token_authority_sig,
-        );
-
-        let earner_root = inbox_item.earners_root_update.unwrap_or_default();
-        earn::cpi::propagate_index(ctx, inbox_item.index_update, earner_root)?;
-
-        msg!(
-            "Index update: {} | root update: {}",
-            inbox_item.index_update,
-            inbox_item.earners_root_update.is_some()
-        );
-    }
-
-    // Mint and transfer tokens if the amount is greater than zero
     if inbox_item.transfer.amount > 0 {
-        // Reload the mint to ensure the latest multiplier is used
-        ctx.accounts.common.mint.reload()?;
-
-        // Get the multiplier from the mint
-        // We load it rather than using the index provided in the inbox item
-        // since it is possible that the inbox index is not the latest
-        let scaled_ui_config =
-            earn::utils::conversion::get_scaled_ui_config(&ctx.accounts.common.mint)?;
-
-        // Get the principal amount of $M tokens to transfer using the multiplier
-        let principal = amount_to_principal_down(
-            inbox_item.transfer.amount,
-            scaled_ui_config.new_multiplier.into(),
-        )?;
-
         // Mint then transfer to ensure transfer hook is called
         invoke_signed(
             &spl_token_2022::instruction::mint_to(
@@ -168,7 +133,7 @@ pub fn release_inbound_mint_multisig<'info>(
                 &ctx.accounts.common.custody.key(),
                 &ctx.accounts.multisig.key(),
                 &[&ctx.accounts.common.token_authority.key()],
-                principal,
+                inbox_item.transfer.amount,
             )?,
             &[
                 ctx.accounts.common.custody.to_account_info(),
@@ -186,7 +151,7 @@ pub fn release_inbound_mint_multisig<'info>(
             ctx.accounts.common.recipient.to_account_info(),
             ctx.accounts.common.token_authority.to_account_info(),
             ctx.remaining_accounts,
-            principal,
+            inbox_item.transfer.amount,
             ctx.accounts.common.mint.decimals,
             token_authority_sig,
         )?;
@@ -194,7 +159,7 @@ pub fn release_inbound_mint_multisig<'info>(
         ctx.accounts.common.mint.reload()?;
 
         emit!(BridgeEvent {
-            amount: principal as i64,
+            amount: inbox_item.transfer.amount as i64,
             token_supply: ctx.accounts.common.mint.supply,
             to: inbox_item.transfer.recipient.to_bytes(),
             from: inbox_item.source.from,
@@ -203,4 +168,33 @@ pub fn release_inbound_mint_multisig<'info>(
     }
 
     Ok(())
+}
+
+fn get_recipient_token_account(
+    transfer: &TokenTransfer,
+    destination_mint: &Pubkey,
+    mint: &Pubkey,
+    token_program: &Pubkey,
+    token_authority: &Pubkey,
+) -> Option<Pubkey> {
+    // Only bridging data
+    if transfer.amount == 0 {
+        return None;
+    }
+
+    // Bridging $M, require user token account
+    if destination_mint.eq(mint) {
+        return Some(get_associated_token_address_with_program_id(
+            &transfer.recipient,
+            mint,
+            token_program,
+        ));
+    }
+
+    // Bridging to extension, require intermediate portal token account
+    Some(get_associated_token_address_with_program_id(
+        token_authority,
+        mint,
+        token_program,
+    ))
 }

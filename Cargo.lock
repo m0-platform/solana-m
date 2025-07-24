@@ -836,7 +836,19 @@ dependencies = [
 
 [[package]]
 name = "earn"
-version = "0.2.0"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "cfg-if",
+ "solana-security-txt",
+ "spl-token-2022 7.0.0",
+]
+
+[[package]]
+name = "earn"
+version = "0.1.0"
+source = "git+https://github.com/m0-foundation/solana-m?branch=develop#8a74efdf9d5c0a6fdd4273b96827e670de66188c"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
@@ -891,6 +903,29 @@ name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
+
+[[package]]
+name = "ext_earn"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "cfg-if",
+ "earn 0.1.0",
+ "solana-security-txt",
+ "spl-token-2022 7.0.0",
+]
+
+[[package]]
+name = "ext_swap"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "earn 0.1.0 (git+https://github.com/m0-foundation/solana-m?branch=develop)",
+ "m_ext",
+ "solana-security-txt",
+]
 
 [[package]]
 name = "feature-probe"
@@ -1161,6 +1196,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 
 [[package]]
+name = "m_ext"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "cfg-if",
+ "earn 0.1.0 (git+https://github.com/m0-foundation/solana-m?branch=develop)",
+ "solana-security-txt",
+ "spl-token-2022 7.0.0",
+]
+
+[[package]]
 name = "memchr"
 version = "2.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1350,13 +1397,14 @@ dependencies = [
 
 [[package]]
 name = "portal"
-version = "0.2.0"
+version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
  "bitmaps",
  "cfg-if",
- "earn",
+ "earn 0.1.0",
+ "ext_swap",
  "solana-security-txt",
  "spl-token-2022 7.0.0",
  "wormhole-anchor-sdk",

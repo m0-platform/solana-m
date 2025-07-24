@@ -1,18 +1,31 @@
 import { useAppKitAccount } from '@reown/appkit/react';
-import { Connection, PublicKey } from '@solana/web3.js';
+import { PublicKey } from '@solana/web3.js';
 import Decimal from 'decimal.js';
-import { M_MINT, wM_MINT } from '../services/consts';
 import { getBalance } from '@wagmi/core';
 import { wagmiAdapter } from '../main';
 import { useQuery } from '@tanstack/react-query';
+import { ApiClient } from '../services/sdk';
 
-interface TokenBalance {
-  M?: Decimal;
-  wM?: Decimal;
-}
+type TokenBalance = {
+  [key: string]: Asset;
+};
+
+export type Asset = {
+  mint: PublicKey;
+  balance: Decimal;
+  decimals: number;
+  icon: string;
+  ticker: string;
+  programId?: string; // Only valid for Extensions
+};
 
 export const useAccount = () => {
   const { isConnected, address, caipAddress } = useAppKitAccount();
+
+  const { data: extensionData } = useQuery({
+    queryKey: ['extensions'],
+    queryFn: () => ApiClient.extensions.extensions(),
+  });
 
   const isSolanaWallet = !!address && !address.startsWith('0x');
   const isEvmWallet = !!address && address.startsWith('0x');
@@ -23,25 +36,38 @@ export const useAccount = () => {
       return {};
     }
 
-    const connection = new Connection(import.meta.env.VITE_RPC_URL);
-    const pubkey = new PublicKey(address);
+    const options = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: `{"jsonrpc":"2.0","id":"1","method":"getAssetsByOwner","params":{"ownerAddress":"${address}","options":{"showUnverifiedCollections":false,"showCollectionMetadata":false,"showFungible":true}}}`,
+    };
 
-    // Fetch all token accounts owned by this wallet
-    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(pubkey, {
-      programId: new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'),
-    });
+    const resp = await (
+      await fetch('https://mainnet.helius-rpc.com/?api-key=ae31684d-357b-487a-871d-80de08a02850', options)
+    ).json();
 
-    // Filter for our specific mints
-    const solanaBalances: TokenBalance = {};
-    for (const account of tokenAccounts.value) {
-      const tokenMint = account.account.data.parsed.info.mint;
-      const tokenAmount = account.account.data.parsed.info.tokenAmount.uiAmount.toString();
+    for (const token of resp.result.items.filter((i: any) => i.interface === 'FungibleToken')) {
+      solanaBalances[token.id] = {
+        mint: new PublicKey(token.id),
+        balance: new Decimal(token.token_info.balance).div(10 ** token.token_info.decimals),
+        decimals: token.token_info.decimals,
+        icon: token.content.files?.[0]?.uri ?? token.mint_extensions.metadata.uri ?? '',
+        ticker: token.content.metadata.symbol,
+        programId: extensionData?.extensions?.find((ext) => ext.mint === token.id)?.programId,
+      };
+    }
 
-      if (tokenMint === M_MINT.toBase58()) {
-        solanaBalances.M = new Decimal(tokenAmount);
-      }
-      if (tokenMint === wM_MINT.toBase58()) {
-        solanaBalances.wM = new Decimal(tokenAmount);
+    // always include extension balances
+    for (const ext of extensionData?.extensions ?? []) {
+      if (!solanaBalances[ext.mint]) {
+        solanaBalances[ext.mint] = {
+          mint: new PublicKey(ext.mint),
+          balance: new Decimal(0),
+          decimals: 6,
+          icon: ext.icon,
+          ticker: ext.symbol,
+          programId: ext.programId,
+        };
       }
     }
 
@@ -49,7 +75,7 @@ export const useAccount = () => {
   };
 
   // Fetch EVM token balances
-  const fetchEvmBalances = async (): Promise<TokenBalance> => {
+  const fetchEvmBalance = async (): Promise<TokenBalance> => {
     if (!isConnected || !isEvmWallet || !address) {
       return {};
     }
@@ -58,14 +84,15 @@ export const useAccount = () => {
       address: address as `0x${string}`,
       token: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b',
     });
-    const wmBalance = await getBalance(wagmiAdapter.wagmiConfig, {
-      address: address as `0x${string}`,
-      token: '0x437cc33344a0B27A429f795ff6B469C72698B291',
-    });
 
     return {
-      M: new Decimal(mBalance.value.toString()).div(1e6),
-      wM: new Decimal(wmBalance.value.toString()).div(1e6),
+      '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b': {
+        balance: new Decimal(mBalance.value.toString()).div(1e6),
+        mint: PublicKey.default,
+        decimals: 6,
+        icon: 'https://gistcdn.githack.com/SC4RECOIN/a729afb77aa15a4aa6b1b46c3afa1b52/raw/209da531ed46c1aaef0b1d3d7b67b3a5cec257f3/M_Symbol_512.svg',
+        ticker: '$M',
+      },
     };
   };
 
@@ -76,8 +103,8 @@ export const useAccount = () => {
   } = useQuery({
     queryKey: ['solanaBalances', address],
     queryFn: fetchSolanaBalances,
-    enabled: isConnected && isSolanaWallet,
-    refetchInterval: 30000, // Refetch every 30 seconds
+    enabled: isConnected && isSolanaWallet && !!extensionData,
+    refetchInterval: 5000,
   });
 
   const {
@@ -86,9 +113,9 @@ export const useAccount = () => {
     error: evmBalancesError,
   } = useQuery({
     queryKey: ['evmBalances', caipAddress],
-    queryFn: fetchEvmBalances,
+    queryFn: fetchEvmBalance,
     enabled: isConnected && isEvmWallet,
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 15000,
   });
 
   return {

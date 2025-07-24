@@ -1,9 +1,8 @@
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getCurrentRate, getEarner } from '../services/sdk';
+import { ApiClient, getCurrentRate, getEarner } from '../services/sdk';
 import { PublicKey } from '@solana/web3.js';
 import Decimal from 'decimal.js';
-import { PROGRAM_ID, EXT_PROGRAM_ID } from '@m0-foundation/solana-m-sdk';
 import { useState, useEffect } from 'react';
 
 const StatCard = ({ label, value }: { label: string; value: string | number | undefined }) => {
@@ -19,7 +18,7 @@ const KeyValueDisplay = ({ data }: { data: Record<string, string | undefined> })
   if (!data) return null;
 
   return (
-    <div className="grid grid-cols-1 gap-2 bg-off-blue p-4">
+    <div className="grid grid-cols-1 gap-2 bg-off-blue p-4 text-sm">
       {Object.entries(data).map(([key, value]) => (
         <div key={key} className="flex border-b pb-2">
           <div className="w-1/3 font-medium">{key}</div>
@@ -30,7 +29,7 @@ const KeyValueDisplay = ({ data }: { data: Record<string, string | undefined> })
   );
 };
 
-const ClaimsTable = ({ claims }: { claims: { amount: bigint; ts: bigint }[] | undefined }) => {
+const ClaimsTable = ({ claims }: { claims: { amount: number; ts: Date }[] | undefined }) => {
   if (!claims || claims.length === 0) {
     return (
       <div className="bg-off-blue p-4 mt-6">
@@ -45,16 +44,18 @@ const ClaimsTable = ({ claims }: { claims: { amount: bigint; ts: bigint }[] | un
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-700">
           <thead>
-            <tr>
+            <tr className="color-slate-400">
+              <th className="px-4 py-2 text-left text-sm font-medium text-slate-400">Timestamp</th>
               <th className="px-4 py-2 text-left text-sm font-medium text-slate-400">Amount</th>
-              <th className="px-4 py-2 text-left text-sm font-medium text-slate-400">Pushed Timestamp</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700">
             {claims.slice(0, 10).map((claim, index) => (
               <tr key={index}>
-                <td className="px-4 py-3 text-sm">{new Decimal(claim.amount.toString()).div(1e6).toFixed(6)} M</td>
-                <td className="px-4 py-3 text-sm">{new Date(Number(claim.ts) * 1000).toLocaleString()}</td>
+                <td className="px-4 py-3 text-sm">{claim.ts.toLocaleString()}</td>
+                <td className="px-4 py-3 text-sm">
+                  {new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(claim.amount / 1e6)} M
+                </td>
               </tr>
             ))}
           </tbody>
@@ -65,15 +66,14 @@ const ClaimsTable = ({ claims }: { claims: { amount: bigint; ts: bigint }[] | un
 };
 
 export const EarnerDetails = () => {
-  let { pubkey, mint } = useParams();
-  const pID = mint === 'M' ? PROGRAM_ID : EXT_PROGRAM_ID;
+  let { vault } = useParams();
   const [displayPendingYield, setDisplayPendingYield] = useState<Decimal | undefined>();
   const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['earner', pubkey],
-    queryFn: () => getEarner(pID, new PublicKey(pubkey!)),
-    enabled: !!pubkey,
+    queryKey: ['earner', vault],
+    queryFn: () => getEarner(new PublicKey(vault!)),
+    enabled: !!vault,
   });
 
   const rateQuery = useQuery({
@@ -82,13 +82,21 @@ export const EarnerDetails = () => {
     enabled: true,
   });
 
+  const { data: extensionData, isLoading: extLoading } = useQuery({
+    queryKey: ['extensions'],
+    queryFn: () => ApiClient.extensions.extensions(),
+  });
+
   const { earner, claims, pendingYield, tokenAccount } = data ?? {};
-  const claimedYield = claims?.reduce((acc, claim) => acc + claim.amount, 0n);
+  const claimedYield = claims?.reduce((acc, claim) => acc + claim.amount, 0);
+  const extension = extensionData?.extensions.find((ext) => ext.mVault === vault);
+
+  const fmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 
   // Initialize values
   const tokenBalanceDecimal = new Decimal(tokenAccount?.amount.toString() || '0').div(1e6);
-  const tokenBalance = tokenBalanceDecimal.toFixed(4) + ' M';
-  const earnedYield = new Decimal(claimedYield?.toString() || '0').div(1e6).toFixed(4) + ' M';
+  const tokenBalance = fmt.format(tokenBalanceDecimal.toNumber()) + ' M';
+  const earnedYield = fmt.format((claimedYield || 0) / 1e6) + ' M';
   const apr = rateQuery.data ?? Decimal(0);
 
   // Initialize pending yield if not already set
@@ -129,13 +137,23 @@ export const EarnerDetails = () => {
 
   const aprDisplay = apr.toFixed(2) ?? '-';
 
-  if (isLoading) return <div className="p-4 text-slate-300">Loading earner data...</div>;
+  if (isLoading || extLoading)
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2"></div>
+      </div>
+    );
   if (isError) return <div className="p-4 text-red-400">Error loading earner data</div>;
 
   return (
     <div className="max-w-6xl mx-auto py-8 px-2">
-      <h2 className="text-xl font-bold mb-4">Earner Details</h2>
-
+      <h2 className="text-xl font-bold mb-4">
+        <div className="flex items-center gap-2 mb-1">
+          {extension && <img src={extension.icon} alt={extension.name} className="w-8 h-8 rounded-full" />}
+          <span className="mt-1">$M Vault</span>
+        </div>
+        <div className="text-sm">{extension?.name}</div>
+      </h2>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <StatCard label="Token Balance" value={tokenBalance} />
         <StatCard label="Earned Yield" value={earnedYield} />
@@ -150,11 +168,10 @@ export const EarnerDetails = () => {
           'Token Account': earner?.data.userTokenAccount.toBase58(),
           'Last Claim Index': earner?.data.lastClaimIndex.toString(),
           'Last Claim Timestamp': new Date((earner?.data.lastClaimTimestamp.toNumber() ?? 0) * 1000).toLocaleString(),
-          'Recipient Token Account': earner?.data.recipientTokenAccount?.toBase58(),
         }}
       />
 
-      <ClaimsTable claims={claims} />
+      <ClaimsTable claims={claims ?? []} />
     </div>
   );
 };

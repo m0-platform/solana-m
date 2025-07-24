@@ -10,9 +10,9 @@ import { Fireblocks, FeeLevel, TransactionOperation, TransactionRequest } from '
 import { EXT_PROGRAM_ID, PROGRAM_ID } from '../../sdk/src';
 
 import { Program, BN } from '@coral-xyz/anchor';
-import { ExtEarn } from '../../target/types/ext_earn';
+import { ExtEarn } from '../../sdk/src/idl/ext_earn';
 import { anchorProvider, keysFromEnv } from './utils';
-const EXT_EARN_IDL = require('../../target/idl/ext_earn.json');
+const EXT_EARN_IDL = require('../../sdk/src/idl/ext_earn.json');
 
 const PROGRAMS = {
   // program id the same for devnet and mainnet

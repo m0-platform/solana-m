@@ -1,8 +1,8 @@
 use anchor_lang::prelude::*;
-use ntt_messages::{chain_id::ChainId, transceivers::wormhole::WormholeTransceiverRegistration};
 
 use crate::{
     config::*,
+    ntt_messages::{ChainId, WormholeTransceiverRegistration},
     transceivers::{accounts::peer::TransceiverPeer, wormhole::accounts::*},
 };
 

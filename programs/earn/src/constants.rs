@@ -1,7 +1,6 @@
 // earn/constants.rs
 
-use anchor_lang::prelude::*;
-use solana_program::pubkey;
+use anchor_lang::{prelude::*, solana_program::pubkey};
 
 pub const ANCHOR_DISCRIMINATOR_SIZE: usize = 8;
 

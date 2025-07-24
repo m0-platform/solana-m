@@ -6,7 +6,6 @@ use anchor_spl::token_interface::{Mint, Token2022};
 
 // local dependencies
 use crate::{
-    constants::ANCHOR_DISCRIMINATOR_SIZE,
     errors::ExtError,
     state::{ExtGlobal, EXT_GLOBAL_SEED, MINT_AUTHORITY_SEED, M_VAULT_SEED},
 };
@@ -23,7 +22,7 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = admin,
-        space = ANCHOR_DISCRIMINATOR_SIZE + ExtGlobal::INIT_SPACE,
+        space = ExtGlobal::size(0),
         seeds = [EXT_GLOBAL_SEED],
         bump
     )]
@@ -74,6 +73,7 @@ pub fn handler(ctx: Context<Initialize>, earn_authority: Pubkey) -> Result<()> {
         bump: ctx.bumps.global_account,
         m_vault_bump,
         ext_mint_authority_bump,
+        wrap_authorities: vec![],
     });
 
     Ok(())

@@ -1,14 +1,10 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{token_2022::spl_token_2022::instruction::AuthorityType, token_interface};
-use ntt_messages::chain_id::ChainId;
-use wormhole_solana_utils::cpi::bpf_loader_upgradeable::{self, BpfLoaderUpgradeable};
-
-#[cfg(feature = "idl-build")]
-use crate::messages::Hack;
 
 use crate::{
     config::Config,
     error::NTTError,
+    ntt_messages::{bpf_loader_upgradeable, BpfLoaderUpgradeable, ChainId},
     peer::NttManagerPeer,
     pending_token_authority::PendingTokenAuthority,
     queue::{inbox::InboxRateLimit, outbox::OutboxRateLimit, rate_limit::RateLimitState},

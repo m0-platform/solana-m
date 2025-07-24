@@ -1,8 +1,7 @@
 // earn/utils/merkle_proof.rs
 
 use crate::errors::EarnError;
-use anchor_lang::prelude::*;
-use solana_program;
+use anchor_lang::{prelude::*, solana_program};
 
 pub const ZERO_BIT: u8 = 0;
 pub const ONE_BIT: u8 = 1;

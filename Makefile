@@ -1,6 +1,5 @@
 .PHONY: test-yield-bot yield-bot-devnet test-local-validator test-sdk build-devnet upgrade-earn-devnet upgrade-portal-devnet upgrade-ext-earn-devnet deploy-yield-bot deploy-dashboard-devnet deploy-dashboard-mainnet
 
-
 #
 # Test commands
 #
@@ -26,6 +25,10 @@ test-sdk:
 	kill -9 $$(lsof -ti:8899) & kill -9 $$(lsof -ti:8545); \
 	exit $$e
 
+test-merkle:
+	@cd sdk && pnpm build
+	cd tests && pnpm jest --preset ts-jest tests/unit/merkle.test.ts; exit $$?
+
 test-local-validator:
 	solana-test-validator --deactivate-feature EenyoWx9UMXYKpR8mW5Jmfmy2fRjzUtM7NduYMY8bx33 -r \
 		--account 2yVjuQwpsvdsrywzsJJVs9Ueh4zayyo5DYJbBNc3DDpn tests/accounts/core_bridge_config.json \
@@ -40,17 +43,22 @@ test-local-validator:
 	kill $$pid \ 
 	exit $$e
 
+build-test-swap-program:
+	@cd ../solana-extensions && anchor build -p ext_swap
+	@cp -f ../solana-extensions/target/deploy/ext_swap.so tests/programs/ext_swap.so
+	@cp -f ../solana-extensions/target/idl/ext_swap.json tests/programs/ext_swap.json
+	@cp -f ../solana-extensions/target/types/ext_swap.ts tests/programs/ext_swap.ts
 
 #
 # Devnet commands
 #
 yield-bot-devnet:
 	@RPC_URL=$(shell op read "op://Solana Dev/Helius/dev rpc") \
+		DEVNET=true \
+		MONGO_CONNECTION_STRING=$(shell op read "op://Solana Dev/Mongo Read Access/devnet-connection-string") \
 		EVM_RPC_URL=$(shell op read "op://Solana Dev/Alchemy/sepolia") \
 		KEYPAIR=$(shell op read "op://Solana Dev/Solana Program Keys/devnet-authority") \
-		pnpm --silent ts-node services/yield-bot/main.ts distribute \
-		--programID wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko \
-		--dryRun
+		pnpm --silent ts-node services/yield-bot/main.ts distribute --dryRun
 
 yield-bot-mainnet:
 	@RPC_URL=$(shell op read "op://Solana Dev/Helius/prod rpc") \
@@ -58,10 +66,7 @@ yield-bot-mainnet:
 		TURNKEY_PUBKEY=5FFDpVvjVPEVGb9SgN9V5HNC6gkrPdVqdX6CxXBVwZV \
 		TURNKEY_API_PUBLIC_KEY=$(shell op read "op://Solana Secure/Turnkey API keys/public-key-prod") \
 		TURNKEY_API_PRIVATE_KEY=$(shell op read "op://Solana Secure/Turnkey API keys/private-key-prod") \
-		pnpm --silent ts-node services/yield-bot/main.ts distribute \
-		--claimThreshold 100000 \
-		--programID wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko \
-		--dryRun
+		pnpm --silent ts-node services/yield-bot/main.ts distribute --dryRun
 
 #
 # Program upgrade commands
@@ -76,7 +81,7 @@ MAX_SIGN_ATTEMPTS := 5
 
 define build-verified
 	@echo "Building verified $(1) program for $(2)...\n"
-	solana-verify build --library-name $(1) -- --features $(2) --no-default-features
+	anchor build -p $(1) --verifiable -- --features $(2) --no-default-features
 endef
 
 define upgrade_program
@@ -104,7 +109,7 @@ define propose_upgrade_program
 		--keypair $(DEVNET_KEYPAIR) \
 		--max-sign-attempts $(MAX_SIGN_ATTEMPTS) \
 		--buffer temp-buffer.json \
-		target/deploy/$(1).so 
+		target/verifiable/$(1).so 
 	@echo "Transfering buffer $$(solana address --keypair temp-buffer.json) authority to Squads" 
 	@solana program set-buffer-authority $$(solana address --keypair temp-buffer.json) \
 		--new-buffer-authority $(SQUADS_VAULT) \
@@ -118,7 +123,7 @@ upgrade-earn-devnet:
 	$(call upgrade_program,earn,$(EARN_PROGRAM_ID))
 
 upgrade-ext-earn-devnet:
-	$(call build-verified,ext_ear,devnet)
+	$(call build-verified,ext_earn,devnet)
 	$(call upgrade_program,ext_earn,$(EXT_EARN_PROGRAM_ID))
 
 upgrade-portal-devnet:
@@ -130,7 +135,7 @@ upgrade-earn-mainnet:
 	$(call propose_upgrade_program,earn,$(EARN_PROGRAM_ID))
 
 upgrade-ext-earn-mainnet:
-	$(call build-verified,ext_ear,mainnet)
+	$(call build-verified,ext_earn,mainnet)
 	$(call propose_upgrade_program,ext_earn,$(EXT_EARN_PROGRAM_ID))
 
 upgrade-portal-mainnet:
@@ -144,8 +149,7 @@ define deploy-yield-bot
 	railway environment $(1)
 	docker build --build-arg now="$$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --platform linux/amd64 -t ghcr.io/m0-foundation/solana-m:yield-bot -f services/yield-bot/Dockerfile .
 	docker push ghcr.io/m0-foundation/solana-m:yield-bot
-	railway redeploy --service "yield bot - M" --yes
-	railway redeploy --service "yield bot - wM" --yes
+	railway redeploy --service "yield bot" --yes
 endef
 
 define deploy-index-bot
@@ -157,10 +161,9 @@ endef
 
 define deploy-dashboard
 	railway environment $(1)
-	cd dashboard && \
-	op inject -i $(2) -o .env.production && \
-	docker build --platform linux/amd64 -t ghcr.io/m0-foundation/solana-m:dashboard . && \
-	rm .env.production
+	op inject -i dashboard/$(2) -o dashboard/.env.production -f && \
+	docker build --platform linux/amd64 -t ghcr.io/m0-foundation/solana-m:dashboard -f dashboard/Dockerfile . && \
+	rm dashboard/.env.production
 	docker push ghcr.io/m0-foundation/solana-m:dashboard
 	railway redeploy --service dashboard --yes
 endef
@@ -221,15 +224,37 @@ publish-sdk:
 	@cd sdk && \
 	pnpm build && \
 	echo "//registry.npmjs.org/:_authToken=$(shell op read "op://Web3/NPM Publish Token m0-foundation/credential")" > .npmrc && \
-	npm publish && \
+	pnpm publish --no-git-checks && \
 	rm .npmrc
 
 publish-api-sdk:
-	@cd services/api/sdk && \
+	@cd services/api/sdk-ts && \
 	pnpm build && \
 	echo "//registry.npmjs.org/:_authToken=$(shell op read "op://Web3/NPM Publish Token m0-foundation/credential")" > .npmrc && \
-	npm publish && \
+	pnpm publish --no-git-checks && \
 	rm .npmrc
+
+#
+# Switchboard
+#
+define run-switchboard
+	op run --account mzerolabs.1password.com --no-masking --env-file='./.env.$(2)' -- pnpm ts-node services/switchboard/index.ts $(1)
+endef
+
+publish-switchboard-feed-devnet:
+	$(call run-switchboard,create-feed,dev)
+
+update-switchboard-feed-devnet:
+	$(call run-switchboard,update-feed,dev)
+
+publish-switchboard-feed-mainnet:
+	$(call run-switchboard,create-feed,prod)
+
+update-switchboard-feed-mainnet:
+	$(call run-switchboard,update-feed,prod)
+
+simulate-switchboard-jobs:
+	$(call run-switchboard,simulate-jobs,dev)
 
 #
 # API
@@ -249,5 +274,6 @@ build-api-server:
 run-api-locally:
 	@export MONGO_CONNECTION_STRING="$(shell op read "op://Solana Dev/Mongo Read Access/connection string")" && \
 	export EVM_RPC="$(shell op read "op://Solana Dev/Alchemy/mainnet")" && \
+	export SVM_RPC="$(shell op read "op://Solana Dev/Helius/prod rpc")" && \
 	export DISABLE_CACHE=true && \
 	cd services/api/server && pnpm run dev

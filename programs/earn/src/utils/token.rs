@@ -5,12 +5,11 @@ use ::spl_token_2022::extension::immutable_owner::ImmutableOwner;
 use ::spl_token_2022::extension::BaseStateWithExtensions;
 use ::spl_token_2022::extension::PodStateWithExtensions;
 use ::spl_token_2022::pod::PodAccount;
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, solana_program::program::invoke_signed};
 use anchor_spl::{
     token_2022::spl_token_2022,
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
-use solana_program::program::invoke_signed;
 
 pub fn mint_tokens<'info>(
     to: &InterfaceAccount<'info, TokenAccount>,

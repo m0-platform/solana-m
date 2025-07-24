@@ -1,8 +1,9 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface;
-use ntt_messages::transceivers::wormhole::WormholeTransceiverInfo;
 
-use crate::{config::*, transceivers::wormhole::accounts::*};
+use crate::{
+    config::*, ntt_messages::WormholeTransceiverInfo, transceivers::wormhole::accounts::*,
+};
 
 #[derive(Accounts)]
 pub struct BroadcastId<'info> {

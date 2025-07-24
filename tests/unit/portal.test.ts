@@ -40,8 +40,8 @@ import {
 import NodeWallet from '@coral-xyz/anchor/dist/cjs/nodewallet';
 import { utils } from 'web3';
 import { BN, Program } from '@coral-xyz/anchor';
-import { Earn } from '@m0-foundation/solana-m-sdk/src/idl/earn';
-const EARN_IDL = require('@m0-foundation/solana-m-sdk/src/idl/earn.json');
+import { Earn } from '../../target/types/earn';
+const EARN_IDL = require('../../target/idl/earn.json');
 
 const TOKEN_PROGRAM = spl.TOKEN_2022_PROGRAM_ID;
 
@@ -119,7 +119,7 @@ describe('Portal unit tests', () => {
   // Create an anchor provider from the liteSVM instance
   const provider = new LiteSVMProviderExt(svm, new NodeWallet(payer));
   const connection = provider.connection;
-  const earn = new Program<Earn>(EARN_IDL, config.EARN_PROGRAM, provider);
+  const earn = new Program<Earn>(EARN_IDL, provider);
 
   const { ctx, ...wc } = getWormholeContext(connection);
 
@@ -247,7 +247,7 @@ describe('Portal unit tests', () => {
     test('initialize earn', async () => {
       await earn.methods
         .initialize(Keypair.generate().publicKey, new BN(1_000_000_000_000), new BN(0))
-        .accounts({
+        .accountsPartial({
           globalAccount: config.EARN_GLOBAL_ACCOUNT,
           mint: mint.publicKey,
           admin: admin.publicKey,

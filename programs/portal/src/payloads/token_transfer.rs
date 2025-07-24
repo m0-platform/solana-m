@@ -1,8 +1,9 @@
 use anchor_lang::prelude::*;
-use ntt_messages::{chain_id::ChainId, trimmed_amount::TrimmedAmount};
 use std::io;
 
 use wormhole_io::{Readable, TypePrefixedPayload, Writeable};
+
+use crate::ntt_messages::{ChainId, TrimmedAmount};
 
 #[derive(Debug, Clone, PartialEq, Eq, AnchorSerialize, AnchorDeserialize, InitSpace)]
 pub struct NativeTokenTransfer {

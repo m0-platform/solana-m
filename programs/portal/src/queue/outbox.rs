@@ -1,9 +1,12 @@
+use anchor_lang::prelude::*;
 use std::ops::{Deref, DerefMut};
 
-use anchor_lang::prelude::*;
-use ntt_messages::{chain_id::ChainId, trimmed_amount::TrimmedAmount};
-
-use crate::{bitmap::*, clock::current_timestamp, error::NTTError};
+use crate::{
+    bitmap::*,
+    clock::current_timestamp,
+    error::NTTError,
+    ntt_messages::{ChainId, TrimmedAmount},
+};
 
 use super::rate_limit::RateLimitState;
 

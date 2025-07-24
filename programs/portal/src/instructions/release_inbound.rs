@@ -1,14 +1,14 @@
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, solana_program::program::invoke_signed};
 use anchor_spl::{associated_token::get_associated_token_address_with_program_id, token_interface};
 use earn::cpi::accounts::PropagateIndex;
-use ntt_messages::mode::Mode;
-use solana_program::program::invoke_signed;
+
 use spl_token_2022::onchain;
 
 use crate::{
     config::*,
     error::NTTError,
     instructions::BridgeEvent,
+    ntt_messages::Mode,
     queue::inbox::{InboxItem, ReleaseStatus},
     spl_multisig::SplMultisig,
 };

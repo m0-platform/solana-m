@@ -59,24 +59,35 @@ export class Registrar {
         spl.TOKEN_2022_PROGRAM_ID,
       );
 
+      // create token account if it does not exist
+      try {
+        await spl.getAccount(this.connection, userTokenAccount, undefined, spl.TOKEN_2022_PROGRAM_ID);
+      } catch (error: unknown) {
+        if (error instanceof spl.TokenAccountNotFoundError || error instanceof spl.TokenInvalidAccountOwnerError) {
+          ixs.push(
+            spl.createAssociatedTokenAccountInstruction(
+              signer,
+              userTokenAccount,
+              user,
+              await this.getMint(),
+              spl.TOKEN_2022_PROGRAM_ID,
+            ),
+          );
+        } else {
+          throw error;
+        }
+      }
+
       // build proof
       const tree = new MerkleTree(earners);
       const { proof } = tree.getInclusionProof(user);
-
-      // PDAs
-      const [earnerAccount] = PublicKey.findProgramAddressSync(
-        [Buffer.from('earner'), userTokenAccount.toBytes()],
-        PROGRAM_ID,
-      );
 
       ixs.push(
         await this.program.methods
           .addRegistrarEarner(user, proof)
           .accounts({
             signer: signer,
-            globalAccount: GLOBAL_ACCOUNT,
             userTokenAccount,
-            earnerAccount,
           })
           .instruction(),
       );
@@ -134,9 +145,6 @@ export class Registrar {
           .removeRegistrarEarner(proofs, neighbors)
           .accounts({
             signer: signer,
-            globalAccount: GLOBAL_ACCOUNT,
-            earnerAccount: earner.pubkey,
-            userTokenAccount: earner.data.userTokenAccount,
           })
           .instruction(),
       );

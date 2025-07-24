@@ -1,5 +1,6 @@
 use anchor_lang::prelude::error_code;
-use ntt_messages::errors::ScalingError;
+
+use crate::ntt_messages::ScalingError;
 
 #[error_code]
 #[derive(PartialEq)]

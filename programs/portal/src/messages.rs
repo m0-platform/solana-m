@@ -1,9 +1,7 @@
 use anchor_lang::{prelude::*, system_program, Discriminator};
-use ntt_messages::{
-    chain_id::ChainId,
-    transceiver::{TransceiverMessageData, TransceiverMessageDataBytes},
-};
 use std::{collections::HashMap, marker::PhantomData};
+
+use crate::ntt_messages::{ChainId, TransceiverMessageData, TransceiverMessageDataBytes};
 
 #[account]
 #[derive(InitSpace)]

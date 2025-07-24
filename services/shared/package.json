@@ -5,8 +5,8 @@
   "dependencies": {
     "@m0-foundation/solana-m-sdk": "workspace:",
     "@solana/web3.js": "catalog:",
-    "@turnkey/sdk-server": "^3.1.0",
-    "@turnkey/solana": "^1.0.22",
+    "@turnkey/sdk-server": "3.1.0",
+    "@turnkey/solana": "1.0.22",
     "@types/bn.js": "catalog:",
     "bn.js": "catalog:",
     "viem": "catalog:"

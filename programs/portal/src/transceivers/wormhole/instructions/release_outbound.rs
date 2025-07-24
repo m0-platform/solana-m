@@ -1,13 +1,9 @@
 use anchor_lang::prelude::*;
 
-use ntt_messages::{
-    ntt_manager::NttManagerMessage, transceiver::TransceiverMessage,
-    transceivers::wormhole::WormholeTransceiver,
-};
-
 use crate::{
     config::*,
     error::NTTError,
+    ntt_messages::{NttManagerMessage, TransceiverMessage, WormholeTransceiver},
     payloads::{
         token_transfer::{AdditionalPayload, NativeTokenTransfer},
         Payload,

@@ -1,12 +1,15 @@
 import cors from 'cors';
 import express from 'express';
 import apicache from 'apicache';
+import { rateLimit } from 'express-rate-limit';
 import { register } from '../generated';
 import { docs } from './docs';
 import { configureLogger } from './logger';
 import { events } from './events';
 import { connectToDatabase } from './db';
 import { tokenAccount } from './tokenAccount';
+import { extensions } from './extensions';
+import { swap } from './swap';
 
 const PORT = process.env.PORT ?? 5500;
 
@@ -19,10 +22,20 @@ app.use(logHandler);
 if (process.env.DISABLE_CACHE === 'true') {
   logger.info('Cache is disabled');
 } else {
-  // cache all responses for 60 seconds
+  // cache all responses
   const cache = apicache.middleware;
-  app.use(cache('60 seconds'));
+  app.use(cache(process.env.CACHE_DURATION || '60 seconds'));
 }
+
+// basic rate limiting to swap endpoints
+app.use(
+  '/swap',
+  rateLimit({
+    windowMs: 5_000,
+    limit: 5,
+    message: { error: 'Too many requests, please try again later.' },
+  }),
+);
 
 // MongoDB
 connectToDatabase()
@@ -36,7 +49,9 @@ connectToDatabase()
 app.use('/docs', docs);
 
 // register all services implementation in api spec
-register(app, { events, tokenAccount });
+register(app, { events, tokenAccount, extensions, swap });
 
 app.listen(PORT);
 logger.info('Server is running', { port: `${PORT}` });
+
+export { logger };

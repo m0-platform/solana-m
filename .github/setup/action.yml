@@ -8,11 +8,11 @@ inputs:
   solana-version:
     description: 'Solana version'
     required: false
-    default: '1.18.10'
-  anchor-version:
+    default: 'v2.1.0'
+  anchor_version:
     description: 'Anchor version'
     required: false
-    default: 'v0.29.0'
+    default: '0.31.1'
 runs:
   using: 'composite'
   steps:
@@ -37,14 +37,23 @@ runs:
         path: |
           ~/.cache/solana/
           ~/.local/share/solana/
+          ~/.config/solana
+          ~/.cargo/bin/anchor
         key: solana-cli-${{ inputs.solana-version }}
 
-    - name: Install Solana CLI
+    - name: Install Anchor CLI
       run: |
         mkdir -p ~/.local/share/solana
-        sh -c "$(curl -sSfL https://release.anza.xyz/v${{ inputs.solana-version }}/install)"
+        curl --proto '=https' --tlsv1.2 -sSfL https://solana-install.solana.workers.dev | bash
         echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
       shell: bash
+
+    - name: Install Anchor CLI
+      shell: bash
+      if: steps.cache-anchor-cli.outputs.cache-hit != 'true' && inputs.anchor_version != ''
+      run: |
+        cargo install --git https://github.com/coral-xyz/anchor --tag "v${{ inputs.anchor_version  }}" anchor-cli --force
+        anchor --version
 
     - name: Cache node_modules
       uses: actions/cache@v3
@@ -52,14 +61,13 @@ runs:
         path: ./node_modules/
         key: node-modules-${{ inputs.node-version }}
 
-    - name: Install Anchor CLI
-      run: npm i -g @coral-xyz/anchor-cli@${{ inputs.anchor-version }}
-      shell: bash
-
     - name: Install Node Dependencies
       run: npm i -g pnpm && pnpm install
       shell: bash
 
     - name: Build programs
-      run: anchor build
+      run: |
+        anchor build -p earn
+        anchor build -p ext_earn
+        anchor build -p portal --no-idl
       shell: bash

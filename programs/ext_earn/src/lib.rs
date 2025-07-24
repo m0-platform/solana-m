@@ -1,4 +1,5 @@
 // ext_earn/lib.rs - top-level program file
+#![allow(unexpected_cfgs)]
 
 pub mod constants;
 pub mod errors;
@@ -16,6 +17,7 @@ solana_security_txt::security_txt! {
     name: "wM Earn Program",
     project_url: "https://m0.org/",
     contacts: "email:security@m0.xyz",
+    policy: "https://github.com/m0-foundation/solana-m/blob/main/SECURITY.md",
     // Optional Fields
     preferred_languages: "en",
     source_code: "https://github.com/m0-foundation/solana-m/tree/main/programs/ext_earn",
@@ -40,7 +42,6 @@ pub mod ext_earn {
     ) -> Result<()> {
         instructions::admin::set_earn_authority::handler(ctx, new_earn_authority)
     }
-
     pub fn add_earn_manager(
         ctx: Context<AddEarnManager>,
         earn_manager: Pubkey,
@@ -51,6 +52,20 @@ pub mod ext_earn {
 
     pub fn remove_earn_manager(ctx: Context<RemoveEarnManager>) -> Result<()> {
         instructions::admin::remove_earn_manager::handler(ctx)
+    }
+
+    pub fn add_wrap_authority(
+        ctx: Context<AddWrapAuthority>,
+        new_wrap_authority: Pubkey,
+    ) -> Result<()> {
+        instructions::admin::add_wrap_authority::handler(ctx, new_wrap_authority)
+    }
+
+    pub fn remove_wrap_authority(
+        ctx: Context<RemoveWrapAuthority>,
+        wrap_authority: Pubkey,
+    ) -> Result<()> {
+        instructions::admin::remove_wrap_authority::handler(ctx, wrap_authority)
     }
 
     // Earn authority instructions

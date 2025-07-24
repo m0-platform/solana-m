@@ -10,7 +10,7 @@ crate-type = ["cdylib", "lib"]
 name = "earn"
 
 [features]
-anchor-debug = ["anchor-lang/anchor-debug"]
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 default = ["testing"]
 cpi = ["no-entrypoint"]
 no-entrypoint = []
@@ -23,11 +23,9 @@ devnet = []
 
 [dependencies]
 anchor-lang = { workspace = true, features = [
-    "anchor-debug",
     "init-if-needed",
 ] }
 anchor-spl.workspace = true
 spl-token-2022.workspace = true
-solana-program.workspace = true
 solana-security-txt.workspace = true
 cfg-if.workspace = true

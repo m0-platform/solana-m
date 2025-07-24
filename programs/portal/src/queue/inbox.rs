@@ -1,11 +1,8 @@
+use anchor_lang::prelude::*;
 use std::ops::{Deref, DerefMut};
 
-use anchor_lang::prelude::*;
-use ntt_messages::chain_id::ChainId;
-
-use crate::{bitmap::Bitmap, clock::current_timestamp, error::NTTError};
-
 use super::rate_limit::RateLimitState;
+use crate::{bitmap::Bitmap, clock::current_timestamp, error::NTTError, ntt_messages::ChainId};
 
 #[account]
 #[derive(InitSpace)]

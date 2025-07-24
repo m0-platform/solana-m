@@ -1,14 +1,12 @@
 use anchor_lang::prelude::*;
-
-use ntt_messages::{
-    chain_id::ChainId,
-    transceiver::{TransceiverMessage, TransceiverMessageData},
-    transceivers::wormhole::WormholeTransceiver,
-};
 use wormhole_anchor_sdk::wormhole::PostedVaa;
 
 use crate::{
-    config::*, error::NTTError, messages::ValidatedTransceiverMessage, payloads::Payload,
+    config::*,
+    error::NTTError,
+    messages::ValidatedTransceiverMessage,
+    ntt_messages::{ChainId, TransceiverMessage, TransceiverMessageData, WormholeTransceiver},
+    payloads::Payload,
     transceivers::accounts::peer::TransceiverPeer,
 };
 

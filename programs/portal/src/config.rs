@@ -1,9 +1,10 @@
+use anchor_lang::prelude::*;
 use std::ops::{Deref, DerefMut};
 
-use anchor_lang::prelude::*;
-use ntt_messages::{chain_id::ChainId, mode::Mode};
-
-use crate::bitmap::Bitmap;
+use crate::{
+    bitmap::Bitmap,
+    ntt_messages::{ChainId, Mode},
+};
 
 /// This is a hack to re-export some modules that anchor generates as
 /// pub(crate), as it's not possible to directly re-export a module with a

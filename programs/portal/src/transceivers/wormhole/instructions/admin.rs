@@ -1,7 +1,6 @@
 use anchor_lang::prelude::*;
-use ntt_messages::chain_id::ChainId;
 
-use crate::{config::Config, transceivers::accounts::peer::TransceiverPeer};
+use crate::{config::Config, ntt_messages::ChainId, transceivers::accounts::peer::TransceiverPeer};
 
 #[derive(Accounts)]
 #[instruction(args: SetTransceiverPeerArgs)]

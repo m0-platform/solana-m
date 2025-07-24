@@ -1,10 +1,11 @@
 pub mod token_transfer;
 
 use anchor_lang::prelude::*;
-use ntt_messages::chain_id::ChainId;
 use std::io;
 use token_transfer::NativeTokenTransfer;
 use wormhole_io::{Readable, TypePrefixedPayload, Writeable};
+
+use crate::ntt_messages::ChainId;
 
 #[derive(Debug, Clone, PartialEq, Eq, AnchorSerialize, AnchorDeserialize, InitSpace)]
 pub enum Payload {

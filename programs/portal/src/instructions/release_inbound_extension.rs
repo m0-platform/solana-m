@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
-use earn::state::Global;
+use earn::state::EarnGlobal;
 use ext_swap::program::ExtSwap;
 use ext_swap::state::{SwapGlobal, GLOBAL_SEED};
 
@@ -13,7 +13,7 @@ use crate::__cpi_client_accounts_release_inbound_mint_multisig;
 
 #[derive(Accounts)]
 pub struct ReleaseInboundMintExtensionMultisig<'info> {
-    common: ReleaseInboundMintMultisig<'info>,
+    pub common: ReleaseInboundMintMultisig<'info>,
 
     #[account(mut)]
     pub ext_mint: Box<InterfaceAccount<'info, Mint>>,
@@ -33,7 +33,7 @@ pub struct ReleaseInboundMintExtensionMultisig<'info> {
         seeds::program = earn::ID,
         bump = m_global.bump,
     )]
-    pub m_global: Box<Account<'info, Global>>,
+    pub m_global: Box<Account<'info, EarnGlobal>>,
 
     #[account(
         mut,

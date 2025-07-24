@@ -72,7 +72,7 @@ pub struct ReleaseInboundMintMultisig<'info> {
     #[account(
         constraint = common.config.mode == Mode::Burning @ NTTError::InvalidMode,
     )]
-    common: ReleaseInbound<'info>,
+    pub common: ReleaseInbound<'info>,
 
     #[account(
         constraint =

@@ -3,7 +3,7 @@ use anchor_spl::{
     associated_token::AssociatedToken,
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
-use earn::state::Global;
+use earn::state::EarnGlobal;
 use ext_swap::{
     program::ExtSwap,
     state::{SwapGlobal, GLOBAL_SEED},
@@ -33,7 +33,7 @@ pub struct TransferExtensionBurn<'info> {
         seeds::program = earn::ID,
         bump = m_global.bump,
     )]
-    pub m_global: Box<Account<'info, Global>>,
+    pub m_global: Box<Account<'info, EarnGlobal>>,
 
     #[account(
         mut,

@@ -128,6 +128,7 @@ pub fn redeem(ctx: Context<Redeem>, _args: RedeemArgs) -> Result<()> {
                 chain: transceiver_message.from_chain,
                 from: message.sender,
             },
+            destination_mint: Pubkey::default(),
         };
 
         match &message.payload {
@@ -144,7 +145,7 @@ pub fn redeem(ctx: Context<Redeem>, _args: RedeemArgs) -> Result<()> {
                         Pubkey::try_from(ntt.to).map_err(|_| NTTError::InvalidRecipientAddress)?;
                 }
 
-                // payloads from L2s might have an index update
+                // payload has index updates, merkle updates, destination mint
                 let payload = &ntt.additional_payload;
                 inbox_item.index_update = payload.index;
 
@@ -152,6 +153,10 @@ pub fn redeem(ctx: Context<Redeem>, _args: RedeemArgs) -> Result<()> {
                 if payload.earner_root.is_some() {
                     inbox_item.earners_root_update = Some(payload.earner_root.unwrap());
                 }
+
+                // bridging directly to extensions
+                inbox_item.destination_mint = Pubkey::try_from(payload.destination_token)
+                    .map_err(|_| NTTError::InvalidRecipientAddress)?;
             }
         };
 

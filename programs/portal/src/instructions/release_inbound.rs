@@ -9,7 +9,7 @@ use crate::{
     error::NTTError,
     instructions::BridgeEvent,
     ntt_messages::Mode,
-    queue::inbox::{InboxItem, ReleaseStatus},
+    queue::inbox::{InboxItem, ReleaseStatus, TokenTransfer},
     spl_multisig::SplMultisig,
 };
 
@@ -23,18 +23,15 @@ pub struct ReleaseInbound<'info> {
     #[account(mut)]
     pub inbox_item: Account<'info, InboxItem>,
 
-    // TODO: used by release extension: Frozen?
     #[account(
         mut,
-        address = if inbox_item.transfer.amount > 0 {
-            get_associated_token_address_with_program_id(
-                &inbox_item.transfer.recipient,
-                &mint.key(),
-                &token_program.key(),
-            )
-        } else {
-            recipient.key()
-        }
+        address = get_recipient_token_account(
+            &inbox_item.transfer,
+            &inbox_item.destination_mint,
+            &mint.key(),
+            &token_program.key,
+            &token_authority.key()
+        ).unwrap_or(recipient.key()),
     )]
     pub recipient: InterfaceAccount<'info, token_interface::TokenAccount>,
 
@@ -171,4 +168,33 @@ pub fn release_inbound_mint_multisig<'info>(
     }
 
     Ok(())
+}
+
+fn get_recipient_token_account(
+    transfer: &TokenTransfer,
+    destination_mint: &Pubkey,
+    mint: &Pubkey,
+    token_program: &Pubkey,
+    token_authority: &Pubkey,
+) -> Option<Pubkey> {
+    // Only bridging data
+    if transfer.amount == 0 {
+        return None;
+    }
+
+    // Bridging $M, require user token account
+    if destination_mint.eq(mint) {
+        return Some(get_associated_token_address_with_program_id(
+            &transfer.recipient,
+            mint,
+            token_program,
+        ));
+    }
+
+    // Bridging to extension, require intermediate portal token account
+    Some(get_associated_token_address_with_program_id(
+        token_authority,
+        mint,
+        token_program,
+    ))
 }

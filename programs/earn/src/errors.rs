@@ -34,4 +34,10 @@ pub enum EarnError {
     MathUnderflow,
     #[msg("Type conversion error.")]
     TypeConversionError,
+    #[msg("Missing close account instruction.")]
+    MissingCloseInstructionError,
+    #[msg("Could not parse the instruction data.")]
+    InvalidInstructionError,
+    #[msg("Account has a balance.")]
+    NonZeroBalanceError,
 }

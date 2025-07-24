@@ -67,6 +67,14 @@ pub mod earn {
         RemoveRegistrarEarner::handler(ctx, proofs, neighbors)
     }
 
+    pub fn request_token_account(ctx: Context<RequestTokenAccount>) -> Result<()> {
+        RequestTokenAccount::handler(ctx)
+    }
+
+    pub fn close_token_account(ctx: Context<CloseTokenAccount>) -> Result<()> {
+        CloseTokenAccount::handler(ctx)
+    }
+
     // Removed earner instructions
 
     pub fn claim_escrow(ctx: Context<ClaimEscrow>) -> Result<()> {

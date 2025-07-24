@@ -5,8 +5,8 @@ use earn::state::Global;
 use ext_swap::program::ExtSwap;
 use ext_swap::state::{SwapGlobal, GLOBAL_SEED};
 
+use crate::instructions::release_inbound_mint_multisig;
 use crate::instructions::{ReleaseInboundArgs, ReleaseInboundMintMultisig};
-use crate::portal::release_inbound_mint_multisig;
 use crate::ReleaseInboundMintMultisigBumps;
 use crate::__client_accounts_release_inbound_mint_multisig;
 use crate::__cpi_client_accounts_release_inbound_mint_multisig;
@@ -94,7 +94,6 @@ pub struct ReleaseInboundMintExtensionMultisig<'info> {
 
 pub fn release_inbound_mint_extension_multisig<'info>(
     ctx: Context<'_, '_, '_, 'info, ReleaseInboundMintExtensionMultisig<'info>>,
-    args: ReleaseInboundArgs,
 ) -> Result<()> {
     let m_pre_balance = ctx.accounts.common.common.recipient.amount;
     let token_auth_bump = ctx.bumps.common.common.token_authority;
@@ -109,7 +108,10 @@ pub fn release_inbound_mint_extension_multisig<'info>(
                 common: ctx.bumps.common.common,
             },
         ),
-        args,
+        ReleaseInboundArgs {
+            // always revert on delay or wrap will fail
+            revert_on_delay: true,
+        },
     )?;
 
     ctx.accounts.common.common.recipient.reload()?;

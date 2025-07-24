@@ -527,7 +527,7 @@ describe('Portal unit tests', () => {
 
     let inboxItem: PublicKey;
 
-    const redeem = (additionalAccounts: AccountMeta[], additionalPayload?: string, ixOverride?: string) => {
+    const redeem = (additionalAccounts: AccountMeta[], additionalPayload?: string, extension?: boolean) => {
       additionalPayload ??= utils.encodePacked(
         { type: 'uint64', value: 1_000_000_000_001n }, // index
         { type: 'bytes32', value: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b' }, // destination
@@ -566,10 +566,10 @@ describe('Portal unit tests', () => {
             ixs[ixs.length - 1].keys.push(...additionalAccounts);
 
             // rewrite instruction discriminator
-            if (ixOverride) {
+            if (extension) {
               ixs[ixs.length - 1].data = Buffer.concat([
-                Buffer.from(sha256(`global:${ixOverride}`).subarray(0, 8)),
-                ixs[ixs.length - 1].data.subarray(8),
+                Buffer.from(sha256('global:release_inbound_mint_extension_multisig').subarray(0, 8)),
+                ixs[ixs.length - 1].data.subarray(8, ixs[ixs.length - 1].data.length - 1), // remove revert bool arg
               ]);
             }
 
@@ -611,13 +611,14 @@ describe('Portal unit tests', () => {
       // verify inbox item was released
       const item = await ntt.program.account.inboxItem.fetch(inboxItem);
       expect(JSON.stringify(item.releaseStatus.released)).toBeDefined();
+
+      // check balance
+      const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
+      const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
+      expect(parsedTokenAccount.amount).toBe(9990000n);
     });
 
     it('extension tokens', async () => {
-      const c = svm.getClock();
-      c.unixTimestamp += 20000000n;
-      svm.setClock(c); // advance clock to avoid rate limit issues
-
       const { address: extAta } = await spl.getOrCreateAssociatedTokenAccount(
         connection,
         payer,
@@ -632,7 +633,7 @@ describe('Portal unit tests', () => {
       const getRedeemTxns = redeem(
         additionalRedeemAccounts(mint.publicKey, extMint.publicKey, extAta),
         undefined,
-        'release_inbound_mint_extension_multisig',
+        true,
       );
 
       const txIds = await ssw(ctx, getRedeemTxns(), signer);
@@ -649,6 +650,16 @@ describe('Portal unit tests', () => {
       // verify inbox item was released
       const item = await ntt.program.account.inboxItem.fetch(inboxItem);
       expect(JSON.stringify(item.releaseStatus.released)).toBeDefined();
+
+      // check balance
+      const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
+      const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
+      expect(parsedTokenAccount.amount).toBe(9990000n); // should be unchanged
+
+      // check balance
+      const extTokenAccountInfo = await connection.getAccountInfo(extAta);
+      const extParsedTokenAccount = spl.unpackAccount(extAta, extTokenAccountInfo, TOKEN_PROGRAM);
+      expect(extParsedTokenAccount.amount).toBe(109000n);
     });
 
     it('tokens with merkle roots', async () => {

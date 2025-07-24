@@ -1,7 +1,13 @@
 // external dependencies
 use anchor_lang::prelude::*;
-use anchor_spl::token_2022_extensions::spl_pod::optional_keys::OptionalNonZeroPubkey;
-use anchor_spl::token_interface::{Mint, Token2022};
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    token_2022::spl_token_2022::state::AccountState,
+    token_2022_extensions::{
+        spl_pod::optional_keys::OptionalNonZeroPubkey,
+    },
+    token_interface::{Mint, Token2022, TokenAccount},
+};
 use spl_token_2022::{
     extension::{
         default_account_state::DefaultAccountState, // permanent_delegate::PermanentDelegate,
@@ -10,7 +16,6 @@ use spl_token_2022::{
         ExtensionType,
         StateWithExtensions,
     },
-    state::AccountState,
 };
 
 // local dependencies
@@ -18,11 +23,14 @@ use crate::{
     constants::{ANCHOR_DISCRIMINATOR_SIZE, PORTAL_PROGRAM},
     errors::EarnError,
     state::{EarnGlobal, GLOBAL_SEED, TOKEN_AUTHORITY_SEED},
-    utils::conversion::update_multiplier,
+    utils::{conversion::update_multiplier, token::thaw_token_account},
 };
 
 declare_program!(old_earn);
 use old_earn::{accounts::Global as OldGlobal, ID as OLD_EARN_PROGRAM_ID};
+
+declare_program!(ext_swap);
+use ext_swap::{constants::GLOBAL_SEED as SWAP_GLOBAL_SEED, ID as EXT_SWAP_PROGRAM_ID};
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -48,9 +56,45 @@ pub struct Initialize<'info> {
     #[account(mint::token_program = token_program)]
     pub m_mint: InterfaceAccount<'info, Mint>,
 
+    /// CHECK: This account is validated by its seeds
+    #[account(
+        seeds = [TOKEN_AUTHORITY_SEED],
+        seeds::program = PORTAL_PROGRAM,
+        bump,
+    )]
+    pub portal_token_authority: UncheckedAccount<'info>,
+
+    /// CHECK: This account is validated by its seeds
+    #[account(
+        seeds = [SWAP_GLOBAL_SEED],
+        seeds::program = EXT_SWAP_PROGRAM_ID,
+        bump,
+    )]
+    pub ext_swap_global: UncheckedAccount<'info>,
+
+    #[account(
+        init_if_needed,
+        payer = admin,
+        associated_token::mint = m_mint,
+        associated_token::authority = portal_token_authority,
+        associated_token::token_program = token_program,
+    )]
+    pub portal_m_account: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(
+        init_if_needed,
+        payer = admin,
+        associated_token::mint = m_mint,
+        associated_token::authority = ext_swap_global,
+        associated_token::token_program = token_program,
+    )]
+    pub ext_swap_m_account: InterfaceAccount<'info, TokenAccount>,
+
     pub system_program: Program<'info, System>,
 
     pub token_program: Program<'info, Token2022>,
+
+    pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
 impl Initialize<'_> {
@@ -133,6 +177,26 @@ impl Initialize<'_> {
             ctx.accounts.old_global_account.index,            // index
             ctx.accounts.old_global_account.timestamp as i64, // timestamp
         )?;
+
+        // Thaw the portal and ext swap token accounts so they can be used (if not already thawed)
+        if ctx.accounts.portal_m_account.state == AccountState::Frozen {
+            thaw_token_account(
+                &ctx.accounts.portal_m_account,
+                &ctx.accounts.m_mint,
+                &ctx.accounts.global_account.to_account_info(),
+                &[&[GLOBAL_SEED, &[ctx.bumps.global_account]]],
+                &ctx.accounts.token_program,
+            )?;
+        }
+        if ctx.accounts.ext_swap_m_account.state == AccountState::Frozen {
+            thaw_token_account(
+                &ctx.accounts.ext_swap_m_account,
+                &ctx.accounts.m_mint,
+                &ctx.accounts.global_account.to_account_info(),
+                &[&[GLOBAL_SEED, &[ctx.bumps.global_account]]],
+                &ctx.accounts.token_program,
+            )?;
+        }
 
         Ok(())
     }

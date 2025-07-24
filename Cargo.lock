@@ -836,7 +836,7 @@ dependencies = [
 
 [[package]]
 name = "earn"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
@@ -891,18 +891,6 @@ name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
-
-[[package]]
-name = "ext_earn"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "cfg-if",
- "earn",
- "solana-security-txt",
- "spl-token-2022 7.0.0",
-]
 
 [[package]]
 name = "feature-probe"
@@ -1362,7 +1350,7 @@ dependencies = [
 
 [[package]]
 name = "portal"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",

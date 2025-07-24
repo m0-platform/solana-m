@@ -92,7 +92,7 @@ pub fn check_for_close(
                         ix.accounts
                             .iter()
                             .find(|account| account.pubkey.eq(&token_account.key()))
-                            .ok_or(EarnError::MissingCloseInstructionError)?;
+                            .ok_or(EarnError::InvalidAccount)?;
 
                         return Ok(());
                     }

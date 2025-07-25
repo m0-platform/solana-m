@@ -45,10 +45,10 @@ import { Earn } from '../../target/types/earn';
 import { sha256 } from '@noble/hashes/sha256';
 import { SYSTEM_PROGRAM_ID } from '@coral-xyz/anchor/dist/cjs/native/system';
 import { ExtSwap } from '../programs/ext_swap';
-import { ExtEarn } from '../../target/types/ext_earn';
+import { MExt } from '../programs/m_ext';
 const EARN_IDL = require('../../target/idl/earn.json');
 const SWAP_IDL = require('../programs/ext_swap.json');
-const EXT_EARN_IDL = require('../../target/idl/ext_earn.json');
+const M_EXT_IDL = require('../programs/m_ext.json');
 
 const TOKEN_PROGRAM = spl.TOKEN_2022_PROGRAM_ID;
 export const WORMHOLE_SOLANA = new PublicKey('worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth');
@@ -137,7 +137,7 @@ describe('Portal unit tests', () => {
 
   // Programs for testing bridging to extension
   const swapProgram = new Program<ExtSwap>(SWAP_IDL, provider);
-  const extEarn = new Program<ExtEarn>(EXT_EARN_IDL, provider);
+  const mExt = new Program<MExt>(M_EXT_IDL, provider); // no-yield variant
 
   const { ctx, ...wc } = getWormholeContext(connection);
 
@@ -271,11 +271,10 @@ describe('Portal unit tests', () => {
     });
     test('initialize earn', async () => {
       await earn.methods
-        .initialize(Keypair.generate().publicKey, new BN(1_000_000_000_000), new BN(0))
-        .accountsPartial({
-          globalAccount: config.EARN_GLOBAL_ACCOUNT,
-          mint: mint.publicKey,
+        .initialize()
+        .accounts({
           admin: admin.publicKey,
+          mMint: mint.publicKey,
         })
         .signers([admin])
         .rpc();
@@ -289,8 +288,8 @@ describe('Portal unit tests', () => {
         .signers([admin])
         .rpc();
 
-      await extEarn.methods
-        .initialize(admin.publicKey)
+      await mExt.methods
+        .initialize([])
         .accounts({
           admin: admin.publicKey,
           mMint: mint.publicKey,
@@ -305,12 +304,8 @@ describe('Portal unit tests', () => {
       )[0];
 
       // Add wrap authorities to extension
-      await extEarn.methods.addWrapAuthority(portalAuth).accounts({ admin: admin.publicKey }).signers([admin]).rpc();
-      await extEarn.methods
-        .addWrapAuthority(payer.publicKey)
-        .accounts({ admin: admin.publicKey })
-        .signers([admin])
-        .rpc();
+      await mExt.methods.addWrapAuthority(portalAuth).accounts({ admin: admin.publicKey }).signers([admin]).rpc();
+      await mExt.methods.addWrapAuthority(payer.publicKey).accounts({ admin: admin.publicKey }).signers([admin]).rpc();
 
       // Let Portal program unwrap
       await swapProgram.methods
@@ -342,12 +337,11 @@ describe('Portal unit tests', () => {
       );
 
       // Get extension tokens for testing
-      await extEarn.methods
+      await mExt.methods
         .wrap(new BN(10_000))
         .accounts({
           fromMTokenAccount: tokenAccount,
           toExtTokenAccount: ata.address,
-          mEarnGlobalAccount: null,
         })
         .signers([payer])
         .rpc();

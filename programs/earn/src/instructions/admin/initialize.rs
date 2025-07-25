@@ -51,7 +51,7 @@ pub struct Initialize<'info> {
     #[account(
         seeds = [GLOBAL_SEED],
         seeds::program = OLD_EARN_PROGRAM_ID,
-        bump,
+        bump = old_global_account.bump,
     )]
     pub old_global_account: Account<'info, OldGlobal>,
 

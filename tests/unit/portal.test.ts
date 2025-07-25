@@ -58,7 +58,7 @@ const config = {
   CORE_BRIDGE_ADDRESS: WORMHOLE_SOLANA,
   PORTAL_PROGRAM_ID: new PublicKey('mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY'),
   EARN_PROGRAM: new PublicKey('MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c'),
-  EXT_EARN_PROGRAM: new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'),
+  EXT_PROGRAM: new PublicKey('3C865D264L4NkAm78zfnDzQJJvXuU3fMjRUvRxyPi5da'),
   WORMHOLE_PID: WORMHOLE_SOLANA,
   WORMHOLE_BRIDGE_CONFIG: new PublicKey('2yVjuQwpsvdsrywzsJJVs9Ueh4zayyo5DYJbBNc3DDpn'),
   WORMHOLE_BRIDGE_FEE_COLLECTOR: new PublicKey('9bFNrXNb2WTx8fMHXCheaZqkLZ3YCCaiqTftHxeintHy'),
@@ -91,8 +91,9 @@ describe('Portal unit tests', () => {
   // Wormhole program
   svm.addProgramFromFile(config.WORMHOLE_PID, 'programs/core_bridge.so');
 
-  // Swap program for wrapping
+  // Swap and Extension program for wrapping
   svm.addProgramFromFile(config.SWAP_PROGRAM, 'programs/ext_swap.so');
+  svm.addProgramFromFile(config.EXT_PROGRAM, 'programs/m_ext.so');
 
   // Add necessary wormhole accounts
   svm.setAccount(config.WORMHOLE_BRIDGE_CONFIG, {
@@ -153,7 +154,7 @@ describe('Portal unit tests', () => {
 
       const mintAuth = m.publicKey.equals(mint.publicKey)
         ? owner.publicKey
-        : PublicKey.findProgramAddressSync([Buffer.from('mint_authority')], config.EXT_EARN_PROGRAM)[0];
+        : PublicKey.findProgramAddressSync([Buffer.from('mint_authority')], config.EXT_PROGRAM)[0];
 
       const tx = new Transaction().add(
         SystemProgram.createAccount({
@@ -282,9 +283,23 @@ describe('Portal unit tests', () => {
     test('initialize extension and swap program', async () => {
       await swapProgram.methods.initializeGlobal().accounts({ admin: admin.publicKey }).signers([admin]).rpc();
 
+      await spl.getOrCreateAssociatedTokenAccount(
+        connection,
+        payer,
+        mint.publicKey,
+        PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_PROGRAM)[0],
+        true,
+        undefined,
+        undefined,
+        spl.TOKEN_2022_PROGRAM_ID,
+      );
+
       await swapProgram.methods
         .whitelistExtension()
-        .accountsPartial({ admin: admin.publicKey, extProgram: config.EXT_EARN_PROGRAM })
+        .accountsPartial({
+          admin: admin.publicKey,
+          extProgram: config.EXT_PROGRAM,
+        })
         .signers([admin])
         .rpc();
 
@@ -318,7 +333,7 @@ describe('Portal unit tests', () => {
         connection,
         payer,
         mint.publicKey,
-        PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_EARN_PROGRAM)[0],
+        PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_PROGRAM)[0],
         true,
         undefined,
         undefined,
@@ -836,7 +851,7 @@ function buildTransferExtensionIx(
       },
       {
         // ext global
-        pubkey: PublicKey.findProgramAddressSync([Buffer.from('global')], config.EXT_EARN_PROGRAM)[0],
+        pubkey: PublicKey.findProgramAddressSync([Buffer.from('global')], config.EXT_PROGRAM)[0],
         isSigner: false,
         isWritable: true,
       },
@@ -850,7 +865,7 @@ function buildTransferExtensionIx(
         // ext m vault
         pubkey: getAssociatedTokenAddressSync(
           mMint,
-          PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_EARN_PROGRAM)[0],
+          PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_PROGRAM)[0],
           true,
           TOKEN_PROGRAM,
         ),
@@ -859,19 +874,19 @@ function buildTransferExtensionIx(
       },
       {
         // ext m vault auth
-        pubkey: PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_EARN_PROGRAM)[0],
+        pubkey: PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_PROGRAM)[0],
         isSigner: false,
         isWritable: false,
       },
       {
         // ext mint auth
-        pubkey: PublicKey.findProgramAddressSync([Buffer.from('mint_authority')], config.EXT_EARN_PROGRAM)[0],
+        pubkey: PublicKey.findProgramAddressSync([Buffer.from('mint_authority')], config.EXT_PROGRAM)[0],
         isSigner: false,
         isWritable: false,
       },
       {
         // ext program
-        pubkey: config.EXT_EARN_PROGRAM,
+        pubkey: config.EXT_PROGRAM,
         isSigner: false,
         isWritable: false,
       },
@@ -937,19 +952,19 @@ function additionalRedeemAccounts(mMint: PublicKey, extMint: PublicKey, extAta: 
     },
     {
       // ext global
-      pubkey: PublicKey.findProgramAddressSync([Buffer.from('global')], config.EXT_EARN_PROGRAM)[0],
+      pubkey: PublicKey.findProgramAddressSync([Buffer.from('global')], config.EXT_PROGRAM)[0],
       isSigner: false,
       isWritable: true,
     },
     {
       // ext m vault auth
-      pubkey: PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_EARN_PROGRAM)[0],
+      pubkey: PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_PROGRAM)[0],
       isSigner: false,
       isWritable: false,
     },
     {
       // ext mint auth
-      pubkey: PublicKey.findProgramAddressSync([Buffer.from('mint_authority')], config.EXT_EARN_PROGRAM)[0],
+      pubkey: PublicKey.findProgramAddressSync([Buffer.from('mint_authority')], config.EXT_PROGRAM)[0],
       isSigner: false,
       isWritable: false,
     },
@@ -957,7 +972,7 @@ function additionalRedeemAccounts(mMint: PublicKey, extMint: PublicKey, extAta: 
       // ext m vault
       pubkey: getAssociatedTokenAddressSync(
         mMint,
-        PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_EARN_PROGRAM)[0],
+        PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_PROGRAM)[0],
         true,
         TOKEN_PROGRAM,
       ),
@@ -978,7 +993,7 @@ function additionalRedeemAccounts(mMint: PublicKey, extMint: PublicKey, extAta: 
     },
     {
       // ext program
-      pubkey: config.EXT_EARN_PROGRAM,
+      pubkey: config.EXT_PROGRAM,
       isSigner: false,
       isWritable: false,
     },

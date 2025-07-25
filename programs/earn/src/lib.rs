@@ -33,8 +33,8 @@ pub mod earn {
 
     // Admin instructions
 
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        Initialize::handler(ctx)
+    pub fn initialize(ctx: Context<Initialize>, current_index: Option<u64>) -> Result<()> {
+        Initialize::handler(ctx, current_index)
     }
 
     // TODO add admin instructions for updating global values

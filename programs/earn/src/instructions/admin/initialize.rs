@@ -3,19 +3,15 @@ use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
     token_2022::spl_token_2022::state::AccountState,
-    token_2022_extensions::{
-        spl_pod::optional_keys::OptionalNonZeroPubkey,
-    },
+    token_2022_extensions::spl_pod::optional_keys::OptionalNonZeroPubkey,
     token_interface::{Mint, Token2022, TokenAccount},
 };
-use spl_token_2022::{
-    extension::{
-        default_account_state::DefaultAccountState, // permanent_delegate::PermanentDelegate,
-        scaled_ui_amount::ScaledUiAmountConfig,
-        BaseStateWithExtensions,
-        ExtensionType,
-        StateWithExtensions,
-    },
+use spl_token_2022::extension::{
+    default_account_state::DefaultAccountState, // permanent_delegate::PermanentDelegate,
+    scaled_ui_amount::ScaledUiAmountConfig,
+    BaseStateWithExtensions,
+    ExtensionType,
+    StateWithExtensions,
 };
 
 // local dependencies
@@ -49,9 +45,9 @@ pub struct Initialize<'info> {
     #[account(
         seeds = [GLOBAL_SEED],
         seeds::program = OLD_EARN_PROGRAM_ID,
-        bump = old_global_account.bump,
+        bump,
     )]
-    pub old_global_account: Account<'info, OldGlobal>,
+    pub old_global_account: AccountInfo<'info>,
 
     #[account(mint::token_program = token_program)]
     pub m_mint: InterfaceAccount<'info, Mint>,
@@ -98,7 +94,12 @@ pub struct Initialize<'info> {
 }
 
 impl Initialize<'_> {
-    fn validate(&self) -> Result<()> {
+    fn validate(&self, current_index: Option<u64>) -> Result<()> {
+        // Must specify the current index if the old global account is empty
+        if self.old_global_account.data_is_empty() && current_index.is_none() {
+            return err!(EarnError::InvalidParam);
+        }
+
         // Get the mint account data once and reuse it
         let account_info = self.m_mint.to_account_info();
         let mint_data = account_info.try_borrow_data()?;
@@ -153,8 +154,8 @@ impl Initialize<'_> {
         Ok(())
     }
 
-    #[access_control(ctx.accounts.validate())]
-    pub fn handler(ctx: Context<Initialize>) -> Result<()> {
+    #[access_control(ctx.accounts.validate(current_index))]
+    pub fn handler(ctx: Context<Initialize>, current_index: Option<u64>) -> Result<()> {
         // Portal authority that will propagate indexes and roots
         let portal_authority =
             Pubkey::find_program_address(&[TOKEN_AUTHORITY_SEED], &PORTAL_PROGRAM).0;
@@ -164,19 +165,39 @@ impl Initialize<'_> {
             admin: ctx.accounts.admin.key(),
             m_mint: ctx.accounts.m_mint.key(),
             portal_authority,
-            earner_merkle_root: ctx.accounts.old_global_account.earner_merkle_root,
+            earner_merkle_root: [0; 32],
             bump: ctx.bumps.global_account,
         });
 
-        // Set the multiplier on the m_mint to the current index and timestamp on the old earn program
-        update_multiplier(
-            &mut ctx.accounts.m_mint,                         // mint
-            &ctx.accounts.global_account.to_account_info(),   // authority
-            &[&[GLOBAL_SEED, &[ctx.bumps.global_account]]],   // authority seeds
-            &ctx.accounts.token_program,                      // token program
-            ctx.accounts.old_global_account.index,            // index
-            ctx.accounts.old_global_account.timestamp as i64, // timestamp
-        )?;
+        // Migrate the old global account data if it exists
+        if !ctx.accounts.old_global_account.data_is_empty() {
+            // Deserialize the old global account data
+            let data_ref = ctx.accounts.old_global_account.data.borrow();
+            let mut data_slice = data_ref.as_ref();
+            let old_global = OldGlobal::deserialize(&mut data_slice)?;
+
+            // Set existing merkle root
+            ctx.accounts.global_account.earner_merkle_root = old_global.earner_merkle_root;
+
+            // Set the multiplier on the m_mint to the current index and timestamp on the old earn program
+            update_multiplier(
+                &mut ctx.accounts.m_mint,                       // mint
+                &ctx.accounts.global_account.to_account_info(), // authority
+                &[&[GLOBAL_SEED, &[ctx.bumps.global_account]]], // authority seeds
+                &ctx.accounts.token_program,                    // token program
+                old_global.index,                               // index
+                old_global.timestamp as i64,                    // timestamp
+            )?;
+        } else {
+            update_multiplier(
+                &mut ctx.accounts.m_mint,                       // mint
+                &ctx.accounts.global_account.to_account_info(), // authority
+                &[&[GLOBAL_SEED, &[ctx.bumps.global_account]]], // authority seeds
+                &ctx.accounts.token_program,                    // token program
+                current_index.unwrap(),                         // index
+                Clock::get()?.unix_timestamp,                   // timestamp
+            )?;
+        }
 
         // Thaw the portal and ext swap token accounts so they can be used (if not already thawed)
         if ctx.accounts.portal_m_account.state == AccountState::Frozen {

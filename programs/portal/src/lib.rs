@@ -17,6 +17,7 @@ pub mod registered_transceiver;
 pub mod spl_multisig;
 pub mod transceivers;
 
+use crate::ntt_messages::ChainId;
 use transceivers::wormhole::instructions::*;
 
 use instructions::*;
@@ -100,9 +101,20 @@ pub mod portal {
 
     pub fn transfer_extension_burn<'info>(
         ctx: Context<'_, '_, '_, 'info, TransferExtensionBurn<'info>>,
-        args: TransferArgs,
+        ext_principal: u64,
+        recipient_chain: ChainId,
+        recipient_address: [u8; 32],
+        destination_token: [u8; 32],
+        should_queue: bool,
     ) -> Result<()> {
-        instructions::transfer_extension_burn(ctx, args)
+        instructions::transfer_extension_burn(
+            ctx,
+            ext_principal,
+            recipient_chain,
+            recipient_address,
+            destination_token,
+            should_queue,
+        )
     }
 
     pub fn redeem(ctx: Context<Redeem>, args: RedeemArgs) -> Result<()> {

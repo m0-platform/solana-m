@@ -905,6 +905,7 @@ function buildTransferExtensionIx(
       new BN(amount).toArrayLike(Buffer, 'le', 8), // amount
       new BN(2).toArrayLike(Buffer, 'le', 2), // chain: ethereum
       Buffer.alloc(32), // recipient_address
+      Buffer.alloc(32), // destination_token
       Buffer.from([0]), // should_queue
     ]),
   });

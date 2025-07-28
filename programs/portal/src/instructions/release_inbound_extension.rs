@@ -133,7 +133,6 @@ pub fn release_inbound_mint_extension_multisig<'info>(
                 wrap_authority: Some(ctx.accounts.common.common.token_authority.to_account_info()),
                 swap_global: ctx.accounts.swap_global.to_account_info(),
                 to_global: ctx.accounts.ext_global.to_account_info(),
-                m_global: ctx.accounts.m_global.to_account_info(),
                 to_mint: ctx.accounts.ext_mint.to_account_info(),
                 m_mint: ctx.accounts.common.common.mint.to_account_info(),
                 m_token_account: ctx.accounts.common.common.recipient.to_account_info(),

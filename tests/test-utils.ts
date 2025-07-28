@@ -175,6 +175,7 @@ export async function createMintInstruction(
   extensionAuth: PublicKey,
   mint: PublicKey,
   defaultAccountState = AccountState.Initialized,
+  vault?: PublicKey,
 ) {
   // mint size with extensions
   const mintLen = getMintLen([
@@ -203,8 +204,22 @@ export async function createMintInstruction(
   if (defaultAccountState === AccountState.Frozen) {
     const tokenAccount = getAssociatedTokenAddressSync(mint, payer.publicKey, false, TOKEN_2022_PROGRAM_ID);
 
+    const extraIxs: TransactionInstruction[] = [];
+    if (vault) {
+      const vaultAccount = getAssociatedTokenAddressSync(mint, vault, true, TOKEN_2022_PROGRAM_ID);
+      const ix = createAssociatedTokenAccountInstruction(
+        payer.publicKey,
+        vaultAccount,
+        vault,
+        mint,
+        TOKEN_2022_PROGRAM_ID,
+      );
+      extraIxs.push(ix);
+    }
+
     // Mint tokens to payer
     instructions.push(
+      ...extraIxs,
       createAssociatedTokenAccountInstruction(
         payer.publicKey,
         tokenAccount,

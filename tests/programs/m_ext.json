@@ -2,7 +2,7 @@
   "address": "3C865D264L4NkAm78zfnDzQJJvXuU3fMjRUvRxyPi5da",
   "metadata": {
     "name": "m_ext",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "spec": "0.1.0",
     "description": "M extension program with various yield distribution options chosen at compile time"
   },
@@ -96,61 +96,6 @@
                 ]
               }
             ]
-          }
-        },
-        {
-          "name": "m_earn_global_account",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
-                78,
-                85,
-                26,
-                180,
-                224,
-                26,
-                229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
-                49,
-                118,
-                130,
-                244,
-                142,
-                245
-              ]
-            }
           }
         },
         {
@@ -280,8 +225,7 @@
           "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         },
         {
-          "name": "ext_token_program",
-          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+          "name": "ext_token_program"
         }
       ],
       "args": []
@@ -450,97 +394,38 @@
             "program": {
               "kind": "const",
               "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
-                78,
-                85,
-                26,
-                180,
-                224,
-                26,
+                11,
+                134,
+                11,
+                7,
                 229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
+                245,
+                33,
                 49,
-                118,
-                130,
-                244,
-                142,
-                245
-              ]
-            }
-          }
-        },
-        {
-          "name": "m_earner_account",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  101,
-                  97,
-                  114,
-                  110,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "vault_m_token_account"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
+                225,
+                170,
+                183,
+                171,
+                210,
+                177,
+                147,
+                110,
+                166,
+                55,
+                182,
+                49,
+                97,
+                242,
+                35,
+                170,
+                152,
+                135,
+                152,
+                108,
+                102,
                 78,
-                85,
-                26,
-                180,
-                224,
-                26,
-                229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
-                49,
-                118,
-                130,
-                244,
-                142,
-                245
+                112,
+                208
               ]
             }
           }
@@ -550,8 +435,7 @@
           "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         },
         {
-          "name": "ext_token_program",
-          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+          "name": "ext_token_program"
         },
         {
           "name": "system_program",
@@ -674,61 +558,6 @@
           }
         },
         {
-          "name": "m_earn_global_account",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
-                78,
-                85,
-                26,
-                180,
-                224,
-                26,
-                229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
-                49,
-                118,
-                130,
-                244,
-                142,
-                245
-              ]
-            }
-          }
-        },
-        {
           "name": "m_vault",
           "pda": {
             "seeds": [
@@ -843,8 +672,7 @@
           "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         },
         {
-          "name": "ext_token_program",
-          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+          "name": "ext_token_program"
         }
       ],
       "args": [
@@ -906,61 +734,6 @@
                 ]
               }
             ]
-          }
-        },
-        {
-          "name": "m_earn_global_account",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
-                78,
-                85,
-                26,
-                180,
-                224,
-                26,
-                229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
-                49,
-                118,
-                130,
-                244,
-                142,
-                245
-              ]
-            }
           }
         },
         {
@@ -1078,8 +851,7 @@
           "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         },
         {
-          "name": "ext_token_program",
-          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+          "name": "ext_token_program"
         }
       ],
       "args": [
@@ -1092,41 +864,28 @@
   ],
   "accounts": [
     {
-      "name": "Earner",
+      "name": "EarnGlobal",
       "discriminator": [
-        236,
-        126,
-        51,
-        96,
-        46,
-        225,
-        103,
-        207
+        229,
+        50,
+        25,
+        132,
+        207,
+        93,
+        185,
+        23
       ]
     },
     {
-      "name": "ExtGlobal",
+      "name": "ExtGlobalV2",
       "discriminator": [
-        157,
-        61,
-        26,
-        72,
-        16,
-        241,
+        116,
+        209,
+        219,
         83,
-        140
-      ]
-    },
-    {
-      "name": "Global",
-      "discriminator": [
-        167,
-        232,
-        232,
-        177,
-        200,
-        108,
-        114,
+        70,
+        143,
+        55,
         127
       ]
     }
@@ -1206,39 +965,63 @@
       "code": 6011,
       "name": "InvalidAmount",
       "msg": "Invalid amount"
+    },
+    {
+      "code": 6012,
+      "name": "AlreadyClaimed",
+      "msg": "Already claimed for user."
+    },
+    {
+      "code": 6013,
+      "name": "SerializationError",
+      "msg": "Failed to serialize account data."
+    },
+    {
+      "code": 6014,
+      "name": "InvalidTokenProgram",
+      "msg": "Invalid token program provided."
     }
   ],
   "types": [
     {
-      "name": "Earner",
+      "name": "EarnGlobal",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "last_claim_index",
-            "type": "u64"
+            "name": "admin",
+            "type": "pubkey"
           },
           {
-            "name": "last_claim_timestamp",
-            "type": "u64"
+            "name": "m_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "wm_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "portal_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "earner_merkle_root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           },
           {
             "name": "bump",
             "type": "u8"
-          },
-          {
-            "name": "user",
-            "type": "pubkey"
-          },
-          {
-            "name": "user_token_account",
-            "type": "pubkey"
           }
         ]
       }
     },
     {
-      "name": "ExtGlobal",
+      "name": "ExtGlobalV2",
       "type": {
         "kind": "struct",
         "fields": [
@@ -1308,75 +1091,39 @@
       }
     },
     {
-      "name": "Global",
+      "name": "YieldConfig",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "admin",
-            "type": "pubkey"
-          },
-          {
-            "name": "earn_authority",
-            "type": "pubkey"
-          },
-          {
-            "name": "mint",
-            "type": "pubkey"
-          },
-          {
-            "name": "index",
-            "type": "u64"
-          },
-          {
-            "name": "timestamp",
-            "type": "u64"
-          },
-          {
-            "name": "claim_cooldown",
-            "type": "u64"
-          },
-          {
-            "name": "max_supply",
-            "type": "u64"
-          },
-          {
-            "name": "max_yield",
-            "type": "u64"
-          },
-          {
-            "name": "distributed",
-            "type": "u64"
-          },
-          {
-            "name": "claim_complete",
-            "type": "bool"
-          },
-          {
-            "name": "earner_merkle_root",
+            "name": "yield_variant",
             "type": {
-              "array": [
-                "u8",
-                32
-              ]
+              "defined": {
+                "name": "YieldVariant"
+              }
             }
-          },
-          {
-            "name": "portal_authority",
-            "type": "pubkey"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
           }
         ]
       }
     },
     {
-      "name": "YieldConfig",
+      "name": "YieldVariant",
+      "repr": {
+        "kind": "rust"
+      },
       "type": {
-        "kind": "struct",
-        "fields": []
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "NoYield"
+          },
+          {
+            "name": "ScaledUi"
+          },
+          {
+            "name": "Crank"
+          }
+        ]
       }
     }
   ],

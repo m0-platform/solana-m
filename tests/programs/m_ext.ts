@@ -8,7 +8,7 @@ export type MExt = {
   "address": "3C865D264L4NkAm78zfnDzQJJvXuU3fMjRUvRxyPi5da",
   "metadata": {
     "name": "mExt",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "spec": "0.1.0",
     "description": "M extension program with various yield distribution options chosen at compile time"
   },
@@ -102,61 +102,6 @@ export type MExt = {
                 ]
               }
             ]
-          }
-        },
-        {
-          "name": "mEarnGlobalAccount",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
-                78,
-                85,
-                26,
-                180,
-                224,
-                26,
-                229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
-                49,
-                118,
-                130,
-                244,
-                142,
-                245
-              ]
-            }
           }
         },
         {
@@ -286,8 +231,7 @@ export type MExt = {
           "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         },
         {
-          "name": "extTokenProgram",
-          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+          "name": "extTokenProgram"
         }
       ],
       "args": []
@@ -456,97 +400,38 @@ export type MExt = {
             "program": {
               "kind": "const",
               "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
-                78,
-                85,
-                26,
-                180,
-                224,
-                26,
+                11,
+                134,
+                11,
+                7,
                 229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
+                245,
+                33,
                 49,
-                118,
-                130,
-                244,
-                142,
-                245
-              ]
-            }
-          }
-        },
-        {
-          "name": "mEarnerAccount",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  101,
-                  97,
-                  114,
-                  110,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "vaultMTokenAccount"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
+                225,
+                170,
+                183,
+                171,
+                210,
+                177,
+                147,
+                110,
+                166,
+                55,
+                182,
+                49,
+                97,
+                242,
+                35,
+                170,
+                152,
+                135,
+                152,
+                108,
+                102,
                 78,
-                85,
-                26,
-                180,
-                224,
-                26,
-                229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
-                49,
-                118,
-                130,
-                244,
-                142,
-                245
+                112,
+                208
               ]
             }
           }
@@ -556,8 +441,7 @@ export type MExt = {
           "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         },
         {
-          "name": "extTokenProgram",
-          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+          "name": "extTokenProgram"
         },
         {
           "name": "systemProgram",
@@ -680,61 +564,6 @@ export type MExt = {
           }
         },
         {
-          "name": "mEarnGlobalAccount",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
-                78,
-                85,
-                26,
-                180,
-                224,
-                26,
-                229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
-                49,
-                118,
-                130,
-                244,
-                142,
-                245
-              ]
-            }
-          }
-        },
-        {
           "name": "mVault",
           "pda": {
             "seeds": [
@@ -849,8 +678,7 @@ export type MExt = {
           "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         },
         {
-          "name": "extTokenProgram",
-          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+          "name": "extTokenProgram"
         }
       ],
       "args": [
@@ -912,61 +740,6 @@ export type MExt = {
                 ]
               }
             ]
-          }
-        },
-        {
-          "name": "mEarnGlobalAccount",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
-                78,
-                85,
-                26,
-                180,
-                224,
-                26,
-                229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
-                49,
-                118,
-                130,
-                244,
-                142,
-                245
-              ]
-            }
           }
         },
         {
@@ -1084,8 +857,7 @@ export type MExt = {
           "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         },
         {
-          "name": "extTokenProgram",
-          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+          "name": "extTokenProgram"
         }
       ],
       "args": [
@@ -1098,41 +870,28 @@ export type MExt = {
   ],
   "accounts": [
     {
-      "name": "earner",
+      "name": "earnGlobal",
       "discriminator": [
-        236,
-        126,
-        51,
-        96,
-        46,
-        225,
-        103,
-        207
+        229,
+        50,
+        25,
+        132,
+        207,
+        93,
+        185,
+        23
       ]
     },
     {
-      "name": "extGlobal",
+      "name": "extGlobalV2",
       "discriminator": [
-        157,
-        61,
-        26,
-        72,
-        16,
-        241,
+        116,
+        209,
+        219,
         83,
-        140
-      ]
-    },
-    {
-      "name": "global",
-      "discriminator": [
-        167,
-        232,
-        232,
-        177,
-        200,
-        108,
-        114,
+        70,
+        143,
+        55,
         127
       ]
     }
@@ -1212,39 +971,63 @@ export type MExt = {
       "code": 6011,
       "name": "invalidAmount",
       "msg": "Invalid amount"
+    },
+    {
+      "code": 6012,
+      "name": "alreadyClaimed",
+      "msg": "Already claimed for user."
+    },
+    {
+      "code": 6013,
+      "name": "serializationError",
+      "msg": "Failed to serialize account data."
+    },
+    {
+      "code": 6014,
+      "name": "invalidTokenProgram",
+      "msg": "Invalid token program provided."
     }
   ],
   "types": [
     {
-      "name": "earner",
+      "name": "earnGlobal",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "lastClaimIndex",
-            "type": "u64"
+            "name": "admin",
+            "type": "pubkey"
           },
           {
-            "name": "lastClaimTimestamp",
-            "type": "u64"
+            "name": "mMint",
+            "type": "pubkey"
+          },
+          {
+            "name": "wmMint",
+            "type": "pubkey"
+          },
+          {
+            "name": "portalAuthority",
+            "type": "pubkey"
+          },
+          {
+            "name": "earnerMerkleRoot",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           },
           {
             "name": "bump",
             "type": "u8"
-          },
-          {
-            "name": "user",
-            "type": "pubkey"
-          },
-          {
-            "name": "userTokenAccount",
-            "type": "pubkey"
           }
         ]
       }
     },
     {
-      "name": "extGlobal",
+      "name": "extGlobalV2",
       "type": {
         "kind": "struct",
         "fields": [
@@ -1314,75 +1097,39 @@ export type MExt = {
       }
     },
     {
-      "name": "global",
+      "name": "yieldConfig",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "admin",
-            "type": "pubkey"
-          },
-          {
-            "name": "earnAuthority",
-            "type": "pubkey"
-          },
-          {
-            "name": "mint",
-            "type": "pubkey"
-          },
-          {
-            "name": "index",
-            "type": "u64"
-          },
-          {
-            "name": "timestamp",
-            "type": "u64"
-          },
-          {
-            "name": "claimCooldown",
-            "type": "u64"
-          },
-          {
-            "name": "maxSupply",
-            "type": "u64"
-          },
-          {
-            "name": "maxYield",
-            "type": "u64"
-          },
-          {
-            "name": "distributed",
-            "type": "u64"
-          },
-          {
-            "name": "claimComplete",
-            "type": "bool"
-          },
-          {
-            "name": "earnerMerkleRoot",
+            "name": "yieldVariant",
             "type": {
-              "array": [
-                "u8",
-                32
-              ]
+              "defined": {
+                "name": "yieldVariant"
+              }
             }
-          },
-          {
-            "name": "portalAuthority",
-            "type": "pubkey"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
           }
         ]
       }
     },
     {
-      "name": "yieldConfig",
+      "name": "yieldVariant",
+      "repr": {
+        "kind": "rust"
+      },
       "type": {
-        "kind": "struct",
-        "fields": []
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "noYield"
+          },
+          {
+            "name": "scaledUi"
+          },
+          {
+            "name": "crank"
+          }
+        ]
       }
     }
   ],

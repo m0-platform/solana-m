@@ -162,6 +162,7 @@ describe('Portal unit tests', () => {
         PublicKey.findProgramAddressSync([Buffer.from('global')], config.EARN_PROGRAM)[0],
         mint.publicKey,
         spl.AccountState.Frozen,
+        PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_PROGRAM)[0],
       )),
       ...(await createMintInstruction(
         connection,
@@ -260,19 +261,14 @@ describe('Portal unit tests', () => {
       await ssw(ctx, setPeerTxs, signer);
     });
     test('initialize earn', async () => {
-      try {
-        await earn.methods
-          .initialize()
-          .accounts({
-            admin: admin.publicKey,
-            mMint: mint.publicKey,
-          })
-          .signers([admin])
-          .rpc();
-      } catch (e) {
-        console.error('Earn initialization failed:', e);
-        throw e;
-      }
+      await earn.methods
+        .initialize()
+        .accounts({
+          admin: admin.publicKey,
+          mMint: mint.publicKey,
+        })
+        .signers([admin])
+        .rpc();
     });
     test('initialize extension and swap program', async () => {
       await swapProgram.methods.initializeGlobal().accounts({ admin: admin.publicKey }).signers([admin]).rpc();
@@ -303,6 +299,7 @@ describe('Portal unit tests', () => {
           admin: admin.publicKey,
           mMint: mint.publicKey,
           extMint: extMint.publicKey,
+          extTokenProgram: spl.TOKEN_2022_PROGRAM_ID,
         })
         .signers([admin])
         .rpc();
@@ -351,6 +348,7 @@ describe('Portal unit tests', () => {
         .accounts({
           fromMTokenAccount: tokenAccount,
           toExtTokenAccount: ata.address,
+          extTokenProgram: spl.TOKEN_2022_PROGRAM_ID,
         })
         .signers([payer])
         .rpc();

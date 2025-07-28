@@ -504,7 +504,7 @@ describe('Portal unit tests', () => {
 
     // transfer payload builder with custom additional data
     let sequenceCount = 0;
-    const transferPayload = (additionalPayload: string) => {
+    const transferPayload = (additionalPayload: string, recipient?: PublicKey) => {
       return {
         sourceNttManager: wc.remoteMgr.address as UniversalAddress,
         recipientNttManager: new UniversalAddress(ntt.program.programId.toBytes()),
@@ -517,7 +517,7 @@ describe('Portal unit tests', () => {
               decimals: 8,
             },
             sourceToken: new UniversalAddress('FAFA'.padStart(64, '0')),
-            recipientAddress: new UniversalAddress(payer.publicKey.toBytes()),
+            recipientAddress: new UniversalAddress(recipient?.toBytes() ?? payer.publicKey.toBytes()),
             recipientChain: 'Solana',
             additionalPayload: Buffer.from(additionalPayload.slice(2), 'hex'),
           },
@@ -528,13 +528,18 @@ describe('Portal unit tests', () => {
 
     let inboxItem: PublicKey;
 
-    const redeem = (additionalAccounts: AccountMeta[], additionalPayload?: string, extension?: boolean) => {
+    const redeem = (
+      additionalAccounts: AccountMeta[],
+      additionalPayload?: string,
+      extension?: boolean,
+      recipient?: PublicKey,
+    ) => {
       additionalPayload ??= utils.encodePacked(
         { type: 'uint64', value: 1_000_000_000_001n }, // index
         { type: 'bytes32', value: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b' }, // destination
       );
 
-      const serialized = serializePayload('Ntt:WormholeTransfer', transferPayload(additionalPayload));
+      const serialized = serializePayload('Ntt:WormholeTransfer', transferPayload(additionalPayload, recipient));
 
       const published = emitter.publishMessage(0, serialized, 200);
       const rawVaa = guardians.addSignatures(published, [0]);
@@ -617,6 +622,46 @@ describe('Portal unit tests', () => {
       const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
       const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
       expect(parsedTokenAccount.amount).toBe(9890099n);
+    });
+
+    it('$M tokens - frozen', async () => {
+      const randomUser = new Keypair().publicKey;
+
+      await spl.getOrCreateAssociatedTokenAccount(
+        connection,
+        payer,
+        mint.publicKey,
+        randomUser,
+        true,
+        undefined,
+        undefined,
+        TOKEN_PROGRAM,
+      );
+
+      const getRedeemTxns = redeem(
+        [
+          {
+            pubkey: config.EARN_PROGRAM,
+            isSigner: false,
+            isWritable: false,
+          },
+          {
+            pubkey: config.EARN_GLOBAL_ACCOUNT,
+            isSigner: false,
+            isWritable: true,
+          },
+        ],
+        undefined,
+        undefined,
+        randomUser, // random recipient to trigger frozen error
+      );
+
+      try {
+        await ssw(ctx, getRedeemTxns(), signer);
+        throw new Error('send should have failed');
+      } catch (e: any) {
+        expect(e.toString()).toContain('Program log: Error: Account is frozen');
+      }
     });
 
     it('extension tokens', async () => {

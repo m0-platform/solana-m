@@ -3,19 +3,16 @@ use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
     token_2022::spl_token_2022::state::AccountState,
-    token_2022_extensions::{
-        spl_pod::optional_keys::OptionalNonZeroPubkey,
-    },
+    token_2022_extensions::spl_pod::optional_keys::OptionalNonZeroPubkey,
     token_interface::{Mint, Token2022, TokenAccount},
 };
-use spl_token_2022::{
-    extension::{
-        default_account_state::DefaultAccountState, // permanent_delegate::PermanentDelegate,
-        scaled_ui_amount::ScaledUiAmountConfig,
-        BaseStateWithExtensions,
-        ExtensionType,
-        StateWithExtensions,
-    },
+use cfg_if::cfg_if;
+use spl_token_2022::extension::{
+    default_account_state::DefaultAccountState, // permanent_delegate::PermanentDelegate,
+    scaled_ui_amount::ScaledUiAmountConfig,
+    BaseStateWithExtensions,
+    ExtensionType,
+    StateWithExtensions,
 };
 
 // local dependencies
@@ -26,8 +23,12 @@ use crate::{
     utils::{conversion::update_multiplier, token::thaw_token_account},
 };
 
-declare_program!(old_earn);
-use old_earn::{accounts::Global as OldGlobal, ID as OLD_EARN_PROGRAM_ID};
+cfg_if::cfg_if!(
+    if #[cfg(feature = "migrate")] {
+        declare_program!(old_earn);
+        use old_earn::{accounts::Global as OldGlobal, ID as OLD_EARN_PROGRAM_ID};
+    }
+);
 
 declare_program!(ext_swap);
 use ext_swap::{constants::GLOBAL_SEED as SWAP_GLOBAL_SEED, ID as EXT_SWAP_PROGRAM_ID};
@@ -46,6 +47,7 @@ pub struct Initialize<'info> {
     )]
     pub global_account: Account<'info, EarnGlobal>,
 
+    #[cfg(feature = "migrate")]
     #[account(
         seeds = [GLOBAL_SEED],
         seeds::program = OLD_EARN_PROGRAM_ID,
@@ -154,7 +156,7 @@ impl Initialize<'_> {
     }
 
     #[access_control(ctx.accounts.validate())]
-    pub fn handler(ctx: Context<Initialize>) -> Result<()> {
+    pub fn handler(ctx: Context<Initialize>, _current_index: u64) -> Result<()> {
         // Portal authority that will propagate indexes and roots
         let portal_authority =
             Pubkey::find_program_address(&[TOKEN_AUTHORITY_SEED], &PORTAL_PROGRAM).0;
@@ -164,19 +166,35 @@ impl Initialize<'_> {
             admin: ctx.accounts.admin.key(),
             m_mint: ctx.accounts.m_mint.key(),
             portal_authority,
-            earner_merkle_root: ctx.accounts.old_global_account.earner_merkle_root,
+            earner_merkle_root: [0; 32],
             bump: ctx.bumps.global_account,
         });
 
-        // Set the multiplier on the m_mint to the current index and timestamp on the old earn program
-        update_multiplier(
-            &mut ctx.accounts.m_mint,                         // mint
-            &ctx.accounts.global_account.to_account_info(),   // authority
-            &[&[GLOBAL_SEED, &[ctx.bumps.global_account]]],   // authority seeds
-            &ctx.accounts.token_program,                      // token program
-            ctx.accounts.old_global_account.index,            // index
-            ctx.accounts.old_global_account.timestamp as i64, // timestamp
-        )?;
+        cfg_if! {
+            if #[cfg(feature = "migrate")] {
+                // Set existing merkle root
+                ctx.accounts.global_account.earner_merkle_root = ctx.accounts.old_global_account.earner_merkle_root;
+
+                // Set the multiplier on the m_mint to the current index and timestamp on the old earn program
+                update_multiplier(
+                    &mut ctx.accounts.m_mint,                         // mint
+                    &ctx.accounts.global_account.to_account_info(),   // authority
+                    &[&[GLOBAL_SEED, &[ctx.bumps.global_account]]],   // authority seeds
+                    &ctx.accounts.token_program,                      // token program
+                    ctx.accounts.old_global_account.index,            // index
+                    ctx.accounts.old_global_account.timestamp as i64, // timestamp
+                )?;
+            } else {
+                update_multiplier(
+                    &mut ctx.accounts.m_mint,                       // mint
+                    &ctx.accounts.global_account.to_account_info(), // authority
+                    &[&[GLOBAL_SEED, &[ctx.bumps.global_account]]], // authority seeds
+                    &ctx.accounts.token_program,                    // token program
+                    _current_index,                                 // index
+                    Clock::get()?.unix_timestamp,                   // timestamp
+                )?;
+            }
+        }
 
         // Thaw the portal and ext swap token accounts so they can be used (if not already thawed)
         if ctx.accounts.portal_m_account.state == AccountState::Frozen {

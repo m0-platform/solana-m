@@ -20,6 +20,7 @@ release = []
 testing = []
 mainnet = []
 devnet = []
+migrate = []
 
 [dependencies]
 anchor-lang = { workspace = true, features = [

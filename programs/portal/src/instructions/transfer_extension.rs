@@ -102,7 +102,6 @@ pub fn transfer_extension_burn<'info>(
                 unwrap_authority: Some(ctx.accounts.common.token_authority.to_account_info()),
                 swap_global: ctx.accounts.swap_global.to_account_info(),
                 from_global: ctx.accounts.ext_global.to_account_info(),
-                m_global: ctx.accounts.m_global.to_account_info(),
                 from_mint: ctx.accounts.ext_mint.to_account_info(),
                 m_mint: ctx.accounts.common.common.mint.to_account_info(),
                 m_token_account: ctx.accounts.common.common.from.to_account_info(),

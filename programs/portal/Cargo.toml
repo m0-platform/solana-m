@@ -28,4 +28,4 @@ bitmaps = "3.2.1"
 cfg-if.workspace = true
 solana-security-txt.workspace = true
 earn = { path = "../earn", features = ["cpi"] }
-ext_swap = { git = "https://github.com/m0-foundation/solana-m-extensions", rev= "6bbd459", features = ["cpi"] }
+ext_swap = { git = "https://github.com/m0-foundation/solana-m-extensions", rev= "b55a2fd", features = ["cpi"] }

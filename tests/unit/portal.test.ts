@@ -257,7 +257,7 @@ describe('Portal unit tests', () => {
       await ssw(ctx, setXcvrPeerTxs, signer);
 
       // Set manager peer
-      const setPeerTxs = ntt.setPeer(wc.remoteMgr, 9, 1000000n, sender);
+      const setPeerTxs = ntt.setPeer(wc.remoteMgr, 6, 1000000n, sender);
       await ssw(ctx, setPeerTxs, signer);
     });
     test('initialize earn', async () => {
@@ -385,7 +385,7 @@ describe('Portal unit tests', () => {
       const payloadAmount = BigInt('0x' + payloadHex.slice(10, 26));
 
       // assert that amount is what we expect
-      expect(payloadAmount.toString()).toBe('10000');
+      expect(payloadAmount.toString()).toBe('100000');
 
       // get from balance
       const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
@@ -484,7 +484,7 @@ describe('Portal unit tests', () => {
       const payloadAmount = BigInt('0x' + payloadHex.slice(10, 26));
 
       // assert that amount is what we expect
-      expect(payloadAmount.toString()).toBe('100');
+      expect(payloadAmount.toString()).toBe(amount.toString());
 
       // $M balance did not change (we unwrapped an extension token)
       const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
@@ -602,12 +602,12 @@ describe('Portal unit tests', () => {
       const logs = await fetchTransactionLogs(provider, txIds[txIds.length - 1].txid);
 
       // bridge event log exists
-      expect(logs[logs.length - 3].startsWith('Program data: bEUUGiR+tFmghgEAAAAAA')).toBeTruthy();
+      expect(logs[logs.length - 3].startsWith('Program data: bEUUGiR+')).toBeTruthy();
       expect(logs).toContain('Program log: Index update: 1000000000001 | root update: false');
 
       // verify data was propagated (scaled-ui multiplier was updated)
-      const mult = getScaledUIMult(connection, mint.publicKey);
-      expect(mult).toBe('1000000000001');
+      const mult = await getScaledUIMult(connection, mint.publicKey);
+      expect(mult).toBe(1.000000000001);
 
       // verify inbox item was released
       const item = await ntt.program.account.inboxItem.fetch(inboxItem);
@@ -616,7 +616,7 @@ describe('Portal unit tests', () => {
       // check balance
       const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
       const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
-      expect(parsedTokenAccount.amount).toBe(9990000n);
+      expect(parsedTokenAccount.amount).toBe(9890099n);
     });
 
     it('extension tokens', async () => {
@@ -641,12 +641,12 @@ describe('Portal unit tests', () => {
       const logs = await fetchTransactionLogs(provider, txIds[txIds.length - 1].txid);
 
       // bridge event log exists
-      expect(logs[15].startsWith('Program data: bEUUGiR+tFmghgEAAAAAA')).toBeTruthy();
+      expect(logs[15].startsWith('Program data: bEUUGiR+')).toBeTruthy();
       expect(logs).toContain('Program log: Index update: 1000000000001 | root update: false');
 
       // verify data was propagated (scaled-ui multiplier was updated)
-      const mult = getScaledUIMult(connection, mint.publicKey);
-      expect(mult).toBe('1000000000001');
+      const mult = await getScaledUIMult(connection, mint.publicKey);
+      expect(mult).toBe(1.000000000001);
 
       // verify inbox item was released
       const item = await ntt.program.account.inboxItem.fetch(inboxItem);
@@ -655,12 +655,12 @@ describe('Portal unit tests', () => {
       // check balance
       const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
       const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
-      expect(parsedTokenAccount.amount).toBe(9990000n); // should be unchanged
+      expect(parsedTokenAccount.amount).toBe(9890099n); // should be unchanged
 
       // check balance
       const extTokenAccountInfo = await connection.getAccountInfo(extAta);
       const extParsedTokenAccount = spl.unpackAccount(extAta, extTokenAccountInfo, TOKEN_PROGRAM);
-      expect(extParsedTokenAccount.amount).toBe(109000n);
+      expect(extParsedTokenAccount.amount).toBe(9099n);
     });
 
     it('tokens with merkle roots', async () => {
@@ -702,7 +702,7 @@ describe('Portal unit tests', () => {
   });
 
   describe('Mint', () => {
-    it('can mint independently', async () => {
+    it('cannot mint - frozen', async () => {
       const recipient = Keypair.generate();
       const associatedToken = getAssociatedTokenAddressSync(mint.publicKey, recipient.publicKey, false, TOKEN_PROGRAM);
 
@@ -717,11 +717,12 @@ describe('Portal unit tests', () => {
         createMintToInstruction(mint.publicKey, associatedToken, multisig.publicKey, 1, [owner], TOKEN_PROGRAM),
       );
 
-      await provider.sendAndConfirm!(tx, [payer, owner]);
-
-      const tokenAccountInfo = await connection.getAccountInfo(associatedToken);
-      const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
-      expect(parsedTokenAccount.amount).toBe(1n);
+      try {
+        await provider.sendAndConfirm!(tx, [payer, owner]);
+        throw new Error('send should have failed');
+      } catch (e: any) {
+        expect(e?.transactionLogs[e?.transactionLogs.length - 3]).toEqual('Program log: Error: Account is frozen');
+      }
     });
   });
 });

@@ -4,7 +4,6 @@ use earn::{
     cpi::accounts::PropagateIndex, program::Earn, state::EarnGlobal,
     utils::conversion::amount_to_principal_down,
 };
-
 use spl_token_2022::onchain;
 
 use crate::{
@@ -30,7 +29,7 @@ pub struct ReleaseInbound<'info> {
         mut,
         address = get_recipient_token_account(
             &inbox_item.transfer,
-            &inbox_item.destination_mint,
+            &recipient.owner,
             &mint.key(),
             &token_program.key,
             &token_authority.key()
@@ -111,7 +110,7 @@ pub fn release_inbound_mint_multisig<'info>(
         ctx.accounts.earn_program.to_account_info(),
         PropagateIndex {
             signer: ctx.accounts.common.token_authority.to_account_info(),
-            global_account: ctx.remaining_accounts[1].clone(),
+            global_account: ctx.accounts.earn_global.to_account_info(),
             m_mint: ctx.accounts.common.mint.to_account_info(),
             token_program: ctx.accounts.common.token_program.to_account_info(),
         },
@@ -192,7 +191,7 @@ pub fn release_inbound_mint_multisig<'info>(
 
 fn get_recipient_token_account(
     transfer: &TokenTransfer,
-    destination_mint: &Pubkey,
+    account_owner: &Pubkey,
     mint: &Pubkey,
     token_program: &Pubkey,
     token_authority: &Pubkey,
@@ -202,18 +201,18 @@ fn get_recipient_token_account(
         return None;
     }
 
-    // Bridging $M, require user token account
-    if destination_mint.eq(mint) {
+    // Bridging to extension, require intermediate portal token account
+    if account_owner.eq(token_authority) {
         return Some(get_associated_token_address_with_program_id(
-            &transfer.recipient,
+            token_authority,
             mint,
             token_program,
         ));
     }
 
-    // Bridging to extension, require intermediate portal token account
+    // Bridging $M, require user token account
     Some(get_associated_token_address_with_program_id(
-        token_authority,
+        &transfer.recipient,
         mint,
         token_program,
     ))

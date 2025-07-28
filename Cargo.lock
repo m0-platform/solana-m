@@ -848,7 +848,7 @@ dependencies = [
 [[package]]
 name = "earn"
 version = "0.2.0"
-source = "git+https://github.com/m0-foundation/solana-m?branch=scaledui-prototype#19726e90f596dcb96c4769b7a3446fa7740bec63"
+source = "git+https://github.com/m0-foundation/solana-m?rev=9aec7b6#9aec7b6bbce587c3b024aa4445fc98858707930d"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
@@ -907,11 +907,11 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 [[package]]
 name = "ext_swap"
 version = "0.2.0"
-source = "git+https://github.com/m0-foundation/solana-m-extensions?rev=6bbd459#6bbd45963a5cf73f17be68c2adb35a38677ad1f3"
+source = "git+https://github.com/m0-foundation/solana-m-extensions?rev=b55a2fd#b55a2fd9cc12cf6ef1988f457539b298ffafb4b2"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
- "earn 0.2.0 (git+https://github.com/m0-foundation/solana-m?branch=scaledui-prototype)",
+ "earn 0.2.0 (git+https://github.com/m0-foundation/solana-m?rev=9aec7b6)",
  "m_ext",
  "solana-security-txt",
 ]
@@ -1187,12 +1187,12 @@ checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 [[package]]
 name = "m_ext"
 version = "0.2.0"
-source = "git+https://github.com/m0-foundation/solana-m-extensions?rev=6bbd459#6bbd45963a5cf73f17be68c2adb35a38677ad1f3"
+source = "git+https://github.com/m0-foundation/solana-m-extensions?rev=b55a2fd#b55a2fd9cc12cf6ef1988f457539b298ffafb4b2"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
  "cfg-if",
- "earn 0.2.0 (git+https://github.com/m0-foundation/solana-m?branch=scaledui-prototype)",
+ "earn 0.2.0 (git+https://github.com/m0-foundation/solana-m?rev=9aec7b6)",
  "solana-security-txt",
  "spl-token-2022 7.0.0",
 ]

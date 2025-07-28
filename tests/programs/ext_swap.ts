@@ -8,7 +8,7 @@ export type ExtSwap = {
   "address": "MSwapi3WhNKMUGm9YrxGhypgUEt7wYQH3ZgG32XoWzH",
   "metadata": {
     "name": "extSwap",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "spec": "0.1.0",
     "description": "Created with Anchor"
   },
@@ -246,61 +246,6 @@ export type ExtSwap = {
           }
         },
         {
-          "name": "mGlobal",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
-                78,
-                85,
-                26,
-                180,
-                224,
-                26,
-                229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
-                49,
-                118,
-                130,
-                244,
-                142,
-                245
-              ]
-            }
-          }
-        },
-        {
           "name": "fromMint",
           "docs": [
             "Validated by unwrap on the extension program"
@@ -379,13 +324,12 @@ export type ExtSwap = {
           }
         },
         {
-          "name": "intermediateMAccount",
-          "writable": true,
+          "name": "swapMAccount",
           "pda": {
             "seeds": [
               {
                 "kind": "account",
-                "path": "signer"
+                "path": "swapGlobal"
               },
               {
                 "kind": "account",
@@ -751,61 +695,6 @@ export type ExtSwap = {
             "program": {
               "kind": "account",
               "path": "fromExtProgram"
-            }
-          }
-        },
-        {
-          "name": "mGlobal",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
-                78,
-                85,
-                26,
-                180,
-                224,
-                26,
-                229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
-                49,
-                118,
-                130,
-                244,
-                142,
-                245
-              ]
             }
           }
         },
@@ -1235,61 +1124,6 @@ export type ExtSwap = {
           }
         },
         {
-          "name": "mGlobal",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
-                78,
-                85,
-                26,
-                180,
-                224,
-                26,
-                229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
-                49,
-                118,
-                130,
-                244,
-                142,
-                245
-              ]
-            }
-          }
-        },
-        {
           "name": "toMint",
           "docs": [
             "Validated by wrap on the extension program"
@@ -1551,19 +1385,6 @@ export type ExtSwap = {
   ],
   "accounts": [
     {
-      "name": "global",
-      "discriminator": [
-        167,
-        232,
-        232,
-        177,
-        200,
-        108,
-        114,
-        127
-      ]
-    },
-    {
       "name": "swapGlobal",
       "discriminator": [
         15,
@@ -1610,71 +1431,6 @@ export type ExtSwap = {
     }
   ],
   "types": [
-    {
-      "name": "global",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "admin",
-            "type": "pubkey"
-          },
-          {
-            "name": "earnAuthority",
-            "type": "pubkey"
-          },
-          {
-            "name": "mint",
-            "type": "pubkey"
-          },
-          {
-            "name": "index",
-            "type": "u64"
-          },
-          {
-            "name": "timestamp",
-            "type": "u64"
-          },
-          {
-            "name": "claimCooldown",
-            "type": "u64"
-          },
-          {
-            "name": "maxSupply",
-            "type": "u64"
-          },
-          {
-            "name": "maxYield",
-            "type": "u64"
-          },
-          {
-            "name": "distributed",
-            "type": "u64"
-          },
-          {
-            "name": "claimComplete",
-            "type": "bool"
-          },
-          {
-            "name": "earnerMerkleRoot",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "portalAuthority",
-            "type": "pubkey"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
     {
       "name": "swapGlobal",
       "type": {

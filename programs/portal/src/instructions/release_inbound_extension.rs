@@ -1,11 +1,11 @@
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
-use earn::state::EarnGlobal;
+use earn::state::{EarnGlobal, GLOBAL_SEED};
+use ext_swap::accounts::SwapGlobal;
 use ext_swap::program::ExtSwap;
-use ext_swap::state::{SwapGlobal, GLOBAL_SEED};
 
-use crate::instructions::release_inbound_mint_multisig;
+use crate::instructions::{ext_swap, release_inbound_mint_multisig};
 use crate::instructions::{ReleaseInboundArgs, ReleaseInboundMintMultisig};
 use crate::ReleaseInboundMintMultisigBumps;
 use crate::__client_accounts_release_inbound_mint_multisig;

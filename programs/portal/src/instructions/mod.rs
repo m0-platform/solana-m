@@ -1,3 +1,5 @@
+declare_program!(ext_swap);
+
 pub mod admin;
 pub mod initialize;
 pub mod luts;

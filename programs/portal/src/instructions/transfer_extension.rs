@@ -3,15 +3,12 @@ use anchor_spl::{
     associated_token::AssociatedToken,
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
-use earn::state::EarnGlobal;
-use ext_swap::{
-    program::ExtSwap,
-    state::{SwapGlobal, GLOBAL_SEED},
-};
+use earn::state::{EarnGlobal, GLOBAL_SEED};
+use ext_swap::{accounts::SwapGlobal, program::ExtSwap};
 
 use crate::{
     TransferBurnBumps, __client_accounts_transfer_burn, __cpi_client_accounts_transfer_burn,
-    instructions::{transfer_burn, TransferArgs, TransferBurn},
+    instructions::{ext_swap, transfer_burn, TransferArgs, TransferBurn},
     ntt_messages::ChainId,
 };
 

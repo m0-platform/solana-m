@@ -24,8 +24,10 @@ import * as testing from '@wormhole-foundation/sdk-definitions/testing';
 import { SolanaAddress, SolanaSendSigner, SolanaUnsignedTransaction } from '@wormhole-foundation/sdk-solana';
 import { NTT, SolanaNtt } from '@wormhole-foundation/sdk-solana-ntt';
 import {
+  createMintInstruction,
   createSetEvmAddresses,
   fetchTransactionLogs,
+  getScaledUIMult,
   getWormholeContext,
   LiteSVMProviderExt,
   loadKeypair,
@@ -57,7 +59,7 @@ const config = {
   GUARDIAN_KEY: 'cfb12303a19cde580bb4dd771639b0d26bc68353645571a8cff516ab2ee113a0',
   CORE_BRIDGE_ADDRESS: WORMHOLE_SOLANA,
   PORTAL_PROGRAM_ID: new PublicKey('mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY'),
-  EARN_PROGRAM: new PublicKey('MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c'),
+  EARN_PROGRAM: new PublicKey('mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z'),
   EXT_PROGRAM: new PublicKey('3C865D264L4NkAm78zfnDzQJJvXuU3fMjRUvRxyPi5da'),
   WORMHOLE_PID: WORMHOLE_SOLANA,
   WORMHOLE_BRIDGE_CONFIG: new PublicKey('2yVjuQwpsvdsrywzsJJVs9Ueh4zayyo5DYJbBNc3DDpn'),
@@ -66,7 +68,7 @@ const config = {
   EVM_WRAPPED_M: '0x437cc33344a0B27A429f795ff6B469C72698B291',
   EARN_GLOBAL_ACCOUNT: PublicKey.findProgramAddressSync(
     [Buffer.from('global')],
-    new PublicKey('MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c'),
+    new PublicKey('mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z'),
   )[0],
   SWAP_PROGRAM: new PublicKey('MSwapi3WhNKMUGm9YrxGhypgUEt7wYQH3ZgG32XoWzH'),
 };
@@ -77,7 +79,6 @@ describe('Portal unit tests', () => {
   let sender: AccountAddress<'Solana'>;
   let multisig = Keypair.generate();
 
-  let tokenAccount: PublicKey;
   const mint = loadKeypair('keys/mint.json');
   const tokenAddress = mint.publicKey.toBase58();
   const extMint = Keypair.generate();
@@ -85,8 +86,12 @@ describe('Portal unit tests', () => {
   const payer = loadKeypair('keys/user.json');
   const admin = loadKeypair('keys/admin.json');
   const owner = payer;
+  let tokenAccount = getAssociatedTokenAddressSync(mint.publicKey, payer.publicKey, false, spl.TOKEN_2022_PROGRAM_ID);
 
   const svm = fromWorkspace('../').withSplPrograms().withBuiltins().withSysvars().withBlockhashCheck(false);
+
+  // Replace the default token2022 program with updated one
+  svm.addProgramFromFile(spl.TOKEN_2022_PROGRAM_ID, 'programs/spl_token_2022.so');
 
   // Wormhole program
   svm.addProgramFromFile(config.WORMHOLE_PID, 'programs/core_bridge.so');
@@ -148,43 +153,27 @@ describe('Portal unit tests', () => {
     signer = new SolanaSendSigner(connection, 'Solana', payer, false, {});
     sender = Wormhole.parseAddress('Solana', signer.address());
 
-    for (const m of [mint, extMint]) {
-      const mintLen = spl.getMintLen([]);
-      const lamports = await connection.getMinimumBalanceForRentExemption(mintLen);
-
-      const mintAuth = m.publicKey.equals(mint.publicKey)
-        ? owner.publicKey
-        : PublicKey.findProgramAddressSync([Buffer.from('mint_authority')], config.EXT_PROGRAM)[0];
-
-      const tx = new Transaction().add(
-        SystemProgram.createAccount({
-          fromPubkey: payer.publicKey,
-          newAccountPubkey: m.publicKey,
-          space: mintLen,
-          lamports,
-          programId: TOKEN_PROGRAM,
-        }),
-        spl.createInitializeMintInstruction(m.publicKey, 9, mintAuth, null, TOKEN_PROGRAM),
-      );
-
-      await provider.sendAndConfirm!(tx, [payer, m]);
-    }
-
-    tokenAccount = spl.getAssociatedTokenAddressSync(mint.publicKey, payer.publicKey, false, TOKEN_PROGRAM);
-
-    // Mint tokens to payer
-    const mintTx = new Transaction().add(
-      spl.createAssociatedTokenAccountInstruction(
-        payer.publicKey,
-        tokenAccount,
-        payer.publicKey,
+    // create mints
+    const tx = new Transaction().add(
+      ...(await createMintInstruction(
+        connection,
+        owner,
+        owner.publicKey,
+        PublicKey.findProgramAddressSync([Buffer.from('global')], config.EARN_PROGRAM)[0],
         mint.publicKey,
-        TOKEN_PROGRAM,
-      ),
-      createMintToInstruction(mint.publicKey, tokenAccount, owner.publicKey, 10_000_000n, undefined, TOKEN_PROGRAM),
+        spl.AccountState.Frozen,
+      )),
+      ...(await createMintInstruction(
+        connection,
+        owner,
+        PublicKey.findProgramAddressSync([Buffer.from('mint_authority')], config.EXT_PROGRAM)[0],
+        PublicKey.findProgramAddressSync([Buffer.from('mint_authority')], config.EXT_PROGRAM)[0],
+        extMint.publicKey,
+        spl.AccountState.Initialized,
+      )),
     );
 
-    await provider.sendAndConfirm!(mintTx, [payer, owner]);
+    await provider.sendAndConfirm!(tx, [payer, mint, extMint]);
 
     // contract client
     ntt = new SolanaNtt(
@@ -271,14 +260,19 @@ describe('Portal unit tests', () => {
       await ssw(ctx, setPeerTxs, signer);
     });
     test('initialize earn', async () => {
-      await earn.methods
-        .initialize()
-        .accounts({
-          admin: admin.publicKey,
-          mMint: mint.publicKey,
-        })
-        .signers([admin])
-        .rpc();
+      try {
+        await earn.methods
+          .initialize()
+          .accounts({
+            admin: admin.publicKey,
+            mMint: mint.publicKey,
+          })
+          .signers([admin])
+          .rpc();
+      } catch (e) {
+        console.error('Earn initialization failed:', e);
+        throw e;
+      }
     });
     test('initialize extension and swap program', async () => {
       await swapProgram.methods.initializeGlobal().accounts({ admin: admin.publicKey }).signers([admin]).rpc();
@@ -613,9 +607,9 @@ describe('Portal unit tests', () => {
       expect(logs[logs.length - 3].startsWith('Program data: bEUUGiR+tFmghgEAAAAAA')).toBeTruthy();
       expect(logs).toContain('Program log: Index update: 1000000000001 | root update: false');
 
-      // verify data was propagated
-      const global = await earn.account.global.fetch(config.EARN_GLOBAL_ACCOUNT);
-      expect(global.index.toString()).toBe('1000000000001');
+      // verify data was propagated (scaled-ui multiplier was updated)
+      const mult = getScaledUIMult(connection, mint.publicKey);
+      expect(mult).toBe('1000000000001');
 
       // verify inbox item was released
       const item = await ntt.program.account.inboxItem.fetch(inboxItem);
@@ -652,9 +646,9 @@ describe('Portal unit tests', () => {
       expect(logs[15].startsWith('Program data: bEUUGiR+tFmghgEAAAAAA')).toBeTruthy();
       expect(logs).toContain('Program log: Index update: 1000000000001 | root update: false');
 
-      // verify data was propagated
-      const global = await earn.account.global.fetch(config.EARN_GLOBAL_ACCOUNT);
-      expect(global.index.toString()).toBe('1000000000001');
+      // verify data was propagated (scaled-ui multiplier was updated)
+      const mult = getScaledUIMult(connection, mint.publicKey);
+      expect(mult).toBe('1000000000001');
 
       // verify inbox item was released
       const item = await ntt.program.account.inboxItem.fetch(inboxItem);

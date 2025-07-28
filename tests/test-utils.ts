@@ -7,6 +7,7 @@ import {
   PublicKey,
   SendOptions,
   Signer,
+  SystemProgram,
   Transaction,
   TransactionConfirmationStrategy,
   TransactionInstruction,
@@ -23,6 +24,24 @@ import { SolanaWormholeCore } from '@wormhole-foundation/sdk-solana-core';
 import { SolanaPlatform } from '@wormhole-foundation/sdk-solana';
 import { Wormhole, encoding } from '@wormhole-foundation/sdk';
 import { WORMHOLE_SOLANA } from './unit/portal.test';
+import {
+  createInitializeMintInstruction,
+  createInitializeScaledUiAmountConfigInstruction,
+  createInitializeDefaultAccountStateInstruction,
+  createInitializePermanentDelegateInstruction,
+  ExtensionType,
+  getMintLen,
+  getScaledUiAmountConfig,
+  TOKEN_2022_PROGRAM_ID,
+  unpackMint,
+  AccountState,
+  getAssociatedTokenAddressSync,
+  createAssociatedTokenAccountInstruction,
+  createMintToInstruction,
+  createUpdateDefaultAccountStateInstruction,
+  createSetAuthorityInstruction,
+  AuthorityType,
+} from '@solana/spl-token';
 
 export function loadKeypair(filePath: string): Keypair {
   const fullPath = path.resolve(filePath);
@@ -147,4 +166,82 @@ export function getWormholeContext(connection: Connection) {
     coreBridge: WORMHOLE_SOLANA.toBase58(),
   });
   return { ctx, coreBridge, remoteXcvr, remoteMgr };
+}
+
+export async function createMintInstruction(
+  connection: Connection,
+  payer: Keypair,
+  mintAuth: PublicKey,
+  extensionAuth: PublicKey,
+  mint: PublicKey,
+  defaultAccountState = AccountState.Initialized,
+) {
+  // mint size with extensions
+  const mintLen = getMintLen([
+    ExtensionType.ScaledUiAmountConfig,
+    ExtensionType.DefaultAccountState,
+    ExtensionType.PermanentDelegate,
+  ]);
+
+  const lamports = await connection.getMinimumBalanceForRentExemption(mintLen);
+
+  const instructions = [
+    SystemProgram.createAccount({
+      fromPubkey: payer.publicKey,
+      newAccountPubkey: mint,
+      space: mintLen,
+      lamports,
+      programId: TOKEN_2022_PROGRAM_ID,
+    }),
+    createInitializeScaledUiAmountConfigInstruction(mint, extensionAuth, 1.0, TOKEN_2022_PROGRAM_ID),
+    createInitializeDefaultAccountStateInstruction(mint, AccountState.Initialized, TOKEN_2022_PROGRAM_ID),
+    createInitializePermanentDelegateInstruction(mint, payer.publicKey, TOKEN_2022_PROGRAM_ID),
+    createInitializeMintInstruction(mint, 6, mintAuth, payer.publicKey, TOKEN_2022_PROGRAM_ID),
+  ];
+
+  // mint tokens to payer before setting default to frozen
+  if (defaultAccountState === AccountState.Frozen) {
+    const tokenAccount = getAssociatedTokenAddressSync(mint, payer.publicKey, false, TOKEN_2022_PROGRAM_ID);
+
+    // Mint tokens to payer
+    instructions.push(
+      createAssociatedTokenAccountInstruction(
+        payer.publicKey,
+        tokenAccount,
+        payer.publicKey,
+        mint,
+        TOKEN_2022_PROGRAM_ID,
+      ),
+      createMintToInstruction(mint, tokenAccount, payer.publicKey, 10_000_000n, undefined, TOKEN_2022_PROGRAM_ID),
+      createUpdateDefaultAccountStateInstruction(
+        mint,
+        AccountState.Frozen,
+        payer.publicKey,
+        undefined,
+        TOKEN_2022_PROGRAM_ID,
+      ),
+      createSetAuthorityInstruction(
+        mint,
+        payer.publicKey,
+        AuthorityType.FreezeAccount,
+        extensionAuth,
+        undefined,
+        TOKEN_2022_PROGRAM_ID,
+      ),
+    );
+  }
+
+  return instructions;
+}
+
+export async function getScaledUIMult(connection: Connection, mint: PublicKey) {
+  const accountInfo = await connection.getAccountInfo(mint);
+  const unpackedMint = unpackMint(mint, accountInfo, TOKEN_2022_PROGRAM_ID);
+  const extensionData = getScaledUiAmountConfig(unpackedMint);
+
+  if (!extensionData) {
+    return 1.0;
+  }
+
+  return extensionData.multiplier;
 }

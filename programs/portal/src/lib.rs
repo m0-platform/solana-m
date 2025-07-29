@@ -180,6 +180,10 @@ pub mod portal {
         instructions::register_transceiver(ctx)
     }
 
+    pub fn deregister_transceiver(ctx: Context<DeregisterTransceiver>) -> Result<()> {
+        instructions::deregister_transceiver(ctx)
+    }
+
     pub fn set_outbound_limit(
         ctx: Context<SetOutboundLimit>,
         args: SetOutboundLimitArgs,
@@ -192,6 +196,10 @@ pub mod portal {
         args: SetInboundLimitArgs,
     ) -> Result<()> {
         instructions::set_inbound_limit(ctx, args)
+    }
+
+    pub fn set_threshold(ctx: Context<SetThreshold>, threshold: u8) -> Result<()> {
+        instructions::set_threshold(ctx, threshold)
     }
 
     // standalone transceiver stuff

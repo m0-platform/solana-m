@@ -637,6 +637,14 @@ describe('Portal unit tests', () => {
                 Buffer.from(sha256('global:release_inbound_mint_extension_multisig').subarray(0, 8)),
                 ixs[ixs.length - 1].data.subarray(8, ixs[ixs.length - 1].data.length - 1), // remove revert bool arg
               ]);
+
+              // update the $M token account to be token authority
+              ixs[ixs.length - 1].keys[3].pubkey = getAssociatedTokenAddressSync(
+                mint.publicKey,
+                ntt.pdas.tokenAuthority(),
+                true,
+                TOKEN_PROGRAM,
+              );
             }
 
             const redeemTx = new Transaction().add(...ixs);
@@ -1033,12 +1041,6 @@ function additionalRedeemAccounts(mMint: PublicKey, extMint: PublicKey, extAta: 
     {
       // swap global
       pubkey: PublicKey.findProgramAddressSync([Buffer.from('global')], config.SWAP_PROGRAM)[0],
-      isSigner: false,
-      isWritable: false,
-    },
-    {
-      // m global
-      pubkey: config.EARN_GLOBAL_ACCOUNT,
       isSigner: false,
       isWritable: false,
     },

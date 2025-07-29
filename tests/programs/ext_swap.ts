@@ -168,7 +168,6 @@ export type ExtSwap = {
       "accounts": [
         {
           "name": "signer",
-          "writable": true,
           "signer": true
         },
         {
@@ -592,7 +591,6 @@ export type ExtSwap = {
       "accounts": [
         {
           "name": "signer",
-          "writable": true,
           "signer": true
         },
         {
@@ -960,7 +958,6 @@ export type ExtSwap = {
       "accounts": [
         {
           "name": "signer",
-          "writable": true,
           "signer": true
         },
         {

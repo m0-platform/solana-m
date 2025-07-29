@@ -126,7 +126,7 @@ pub fn release_inbound_mint_extension_multisig<'info>(
             ctx.accounts.swap_program.to_account_info(),
             ext_swap::cpi::accounts::Wrap {
                 signer: ctx.accounts.common.common.token_authority.to_account_info(),
-                wrap_authority: None,
+                wrap_authority: Some(ctx.accounts.common.common.token_authority.to_account_info()),
                 swap_global: ctx.accounts.swap_global.to_account_info(),
                 to_global: ctx.accounts.ext_global.to_account_info(),
                 to_mint: ctx.accounts.ext_mint.to_account_info(),

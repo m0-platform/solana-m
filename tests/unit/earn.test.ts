@@ -43,6 +43,7 @@ const OLD_EARN_PROGRAM_ID = new PublicKey('MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBR
 import { OldEarn } from '../programs/old_earn';
 
 const PORTAL_PROGRAM_ID = new PublicKey('mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY');
+const EXT_SWAP_PROGRAM_ID = new PublicKey('MSwapi3WhNKMUGm9YrxGhypgUEt7wYQH3ZgG32XoWzH');
 
 import {
   Comparison,
@@ -389,11 +390,12 @@ class EarnTest<V extends Variant = Variant.New> {
     mintAuthority: PublicKey,
     use2022: boolean = true,
     decimals = 6,
-    freezeAuthority: boolean = true,
+    freezeAuthority?: PublicKey,
   ) {
     // Create and initialize mint account
 
     const tokenProgram = use2022 ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID;
+    const freezeAuth = freezeAuthority ?? this.getEarnGlobalAccount();
 
     const mintLen = getMintLen([]);
     const mintLamports = await this.provider.connection.getMinimumBalanceForRentExemption(mintLen);
@@ -409,7 +411,7 @@ class EarnTest<V extends Variant = Variant.New> {
       mint.publicKey,
       decimals, // decimals
       mintAuthority, // mint authority
-      freezeAuthority ? mintAuthority : null, // freeze authority
+      freezeAuth, // freeze authority
       tokenProgram,
     );
 
@@ -465,6 +467,50 @@ class EarnTest<V extends Variant = Variant.New> {
     tx.add(...ixs);
 
     await this.provider.sendAndConfirm!(tx, [this.admin, mint, mintAuthority]);
+
+    // Verify the mint was created properly
+    const mintInfo = await this.provider.connection.getAccountInfo(mint.publicKey);
+    if (!mintInfo) {
+      throw new Error('Mint account was not created');
+    }
+
+    return mint.publicKey;
+  }
+
+  public async createScaledUiMint(mint: Keypair, mintAuthority: PublicKey, decimals = 6) {
+    // Create and initialize mint account
+
+    const tokenProgram = TOKEN_2022_PROGRAM_ID;
+
+    const mintLen = getMintLen([ExtensionType.ScaledUiAmountConfig]);
+    const mintLamports = await this.provider.connection.getMinimumBalanceForRentExemption(mintLen);
+    const createMintAccount = SystemProgram.createAccount({
+      fromPubkey: this.admin.publicKey,
+      newAccountPubkey: mint.publicKey,
+      space: mintLen,
+      lamports: mintLamports,
+      programId: tokenProgram,
+    });
+
+    const initializeScaledUiAmountConfig = this.createInitializeScaledUiAmountConfigInstruction(
+      mint.publicKey,
+      mintAuthority,
+      1.0,
+      tokenProgram,
+    );
+
+    const initializeMint = createInitializeMintInstruction(
+      mint.publicKey,
+      decimals, // decimals
+      mintAuthority, // mint authority
+      mintAuthority, // freeze authority
+      tokenProgram,
+    );
+
+    let tx = new Transaction();
+    tx.add(createMintAccount, initializeScaledUiAmountConfig, initializeMint);
+
+    await this.provider.sendAndConfirm!(tx, [this.admin, mint]);
 
     // Verify the mint was created properly
     const mintInfo = await this.provider.connection.getAccountInfo(mint.publicKey);
@@ -856,18 +902,363 @@ for (const variant of VARIANTS) {
     });
 
     describe('initialize unit tests', () => {
-      // test cases
-      //   [X] given the admin signs the transaction
-      //      [X] the global account is created
-      //      [X] the admin is set to the signer
-      //      [X] the mint is set correctly
-      //      [X] the portal authority is set correctly
-      //      [X] the earner merkle root is set to zero
-      //      [X] the bump is set correctly
+      // general test cases
+      // [X] given the program is already initialized
+      //   [X] it reverts with an account already initialized error
+      // [X] given the global account does not match the seed + program ID
+      //   [X] it reverts with a constraint seed error
+      // [X] given the mint is not owned by the token2022 program
+      //   [X] it reverts with a mint token program error
+      // [X] given the portal token authority PDA does not match the seed + program ID
+      //   [X] it reverts with a constraint seed error
+      // [X] given the ext swap global PDA does not match the seed + program ID
+      //   [X] it reverts with a constraint seed error
+      // [ ] TODO: should we check all the token account constraints?
+      // [X] given the mint does not have the scaled UI amount config extension enabled
+      //   [X] it reverts with an invalid mint error
+      // [X] given the mint does not have the default account state extension enabled
+      //   [X] it reverts with an invalid mint error
+      // [X] given the freeze authority for the mint is not the earn global account
+      //   [X] it reverts with an invalid mint error
+
+      // given the program is already initialized
+      // it reverts with an account already initialized error
+      test('Already initialized - reverts', async () => {
+        // Initialize the earn program
+        await $.initializeEarn(initialIndex);
+
+        // Expire the blockhash so we can call it again
+        await $.svm.expireBlockhash();
+
+        // Try to initialize again
+        if (variant === Variant.Migrate) {
+          await $.expectSystemError(
+            $.earn.methods
+              .initialize()
+              .accounts({
+                admin: $.admin.publicKey,
+                mMint: $.mMint.publicKey,
+              })
+              .signers([$.admin])
+              .rpc(),
+          );
+        } else {
+          await $.expectSystemError(
+            $.earn.methods
+              .initialize(initialIndex)
+              .accounts({
+                admin: $.admin.publicKey,
+                mMint: $.mMint.publicKey,
+              })
+              .signers([$.admin])
+              .rpc(),
+          );
+        }
+      });
+
+      // given the global account does not match the seed + program ID
+      // it reverts with a constraint seed error
+      test('Global account invalid - reverts', async () => {
+        const wrongGlobalAccount = PublicKey.unique();
+        if (wrongGlobalAccount.equals($.getEarnGlobalAccount())) {
+          return; // Skip if the wrong global account is actually the right one
+        }
+
+        if (variant === Variant.Migrate) {
+          await $.expectSystemError(
+            $.earn.methods
+              .initialize()
+              .accountsPartial({
+                admin: $.admin.publicKey,
+                mMint: $.mMint.publicKey,
+                globalAccount: wrongGlobalAccount,
+              })
+              .signers([$.admin])
+              .rpc(),
+          );
+        } else {
+          await $.expectSystemError(
+            $.earn.methods
+              .initialize(initialIndex)
+              .accountsPartial({
+                admin: $.admin.publicKey,
+                mMint: $.mMint.publicKey,
+                globalAccount: wrongGlobalAccount,
+              })
+              .signers([$.admin])
+              .rpc(),
+          );
+        }
+      });
+
+      // given the mint is not owned by the token2022 program
+      // it reverts with a mint token program error
+      test('Mint not owned by token2022 - reverts', async () => {
+        // Create a mint that is not owned by the token2022 program
+        const wrongMint = new Keypair();
+        await $.createMint(wrongMint, $.mMintAuthority.publicKey, false);
+
+        if (variant === Variant.Migrate) {
+          await $.expectAnchorError(
+            $.earn.methods
+              .initialize()
+              .accountsPartial({
+                admin: $.admin.publicKey,
+                mMint: wrongMint.publicKey,
+                tokenProgram: TOKEN_PROGRAM_ID,
+              })
+              .signers([$.admin])
+              .rpc(),
+            'InvalidProgramId',
+          );
+        } else {
+          await $.expectAnchorError(
+            $.earn.methods
+              .initialize(initialIndex)
+              .accountsPartial({
+                admin: $.admin.publicKey,
+                mMint: wrongMint.publicKey,
+                tokenProgram: TOKEN_PROGRAM_ID,
+              })
+              .signers([$.admin])
+              .rpc(),
+            'InvalidProgramId',
+          );
+        }
+      });
+
+      // given the portal token authority PDA does not match the seed + program ID
+      // it reverts with a constraint seed error
+      test('Portal token authority PDA invalid - reverts', async () => {
+        const wrongPortalAuthority = PublicKey.unique();
+        if (wrongPortalAuthority.equals($.getPortalTokenAuthority())) {
+          return; // Skip if the wrong portal authority is actually the right one
+        }
+
+        if (variant === Variant.Migrate) {
+          await $.expectSystemError(
+            $.earn.methods
+              .initialize()
+              .accountsPartial({
+                admin: $.admin.publicKey,
+                mMint: $.mMint.publicKey,
+                portalTokenAuthority: wrongPortalAuthority,
+              })
+              .signers([$.admin])
+              .rpc(),
+          );
+        } else {
+          await $.expectSystemError(
+            $.earn.methods
+              .initialize(initialIndex)
+              .accountsPartial({
+                admin: $.admin.publicKey,
+                mMint: $.mMint.publicKey,
+                portalTokenAuthority: wrongPortalAuthority,
+              })
+              .signers([$.admin])
+              .rpc(),
+          );
+        }
+      });
+
+      // given the ext swap global PDA does not match the seed + program ID
+      // it reverts with a constraint seed error
+      test('Ext swap global PDA invalid - reverts', async () => {
+        const actualExtSwapGlobal = PublicKey.findProgramAddressSync([Buffer.from('global')], EXT_SWAP_PROGRAM_ID)[0];
+        const wrongExtSwapGlobal = PublicKey.unique();
+        if (wrongExtSwapGlobal.equals(actualExtSwapGlobal)) {
+          return; // Skip if the wrong ext swap global is actually the right one
+        }
+
+        if (variant === Variant.Migrate) {
+          await $.expectSystemError(
+            $.earn.methods
+              .initialize()
+              .accountsPartial({
+                admin: $.admin.publicKey,
+                mMint: $.mMint.publicKey,
+                extSwapGlobal: wrongExtSwapGlobal,
+              })
+              .signers([$.admin])
+              .rpc(),
+          );
+        } else {
+          await $.expectSystemError(
+            $.earn.methods
+              .initialize(initialIndex)
+              .accountsPartial({
+                admin: $.admin.publicKey,
+                mMint: $.mMint.publicKey,
+                extSwapGlobal: wrongExtSwapGlobal,
+              })
+              .signers([$.admin])
+              .rpc(),
+          );
+        }
+      });
+
+      // given the mint does not have the scaled UI amount config extension enabled
+      // it reverts with an invalid mint error
+      test('Mint does not have scaled UI amount config extension - reverts', async () => {
+        // create a mint without the scaled UI amount config extension
+        const wrongMint = new Keypair();
+        await $.createMint(wrongMint, $.mMintAuthority.publicKey);
+
+        if (variant === Variant.Migrate) {
+          await $.expectAnchorError(
+            $.earn.methods
+              .initialize()
+              .accountsPartial({
+                admin: $.admin.publicKey,
+                mMint: wrongMint.publicKey,
+              })
+              .signers([$.admin])
+              .rpc(),
+            'InvalidMint',
+          );
+        } else {
+          await $.expectAnchorError(
+            $.earn.methods
+              .initialize(initialIndex)
+              .accountsPartial({
+                admin: $.admin.publicKey,
+                mMint: wrongMint.publicKey,
+              })
+              .signers([$.admin])
+              .rpc(),
+            'InvalidMint',
+          );
+        }
+      });
+
+      // given the mint does not have the default account state extension enabled
+      // it reverts with an invalid mint error
+      test('Mint does not have default account state extension - reverts', async () => {
+        // create a mint with scaled ui but without the default account state extension
+        const wrongMint = new Keypair();
+        await $.createScaledUiMint(wrongMint, $.mMintAuthority.publicKey);
+
+        if (variant === Variant.Migrate) {
+          await $.expectAnchorError(
+            $.earn.methods
+              .initialize()
+              .accountsPartial({
+                admin: $.admin.publicKey,
+                mMint: wrongMint.publicKey,
+              })
+              .signers([$.admin])
+              .rpc(),
+            'InvalidMint',
+          );
+        } else {
+          await $.expectAnchorError(
+            $.earn.methods
+              .initialize(initialIndex)
+              .accountsPartial({
+                admin: $.admin.publicKey,
+                mMint: wrongMint.publicKey,
+              })
+              .signers([$.admin])
+              .rpc(),
+            'InvalidMint',
+          );
+        }
+      });
+
+      // given the freeze authority for the mint is not the earn global account
+      // it reverts with an invalid mint error
+      test('Mint freeze authority not earn global account - reverts', async () => {
+        const mint = new Keypair();
+        await $.createMint(mint, $.mMintAuthority.publicKey, true, 6, $.nonAdmin.publicKey);
+
+        if (variant === Variant.Migrate) {
+          await $.expectAnchorError(
+            $.earn.methods
+              .initialize()
+              .accountsPartial({
+                admin: $.admin.publicKey,
+                mMint: mint.publicKey,
+              })
+              .signers([$.admin])
+              .rpc(),
+            'InvalidMint',
+          );
+        } else {
+          await $.expectAnchorError(
+            $.earn.methods
+              .initialize(initialIndex)
+              .accountsPartial({
+                admin: $.admin.publicKey,
+                mMint: mint.publicKey,
+              })
+              .signers([$.admin])
+              .rpc(),
+            'InvalidMint',
+          );
+        }
+      });
+
+      // new test cases
+      // [X] given all the accounts are correct
+      //   [X] the global account is created
+      //     [X] the admin is set to the signer
+      //     [X] the mint is set to the provided mint
+      //     [X] the portal authority is set to the token authority PDA on the portal program
+      //     [X] the earner merkle root is set to zero
+      //     [X] the bump is set correctly
+      //   [X] the M token's scaled UI amount config is updated
+      //     [X] the new multiplier is set to provided current index
+      //     [X] the new multiplier effective timestamp is set to the current timestamp
+      //   [X] it thaws the following token accounts:
+      //     [X] the portal M token account
+      //     [X] the ext swap M token account
+
+      // migrate test cases
+      // [X] given the old global account does not match the seed + program ID
+      //   [X] it reverts with a constraint seed error
+      // [X] given all the accounts are correct
+      //   [X] the global account is created
+      //     [X] the admin is set to the signer
+      //     [X] the mint is set to the provided mint
+      //     [X] the portal authority is set to the token authority PDA on the portal program
+      //     [X] the earner merkle root is set to zero
+      //     [X] the bump is set correctly
+      //   [X] the M token's scaled UI amount config is updated
+      //     [X] the new multiplier is set to current index on the old global account
+      //     [X] the new multiplier effective timestamp is set to timestamp on the old global account
+
+      // migrate variant
+      // given the old earn global account does not match the seed + program ID
+      // it reverts with a constraint seed error
+      if (variant === Variant.Migrate) {
+        test('Old earn global account invalid - reverts', async () => {
+          const actualGlobalAccount = PublicKey.findProgramAddressSync(
+            [Buffer.from('global')],
+            $.oldEarn!.programId,
+          )[0];
+          const wrongGlobalAccount = PublicKey.unique();
+          if (wrongGlobalAccount.equals(actualGlobalAccount)) {
+            return;
+          }
+
+          await $.expectSystemError(
+            $.earn.methods
+              .initialize()
+              .accountsPartial({
+                admin: $.admin.publicKey,
+                mMint: $.mMint.publicKey,
+                oldGlobalAccount: wrongGlobalAccount,
+              })
+              .signers([$.admin])
+              .rpc(),
+          );
+        });
+      }
 
       // given the admin signs the transaction
       // the global account is created and configured correctly
-      test('Admin can initialize earn program', async () => {
+      test('Initialize earn program', async () => {
         // Calculate the global account and its bump
         const [, bump] = PublicKey.findProgramAddressSync([Buffer.from('global')], $.earn.programId);
 

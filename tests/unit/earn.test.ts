@@ -35,7 +35,6 @@ import {
 import { randomInt } from 'crypto';
 
 import { MerkleTree, ProofElement } from '../../sdk/src/merkle';
-import { loadKeypair } from '../test-utils';
 import { Earn as EarnNew } from '../../target/types/earn_new_test';
 import { Earn as EarnMigrate } from '../../target/types/earn_migrate_test';
 
@@ -63,7 +62,7 @@ type Earn = EarnNew | EarnMigrate;
 
 interface EarnGlobal {
   admin?: PublicKey;
-  mint?: PublicKey;
+  mMint?: PublicKey;
   portalAuthority?: PublicKey;
   earnerMerkleRoot?: number[];
   bump?: number;
@@ -102,14 +101,14 @@ class EarnTest<V extends Variant = Variant.New> {
       .withBlockhashCheck(true); // Optional: disable blockhash checking for tests
 
     // Replace the default token2022 program with the (newer) one from the workspace
-    this.svm.addProgramFromFile(TOKEN_2022_PROGRAM_ID, 'tests/programs/spl_token_2022.so');
+    this.svm.addProgramFromFile(TOKEN_2022_PROGRAM_ID, 'programs/spl_token_2022.so');
 
     // Add the earn program to the SVM instance
-    this.svm.addProgramFromFile(EARN_IDL.address, `target/deploy/earn_${variant}_test.so`);
+    this.svm.addProgramFromFile(new PublicKey(EARN_IDL.address), `../target/deploy/earn_${variant}_test.so`);
 
     // If the variant is 'migrate', we need to load the old earn program
     if (variant === Variant.Migrate) {
-      this.svm.addProgramFromFile(OLD_EARN_PROGRAM_ID, 'tests/programs/old_earn.so');
+      this.svm.addProgramFromFile(OLD_EARN_PROGRAM_ID, 'programs/old_earn.so');
     }
 
     // Create an anchor provider from the liteSVM instance
@@ -148,7 +147,7 @@ class EarnTest<V extends Variant = Variant.New> {
     }
   }
 
-  public async init(initialIndex: BN, initialSupply: BN) {
+  public async init(initialIndex: BN) {
     // If a migration, create the old M token and initialize the old earn program
     if (this.variant === Variant.Migrate) {
       await this.createMintWithMultisig(this.oldMMint!, this.oldMMintAuthority!);
@@ -162,7 +161,7 @@ class EarnTest<V extends Variant = Variant.New> {
     }
 
     // Create the new M token mint
-    await this.createMMint(this.mMint, this.mMintAuthority.publicKey);
+    await this.createMMint(this.mMint, this.mMintAuthority);
   }
 
   // Helper functions for token operations and checks on the SVM instance
@@ -450,13 +449,13 @@ class EarnTest<V extends Variant = Variant.New> {
     return new TransactionInstruction({ keys, programId, data });
   }
 
-  public async createMMint(mint: Keypair, mintAuthority: PublicKey, decimals = 6) {
+  public async createMMint(mint: Keypair, mintAuthority: Keypair, decimals = 6) {
     // Create and initialize mint account
 
     const ixs = await createMintInstruction(
       this.provider.connection,
       this.admin,
-      mintAuthority,
+      mintAuthority.publicKey,
       this.getEarnGlobalAccount(),
       mint.publicKey,
       AccountState.Frozen,
@@ -465,7 +464,7 @@ class EarnTest<V extends Variant = Variant.New> {
     let tx = new Transaction();
     tx.add(...ixs);
 
-    await this.provider.sendAndConfirm!(tx, [this.admin, mint]);
+    await this.provider.sendAndConfirm!(tx, [this.admin, mint, mintAuthority]);
 
     // Verify the mint was created properly
     const mintInfo = await this.provider.connection.getAccountInfo(mint.publicKey);
@@ -725,10 +724,10 @@ class EarnTest<V extends Variant = Variant.New> {
   }
 
   public async expectGlobalState(expected: EarnGlobal) {
-    const state = await this.earn.account.global.fetch(this.getEarnGlobalAccount());
+    const state = await this.earn.account.earnGlobal.fetch(this.getEarnGlobalAccount());
 
     if (expected.admin) expect(state.admin).toEqual(expected.admin);
-    if (expected.mint) expect(state.mint).toEqual(expected.mint);
+    if (expected.mMint) expect(state.mMint).toEqual(expected.mMint);
     if (expected.portalAuthority) expect(state.portalAuthority).toEqual(expected.portalAuthority);
     if (expected.earnerMerkleRoot) expect(state.earnerMerkleRoot).toEqual(expected.earnerMerkleRoot);
     if (expected.bump) expect(state.bump).toEqual(expected.bump);
@@ -757,36 +756,31 @@ class EarnTest<V extends Variant = Variant.New> {
 
   // instruction convenience functions for earn program
 
-  public async initializeEarn(mint: PublicKey, initialIndex?: BN) {
+  public async initializeEarn(initialIndex?: BN) {
     // Send the transaction
-    try {
-      switch (this.variant) {
-        case Variant.New:
-          await this.earn.methods
-            .initialize(initialIndex!)
-            .accounts({
-              admin: this.admin.publicKey,
-              mMint: this.mMint.publicKey,
-            })
-            .signers([this.admin])
-            .rpc();
-          break;
-        case Variant.Migrate:
-          await this.earn.methods
-            .initialize()
-            .accounts({
-              admin: this.admin.publicKey,
-              mMint: this.mMint.publicKey,
-            })
-            .signers([this.admin])
-            .rpc();
-          break;
-        default:
-          throw new Error(`Unknown variant: ${this.variant}`);
-      }
-    } catch (e) {
-      console.log(e);
-      throw e;
+    switch (this.variant) {
+      case Variant.New:
+        await this.earn.methods
+          .initialize(initialIndex!)
+          .accounts({
+            admin: this.admin.publicKey,
+            mMint: this.mMint.publicKey,
+          })
+          .signers([this.admin])
+          .rpc();
+        break;
+      case Variant.Migrate:
+        await this.earn.methods
+          .initialize()
+          .accounts({
+            admin: this.admin.publicKey,
+            mMint: this.mMint.publicKey,
+          })
+          .signers([this.admin])
+          .rpc();
+        break;
+      default:
+        throw new Error(`Unknown variant: ${this.variant}`);
     }
   }
 
@@ -801,7 +795,7 @@ class EarnTest<V extends Variant = Variant.New> {
       .rpc();
   }
 
-  async addRegistrarEarner(earner: PublicKey, proof: ProofElement[], earnerTokenAccount?: PublicKey) {
+  public async addRegistrarEarner(earner: PublicKey, proof: ProofElement[], earnerTokenAccount?: PublicKey) {
     // Get the earner ATA
     const tokenAccount = earnerTokenAccount ?? (await this.getATA(this.mMint.publicKey, earner));
 
@@ -816,7 +810,7 @@ class EarnTest<V extends Variant = Variant.New> {
       .rpc();
   }
 
-  async removeRegistrarEarner(
+  public async removeRegistrarEarner(
     earner: PublicKey,
     proofs: ProofElement[][],
     neighbors: PublicKey[],
@@ -842,23 +836,9 @@ class EarnTest<V extends Variant = Variant.New> {
 
 const ZERO_WORD = new Array(32).fill(0);
 
-// Setup wallets once at the beginning of the test suite
-const admin: Keypair = loadKeypair('keys/admin.json');
-const portal: Keypair = loadKeypair('keys/admin.json');
-const mint: Keypair = loadKeypair('keys/mint.json');
-const earnAuthority: Keypair = new Keypair();
-const mintAuthority: Keypair = new Keypair();
-const nonAdmin: Keypair = new Keypair();
-
-// Create random addresses for testing
-const earnerOne: Keypair = new Keypair();
-const earnerTwo: Keypair = new Keypair();
-const nonEarnerOne: Keypair = new Keypair();
-
 // Start parameters
-const initialSupply = new BN(100_000_000); // 100 tokens with 6 decimals
+// const initialSupply = new BN(100_000_000); // 100 tokens with 6 decimals
 const initialIndex = new BN(1_000_000_000_000); // 1.0
-const claimCooldown = new BN(86_400); // 1 day
 
 // Merkle trees
 let earnerMerkleTree: MerkleTree;
@@ -872,7 +852,7 @@ for (const variant of VARIANTS) {
     beforeEach(async () => {
       // Create new extenstion test harness and then initialize it
       $ = new EarnTest(variant, []);
-      await $.init(initialIndex, initialSupply);
+      await $.init(initialIndex);
     });
 
     describe('initialize unit tests', () => {
@@ -899,7 +879,7 @@ for (const variant of VARIANTS) {
               admin: $.admin.publicKey,
               mMint: $.mMint.publicKey,
             })
-            .signers([admin])
+            .signers([$.admin])
             .rpc();
         } else {
           // Create and send the transaction
@@ -909,14 +889,14 @@ for (const variant of VARIANTS) {
               admin: $.admin.publicKey,
               mMint: $.mMint.publicKey,
             })
-            .signers([admin])
+            .signers([$.admin])
             .rpc();
         }
 
         // Verify the global state including zero-initialized Merkle roots
         await $.expectGlobalState({
-          admin: admin.publicKey,
-          mint: mint.publicKey,
+          admin: $.admin.publicKey,
+          mMint: $.mMint.publicKey,
           portalAuthority: $.getPortalTokenAuthority(),
           earnerMerkleRoot: ZERO_WORD,
           bump,
@@ -924,7 +904,7 @@ for (const variant of VARIANTS) {
 
         // Verify the scaled UI amount config is set to the current index
         await $.expectScaledUiAmountConfig($.mMint.publicKey, {
-          authority: $.getEarnTokenAuthority(),
+          authority: $.getEarnGlobalAccount(),
           multiplier: $.convertToMultiplier(initialIndex),
           newMultiplierEffectiveTimestamp: BigInt($.currentTime().toString()),
           newMultiplier: $.convertToMultiplier(initialIndex),
@@ -954,16 +934,13 @@ for (const variant of VARIANTS) {
 
       beforeEach(async () => {
         // Initialize the program
-        await $.initializeEarn(mint.publicKey, initialIndex);
+        await $.initializeEarn(initialIndex);
 
         // Populate the earner merkle tree with the initial earners
-        earnerMerkleTree = new MerkleTree([admin.publicKey, earnerOne.publicKey, earnerTwo.publicKey]);
+        earnerMerkleTree = new MerkleTree([$.admin.publicKey, $.earnerOne.publicKey, $.earnerTwo.publicKey]);
 
         // Propagate the earner and earn manager merkle roots so they are set to non-zero values
         await $.propagateIndex(initialIndex, earnerMerkleTree.getRoot());
-
-        // Warp past the initial cooldown period
-        $.warp(claimCooldown, true);
       });
 
       // given the portal does not sign the transaction
@@ -973,7 +950,13 @@ for (const variant of VARIANTS) {
         const newEarnerRoot = Array(32).fill(1);
 
         await $.expectAnchorError(
-          $.earn.methods.propagateIndex(newIndex, newEarnerRoot).accounts({}).signers([nonAdmin]).rpc(),
+          $.earn.methods
+            .propagateIndex(newIndex, newEarnerRoot)
+            .accounts({
+              signer: $.nonAdmin.publicKey,
+            })
+            .signers([$.nonAdmin])
+            .rpc(),
           'NotAuthorized',
         );
       });
@@ -1015,7 +998,7 @@ for (const variant of VARIANTS) {
       // nothing is updated
       test('new index >= existing index, new earner root empty - earner root is not updated', async () => {
         // Try to propagate a new index with a higher value
-        const higherIndex = new BN(randomInt(initialIndex.toNumber() + 1, 2 ** 32));
+        const higherIndex = new BN(randomInt(initialIndex.toNumber() + 1, initialIndex.toNumber() * 2));
         const emptyEarnerRoot = ZERO_WORD;
 
         await $.propagateIndex(higherIndex, emptyEarnerRoot);
@@ -1031,7 +1014,7 @@ for (const variant of VARIANTS) {
       // earner merkle root is updated
       test('new index >= existing index, new earner root not empty - earner root is updated', async () => {
         // Try to propagate a new index with a higher value
-        const higherIndex = new BN(randomInt(initialIndex.toNumber() + 1, 2 ** 32));
+        const higherIndex = new BN(randomInt(initialIndex.toNumber() + 1, initialIndex.toNumber() * 2));
         const newEarnerRoot = new Array(32).fill(1);
 
         await $.propagateIndex(higherIndex, newEarnerRoot);
@@ -1055,7 +1038,7 @@ for (const variant of VARIANTS) {
         $.warp(new BN(60), true);
 
         // Check that nothing was updated
-        await $.expectScaledUiAmountConfig(mint.publicKey, {
+        await $.expectScaledUiAmountConfig($.mMint.publicKey, {
           authority: $.getEarnGlobalAccount(),
           multiplier: $.convertToMultiplier(initialIndex),
           newMultiplier: $.convertToMultiplier(initialIndex),
@@ -1074,7 +1057,7 @@ for (const variant of VARIANTS) {
         await $.propagateIndex(newIndex);
 
         // Check that the scaled ui config is updated with the latest index and timestamp
-        await $.expectScaledUiAmountConfig(mint.publicKey, {
+        await $.expectScaledUiAmountConfig($.mMint.publicKey, {
           authority: $.getEarnGlobalAccount(),
           multiplier: $.convertToMultiplier(newIndex),
           newMultiplier: $.convertToMultiplier(newIndex),
@@ -1110,7 +1093,7 @@ for (const variant of VARIANTS) {
 
       beforeEach(async () => {
         // Initialize the program
-        await $.initializeEarn($.mMint.publicKey, initialIndex);
+        await $.initializeEarn(initialIndex);
 
         // Populate the earner merkle tree with the initial earners
         earnerMerkleTree = new MerkleTree([$.admin.publicKey, $.earnerOne.publicKey, $.earnerTwo.publicKey]);
@@ -1127,7 +1110,7 @@ for (const variant of VARIANTS) {
         await $.propagateIndex(new BN(1_100_000_000_000), earnerMerkleTree.getRoot());
 
         // Get the ATA for the zero value pubkey
-        const zeroATA = await $.getATA(mint.publicKey, PublicKey.default);
+        const zeroATA = await $.getATA($.mMint.publicKey, PublicKey.default);
 
         // Get the inclusion proof for the zero value pubkey in the earner merkle tree
         const { proof } = earnerMerkleTree.getInclusionProof(PublicKey.default);
@@ -1170,7 +1153,7 @@ for (const variant of VARIANTS) {
             })
             .signers([$.nonAdmin])
             .rpc(),
-          'ConstraintTokenMint',
+          'InvalidAccount',
         );
       });
 
@@ -1228,7 +1211,7 @@ for (const variant of VARIANTS) {
 
       // given the user token account is already thawed
       // it reverts with an invalid account error
-      test('Earner account already initialized - reverts', async () => {
+      test('User token account already thawed - reverts', async () => {
         // Get the ATA for earner one
         const earnerOneATA = await $.getATA($.mMint.publicKey, $.earnerOne.publicKey);
 
@@ -1239,16 +1222,15 @@ for (const variant of VARIANTS) {
         await $.addRegistrarEarner($.earnerOne.publicKey, proof);
 
         // Attempt to add earner with already initialized account
-        await $.expectAnchorError(
+        await $.expectSystemError(
           $.earn.methods
-            .addRegistrarEarner(earnerOne.publicKey, proof)
+            .addRegistrarEarner($.earnerOne.publicKey, proof)
             .accounts({
-              signer: nonAdmin.publicKey,
+              signer: $.nonAdmin.publicKey,
               userTokenAccount: earnerOneATA,
             })
-            .signers([nonAdmin])
+            .signers([$.nonAdmin])
             .rpc(),
-          'InvalidAccount',
         );
       });
 
@@ -1347,8 +1329,8 @@ for (const variant of VARIANTS) {
       // test cases
       // [X] given the user token account is not initialized
       //   [X] it reverts with an account not initialized error
-      // [ ] given the user token account is frozen
-      //   [ ] it reverts with an invalid account error
+      // [X] given the user token account is frozen
+      //   [X] it reverts with an invalid account error
       // [X] given all the accounts are valid
       //   [X] given empty merkle proof for user exclusion
       //     [X] it reverts with an InvalidProof error
@@ -1359,7 +1341,7 @@ for (const variant of VARIANTS) {
 
       beforeEach(async () => {
         // Initialize the program
-        await $.initializeEarn($.mMint.publicKey, initialIndex);
+        await $.initializeEarn(initialIndex);
 
         // Populate the earner merkle tree with the initial earners
         earnerMerkleTree = new MerkleTree([$.admin.publicKey, $.earnerOne.publicKey, $.earnerTwo.publicKey]);
@@ -1384,7 +1366,7 @@ for (const variant of VARIANTS) {
 
       // given the user token account is not initialized
       // it reverts with an account not initialized error
-      test('Earner account is not initialized - reverts', async () => {
+      test('User token account is not initialized - reverts', async () => {
         // Get the ATA for non earner one
         const nonEarnerOneATA = await $.getATA($.mMint.publicKey, $.nonEarner.publicKey);
 
@@ -1401,7 +1383,7 @@ for (const variant of VARIANTS) {
             })
             .signers([$.nonAdmin])
             .rpc(),
-          'AccountNotInitialized',
+          'InvalidAccount',
         );
       });
 
@@ -1430,7 +1412,7 @@ for (const variant of VARIANTS) {
       // it reverts with an InvalidProof error
       test('Empty merkle proof for user exclusion - reverts', async () => {
         // Get the ATA for earner one
-        const earnerOneATA = await $.getATA(mint.publicKey, earnerOne.publicKey);
+        const earnerOneATA = await $.getATA($.mMint.publicKey, $.earnerOne.publicKey);
 
         // Attempt to remove earner with invalid merkle proof
         await $.expectAnchorError(
@@ -1499,7 +1481,7 @@ for (const variant of VARIANTS) {
 
       test('Remove registrar earner ownership transfered - success', async () => {
         // Get the ATA for earner two
-        const earnerTwoATA = await $.getATA(mint.publicKey, $.earnerTwo.publicKey);
+        const earnerTwoATA = await $.getATA($.mMint.publicKey, $.earnerTwo.publicKey);
 
         // Check that the token account is thawed before removal
         await $.expectTokenAccountState(earnerTwoATA, AccountState.Initialized);

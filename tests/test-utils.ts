@@ -134,7 +134,7 @@ export async function createMintInstruction(
   const mintLen = getMintLen([
     ExtensionType.ScaledUiAmountConfig,
     ExtensionType.DefaultAccountState,
-    ExtensionType.PermanentDelegate,
+    // ExtensionType.PermanentDelegate,
   ]);
 
   const lamports = await connection.getMinimumBalanceForRentExemption(mintLen);
@@ -149,7 +149,7 @@ export async function createMintInstruction(
     }),
     createInitializeScaledUiAmountConfigInstruction(mint, extensionAuth, 1.0, TOKEN_2022_PROGRAM_ID),
     createInitializeDefaultAccountStateInstruction(mint, AccountState.Initialized, TOKEN_2022_PROGRAM_ID),
-    createInitializePermanentDelegateInstruction(mint, payer.publicKey, TOKEN_2022_PROGRAM_ID),
+    // createInitializePermanentDelegateInstruction(mint, payer.publicKey, TOKEN_2022_PROGRAM_ID),
     createInitializeMintInstruction(mint, 6, mintAuth, payer.publicKey, TOKEN_2022_PROGRAM_ID),
   ];
 
@@ -180,7 +180,7 @@ export async function createMintInstruction(
         mint,
         TOKEN_2022_PROGRAM_ID,
       ),
-      createMintToInstruction(mint, tokenAccount, payer.publicKey, 10_000_000n, undefined, TOKEN_2022_PROGRAM_ID),
+      createMintToInstruction(mint, tokenAccount, mintAuth, 10_000_000n, undefined, TOKEN_2022_PROGRAM_ID),
       createUpdateDefaultAccountStateInstruction(
         mint,
         AccountState.Frozen,

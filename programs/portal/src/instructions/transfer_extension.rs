@@ -1,8 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::{
-    associated_token::AssociatedToken,
-    token_interface::{Mint, TokenAccount, TokenInterface},
-};
+use anchor_spl::token_interface::{approve, Approve, Mint, TokenAccount, TokenInterface};
 use earn::state::{EarnGlobal, GLOBAL_SEED};
 use ext_swap::{accounts::SwapGlobal, program::ExtSwap};
 
@@ -75,8 +72,6 @@ pub struct TransferExtensionBurn<'info> {
     pub swap_program: Program<'info, ExtSwap>,
 
     pub ext_token_program: Interface<'info, TokenInterface>,
-
-    pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
 pub fn transfer_extension_burn<'info>(
@@ -109,7 +104,6 @@ pub fn transfer_extension_burn<'info>(
                 from_token_program: ctx.accounts.ext_token_program.to_account_info(),
                 m_token_program: ctx.accounts.common.common.token_program.to_account_info(),
                 from_ext_program: ctx.accounts.ext_program.to_account_info(),
-                associated_token_program: ctx.accounts.associated_token_program.to_account_info(),
                 system_program: ctx.accounts.common.common.system_program.to_account_info(),
             },
             &[&[crate::TOKEN_AUTHORITY_SEED, &[token_auth_bump]]],
@@ -120,6 +114,20 @@ pub fn transfer_extension_burn<'info>(
     // Amount of $M we got from unwrap
     ctx.accounts.common.common.from.reload()?;
     let m_amount = ctx.accounts.common.common.from.amount - m_pre_balance;
+
+    // TransferBurn expects spending approval to session authority
+    approve(
+        CpiContext::new_with_signer(
+            ctx.accounts.common.common.token_program.to_account_info(),
+            Approve {
+                to: ctx.accounts.common.common.from.to_account_info(),
+                delegate: ctx.accounts.common.session_authority.to_account_info(),
+                authority: ctx.accounts.common.token_authority.to_account_info(),
+            },
+            &[&[crate::TOKEN_AUTHORITY_SEED, &[token_auth_bump]]],
+        ),
+        m_amount,
+    )?;
 
     let sub_ctx: Context<'_, '_, '_, 'info, TransferBurn<'info>> = Context::new(
         ctx.program_id,

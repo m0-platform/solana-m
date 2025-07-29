@@ -47,6 +47,7 @@ import { sha256 } from '@noble/hashes/sha2';
 import { SYSTEM_PROGRAM_ID } from '@coral-xyz/anchor/dist/cjs/native/system';
 import { ExtSwap } from '../programs/ext_swap';
 import { MExt } from '../programs/m_ext';
+import { FailedTransactionMetadata } from 'litesvm';
 const EARN_IDL = require('../../target/idl/earn.json');
 const SWAP_IDL = require('../programs/ext_swap.json');
 const M_EXT_IDL = require('../programs/m_ext.json');
@@ -587,12 +588,14 @@ describe('Portal unit tests', () => {
     };
 
     let inboxItem: PublicKey;
+    let payload: any;
 
     const redeem = (
       additionalAccounts: AccountMeta[],
       additionalPayload?: string,
       extension?: boolean,
       recipient?: PublicKey,
+      skipRelease = false,
     ) => {
       additionalPayload ??= utils.encodePacked(
         { type: 'uint64', value: 1_000_000_000_001n }, // index
@@ -608,12 +611,17 @@ describe('Portal unit tests', () => {
 
       const pdas = NTT.pdas(config.PORTAL_PROGRAM_ID);
       inboxItem = pdas.inboxItemAccount(vaa.emitterChain as any, vaa.payload.nttManagerPayload);
+      payload = vaa.payload.nttManagerPayload;
 
       // return custom generator where the redeem ix has the desired remaining accounts
       return async function* redeemTxns() {
         let i = 0;
         for await (const tx of redeemTxs) {
           if (++i === 4) {
+            if (skipRelease) {
+              continue;
+            }
+
             const t = tx.transaction.transaction as VersionedTransaction;
 
             const ixs = t.message.compiledInstructions.map(
@@ -690,6 +698,61 @@ describe('Portal unit tests', () => {
       const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
       const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
       expect(parsedTokenAccount.amount).toBe(9880099n);
+    });
+
+    it('$M tokens - try unauthorized redeem', async () => {
+      const getRedeemTxns = redeem(
+        [],
+        undefined,
+        undefined,
+        undefined,
+        true, // skip release ix
+      );
+
+      await ssw(ctx, getRedeemTxns(), signer);
+
+      await spl.getOrCreateAssociatedTokenAccount(
+        connection,
+        randomUser,
+        mint.publicKey,
+        randomUser.publicKey,
+        false,
+        undefined,
+        undefined,
+        TOKEN_PROGRAM,
+      );
+
+      // try to release to random user
+      const ix = await NTT.createReleaseInboundMintMultisigInstruction(ntt.program, await ntt.getConfig(), {
+        payer: randomUser.publicKey,
+        nttMessage: payload,
+        recipient: randomUser.publicKey,
+        chain: 'Ethereum',
+        revertOnDelay: false,
+        multisig: multisig.publicKey,
+      });
+
+      // add additional keys required for portal CPI
+      ix.keys.push(
+        {
+          pubkey: config.EARN_PROGRAM,
+          isSigner: false,
+          isWritable: false,
+        },
+        {
+          pubkey: config.EARN_GLOBAL_ACCOUNT,
+          isSigner: false,
+          isWritable: true,
+        },
+      );
+
+      const tx = new Transaction().add(ix);
+      tx.feePayer = randomUser.publicKey;
+      tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+      tx.sign(randomUser);
+
+      const result = svm.sendTransaction!(tx) as FailedTransactionMetadata;
+      expect(result.meta().logs()).toContain('Program log: expected recipient to match inbox item');
     });
 
     it('$M tokens - frozen', async () => {

@@ -26,8 +26,7 @@ test-sdk:
 	exit $$e
 
 test-merkle:
-	@cd sdk && pnpm build
-	cd tests && pnpm jest --preset ts-jest tests/unit/merkle.test.ts; exit $$?
+	pnpm jest --preset ts-jest tests/unit/merkle.test.ts; exit $$?
 
 test-local-validator:
 	solana-test-validator --deactivate-feature EenyoWx9UMXYKpR8mW5Jmfmy2fRjzUtM7NduYMY8bx33 -r \
@@ -48,6 +47,19 @@ build-test-swap-program:
 	@cp -f ../solana-extensions/target/deploy/ext_swap.so tests/programs/ext_swap.so
 	@cp -f ../solana-extensions/target/idl/ext_swap.json tests/programs/ext_swap.json
 	@cp -f ../solana-extensions/target/types/ext_swap.ts tests/programs/ext_swap.ts
+
+build-test-earn-programs:
+	anchor build -p earn -- --features testing --no-default-features
+	@mv target/deploy/earn.so target/deploy/earn_new_test.so
+	@mv target/idl/earn.json target/idl/earn_new_test.json
+	@mv target/types/earn.ts target/types/earn_new_test.ts
+	anchor build -p earn -- --features migrate,testing --no-default-features
+	@mv target/deploy/earn.so target/deploy/earn_migrate_test.so
+	@mv target/idl/earn.json target/idl/earn_migrate_test.json
+	@mv target/types/earn.ts target/types/earn_migrate_test.ts
+
+test-earn:
+	cd tests && pnpm jest --preset ts-jest tests/unit/earn.test.ts; exit $$?
 
 #
 # Devnet commands

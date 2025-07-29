@@ -31,6 +31,7 @@ pub struct AddRegistrarEarner<'info> {
     pub m_mint: InterfaceAccount<'info, Mint>,
 
     #[account(
+        mut,
         token::mint = global_account.m_mint,
         token::authority = user,
         constraint = has_immutable_owner(&user_token_account) @ EarnError::MutableOwner,

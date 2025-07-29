@@ -1,6 +1,7 @@
 import * as spl from '@solana/spl-token';
 import {
   AccountMeta,
+  Connection,
   Keypair,
   LAMPORTS_PER_SOL,
   PublicKey,
@@ -23,12 +24,13 @@ import {
 import * as testing from '@wormhole-foundation/sdk-definitions/testing';
 import { SolanaAddress, SolanaSendSigner, SolanaUnsignedTransaction } from '@wormhole-foundation/sdk-solana';
 import { NTT, SolanaNtt } from '@wormhole-foundation/sdk-solana-ntt';
+import { ChainAddress } from '@wormhole-foundation/sdk-definitions';
+import { SolanaWormholeCore } from '@wormhole-foundation/sdk-solana-core';
+import { SolanaPlatform } from '@wormhole-foundation/sdk-solana';
 import {
   createMintInstruction,
-  createSetEvmAddresses,
   fetchTransactionLogs,
   getScaledUIMult,
-  getWormholeContext,
   LiteSVMProviderExt,
   loadKeypair,
 } from '../test-utils';
@@ -72,6 +74,49 @@ const config = {
   )[0],
   SWAP_PROGRAM: new PublicKey('MSwapi3WhNKMUGm9YrxGhypgUEt7wYQH3ZgG32XoWzH'),
 };
+
+export function getWormholeContext(connection: Connection) {
+  const w = new Wormhole('Mainnet', [SolanaPlatform], {
+    chains: { Solana: { contracts: { coreBridge: WORMHOLE_SOLANA.toBase58() } } },
+  });
+  const remoteXcvr: ChainAddress = {
+    chain: 'Ethereum',
+    address: new UniversalAddress(encoding.bytes.encode('transceiver'.padStart(32, '\0'))),
+  };
+  const remoteMgr: ChainAddress = {
+    chain: 'Ethereum',
+    address: new UniversalAddress(encoding.bytes.encode('nttManager'.padStart(32, '\0'))),
+  };
+  const ctx = w.getPlatform('Solana').getChain('Solana', connection);
+
+  const coreBridge = new SolanaWormholeCore('Mainnet', 'Solana', connection, {
+    coreBridge: WORMHOLE_SOLANA.toBase58(),
+  });
+  return { ctx, coreBridge, remoteXcvr, remoteMgr };
+}
+
+export function createSetEvmAddresses(pid: PublicKey, admin: PublicKey, M: string, wM: string) {
+  return new TransactionInstruction({
+    programId: pid,
+    keys: [
+      {
+        pubkey: admin,
+        isSigner: true,
+        isWritable: true,
+      },
+      {
+        pubkey: NTT.pdas(pid).configAccount(),
+        isSigner: false,
+        isWritable: true,
+      },
+    ],
+    data: Buffer.concat([
+      sha256('global:set_destination_addresses').slice(0, 8),
+      Buffer.from(M.slice(2).padStart(64, '0'), 'hex'),
+      Buffer.from(wM.slice(2).padStart(64, '0'), 'hex'),
+    ]),
+  });
+}
 
 describe('Portal unit tests', () => {
   let ntt: SolanaNtt<'Mainnet', 'Solana'>;

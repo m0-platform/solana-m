@@ -65,6 +65,12 @@ runs:
       run: npm i -g pnpm && pnpm install
       shell: bash
 
+    - name: Build test programs
+      run: |
+        make build-test-earn-programs
+        make build-test-swap-program
+      shell: bash
+
     - name: Build programs
       run: |
         anchor build -p earn

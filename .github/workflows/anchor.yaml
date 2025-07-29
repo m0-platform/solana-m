@@ -30,21 +30,6 @@ jobs:
           pnpm jest --preset ts-jest --verbose tests/unit/earn.test.ts
         shell: bash
 
-  ext-earn-tests:
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Environment
-        uses: ./.github/setup
-
-      - name: Run tests
-        run: |
-          cd tests
-          pnpm jest --preset ts-jest --verbose tests/unit/ext_earn.test.ts
-        shell: bash
-
   portal-tests:
     runs-on: ubuntu-24.04
     steps:

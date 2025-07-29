@@ -1,7 +1,9 @@
 use anchor_lang::{prelude::*, solana_program::program::invoke_signed};
 use anchor_spl::{associated_token::get_associated_token_address_with_program_id, token_interface};
 use earn::{
-    cpi::accounts::PropagateIndex, program::Earn, state::EarnGlobal,
+    cpi::accounts::PropagateIndex,
+    program::Earn,
+    state::{EarnGlobal, GLOBAL_SEED},
     utils::conversion::amount_to_principal_down,
 };
 use spl_token_2022::onchain;
@@ -82,7 +84,12 @@ pub struct ReleaseInboundMintMultisig<'info> {
 
     pub earn_program: Program<'info, Earn>,
 
-    pub earn_global: Box<Account<'info, EarnGlobal>>,
+    #[account(
+        seeds = [GLOBAL_SEED],
+        seeds::program = earn::ID,
+        bump = m_global.bump,
+    )]
+    pub m_global: Box<Account<'info, EarnGlobal>>,
 }
 
 pub fn release_inbound_mint_multisig<'info>(
@@ -110,7 +117,7 @@ pub fn release_inbound_mint_multisig<'info>(
         ctx.accounts.earn_program.to_account_info(),
         PropagateIndex {
             signer: ctx.accounts.common.token_authority.to_account_info(),
-            global_account: ctx.accounts.earn_global.to_account_info(),
+            global_account: ctx.accounts.m_global.to_account_info(),
             m_mint: ctx.accounts.common.mint.to_account_info(),
             token_program: ctx.accounts.common.token_program.to_account_info(),
         },

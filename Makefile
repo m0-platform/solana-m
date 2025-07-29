@@ -59,7 +59,6 @@ build-test-earn-programs:
 	@mv target/types/earn.ts target/types/earn_migrate_test.ts
 
 test-earn:
-	@cd sdk && pnpm build
 	cd tests && pnpm jest --preset ts-jest tests/unit/earn.test.ts; exit $$?
 
 #

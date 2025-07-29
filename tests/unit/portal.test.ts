@@ -24,7 +24,7 @@ import {
 import * as testing from '@wormhole-foundation/sdk-definitions/testing';
 import { SolanaAddress, SolanaSendSigner, SolanaUnsignedTransaction } from '@wormhole-foundation/sdk-solana';
 import { NTT, SolanaNtt } from '@wormhole-foundation/sdk-solana-ntt';
-import { ChainAddress, sha256 } from '@wormhole-foundation/sdk-definitions';
+import { ChainAddress } from '@wormhole-foundation/sdk-definitions';
 import { SolanaWormholeCore } from '@wormhole-foundation/sdk-solana-core';
 import { SolanaPlatform } from '@wormhole-foundation/sdk-solana';
 import {
@@ -40,12 +40,12 @@ import {
   createMintToInstruction,
   createSetAuthorityInstruction,
   getAssociatedTokenAddressSync,
-  createApproveInstruction,
 } from '@solana/spl-token';
 import NodeWallet from '@coral-xyz/anchor/dist/cjs/nodewallet';
 import { utils } from 'web3';
 import { BN, Program } from '@coral-xyz/anchor';
 import { Earn } from '../../target/types/earn';
+import { sha256 } from '@noble/hashes/sha2';
 import { SYSTEM_PROGRAM_ID } from '@coral-xyz/anchor/dist/cjs/native/system';
 import { ExtSwap } from '../programs/ext_swap';
 import { MExt } from '../programs/m_ext';
@@ -131,6 +131,7 @@ describe('Portal unit tests', () => {
   const admin = loadKeypair('keys/admin.json');
   const owner = payer;
   let tokenAccount = getAssociatedTokenAddressSync(mint.publicKey, payer.publicKey, false, spl.TOKEN_2022_PROGRAM_ID);
+  const randomUser = Keypair.generate();
 
   const svm = fromWorkspace('../').withSplPrograms().withBuiltins().withSysvars().withBlockhashCheck(false);
 
@@ -194,11 +195,12 @@ describe('Portal unit tests', () => {
   beforeAll(async () => {
     svm.airdrop(payer.publicKey, BigInt(10 * LAMPORTS_PER_SOL));
     svm.airdrop(admin.publicKey, BigInt(10 * LAMPORTS_PER_SOL));
+    svm.airdrop(randomUser.publicKey, BigInt(10 * LAMPORTS_PER_SOL));
     signer = new SolanaSendSigner(connection, 'Solana', payer, false, {});
     sender = Wormhole.parseAddress('Solana', signer.address());
 
     // create mints
-    const tx = new Transaction().add(
+    let tx = new Transaction().add(
       ...(await createMintInstruction(
         connection,
         owner,
@@ -208,6 +210,10 @@ describe('Portal unit tests', () => {
         spl.AccountState.Frozen,
         PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_PROGRAM)[0],
       )),
+    );
+    await provider.sendAndConfirm!(tx, [payer, mint]);
+
+    tx = new Transaction().add(
       ...(await createMintInstruction(
         connection,
         owner,
@@ -217,8 +223,23 @@ describe('Portal unit tests', () => {
         spl.AccountState.Initialized,
       )),
     );
+    await provider.sendAndConfirm!(tx, [payer, extMint]);
 
-    await provider.sendAndConfirm!(tx, [payer, mint, extMint]);
+    // transfer some extension tokens to the random user
+    const { address: extAta } = await spl.getOrCreateAssociatedTokenAccount(
+      connection,
+      payer,
+      extMint.publicKey,
+      randomUser.publicKey,
+      true,
+      undefined,
+      undefined,
+      TOKEN_PROGRAM,
+    );
+
+    const transferTx = new Transaction();
+    const fromAccount = getAssociatedTokenAddressSync(extMint.publicKey, payer.publicKey, false, TOKEN_PROGRAM);
+    transferTx.add(spl.createTransferInstruction(fromAccount, extAta, payer.publicKey, 100_000n));
 
     // contract client
     ntt = new SolanaNtt(
@@ -301,7 +322,7 @@ describe('Portal unit tests', () => {
       await ssw(ctx, setXcvrPeerTxs, signer);
 
       // Set manager peer
-      const setPeerTxs = ntt.setPeer(wc.remoteMgr, 9, 1000000n, sender);
+      const setPeerTxs = ntt.setPeer(wc.remoteMgr, 6, 1000000n, sender);
       await ssw(ctx, setPeerTxs, signer);
     });
     test('initialize earn', async () => {
@@ -385,6 +406,16 @@ describe('Portal unit tests', () => {
         undefined,
         TOKEN_PROGRAM,
       );
+      const randomAta = await spl.getOrCreateAssociatedTokenAccount(
+        connection,
+        payer,
+        extMint.publicKey,
+        randomUser.publicKey,
+        true,
+        undefined,
+        undefined,
+        TOKEN_PROGRAM,
+      );
 
       // Get extension tokens for testing
       await mExt.methods
@@ -396,10 +427,65 @@ describe('Portal unit tests', () => {
         })
         .signers([payer])
         .rpc();
+
+      // Wrap to random user
+      await mExt.methods
+        .wrap(new BN(10_000))
+        .accounts({
+          fromMTokenAccount: tokenAccount,
+          toExtTokenAccount: randomAta.address,
+          extTokenProgram: spl.TOKEN_2022_PROGRAM_ID,
+        })
+        .signers([payer])
+        .rpc();
     });
   });
 
   describe('Sending', () => {
+    // create generator that returns transfer_extension instruction
+    async function* transferExtension(caller: Keypair, outboxItem: Keypair, amount: number, extAta: PublicKey) {
+      // portal $M token account
+      const { address: mAta } = await spl.getOrCreateAssociatedTokenAccount(
+        connection,
+        caller,
+        mint.publicKey,
+        PublicKey.findProgramAddressSync([Buffer.from('token_authority')], config.PORTAL_PROGRAM_ID)[0],
+        true,
+        undefined,
+        undefined,
+        TOKEN_PROGRAM,
+      );
+
+      const tx = new Transaction().add(
+        buildTransferExtensionIx(
+          ntt,
+          amount,
+          caller.publicKey,
+          outboxItem.publicKey,
+          mint.publicKey,
+          extMint.publicKey,
+          mAta,
+          extAta,
+        ),
+      );
+
+      tx.feePayer = caller.publicKey;
+      tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+      tx.sign(outboxItem);
+
+      yield ntt.createUnsignedTx({ transaction: tx }, 'Ntt.Transfer');
+
+      // release
+      const whTransceiver = await ntt.getWormholeTransceiver();
+      const release = new Transaction().add(
+        await whTransceiver!.createReleaseWormholeOutboundIx(caller.publicKey, outboxItem.publicKey, true),
+      );
+
+      release.feePayer = caller.publicKey;
+      release.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+      yield ntt.createUnsignedTx({ transaction: release }, 'Ntt.Release');
+    }
+
     test('can send tokens', async () => {
       const amount = 100_000n;
       const sender = Wormhole.parseAddress('Solana', signer.address());
@@ -429,28 +515,16 @@ describe('Portal unit tests', () => {
       const payloadAmount = BigInt('0x' + payloadHex.slice(10, 26));
 
       // assert that amount is what we expect
-      expect(payloadAmount.toString()).toBe('10000');
+      expect(payloadAmount.toString()).toBe('100000');
 
       // get from balance
       const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
       const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
-      expect(parsedTokenAccount.amount).toBe(9890000n);
+      expect(parsedTokenAccount.amount).toBe(9880000n);
     });
 
-    test('can send extension tokens', async () => {
-      const outboxItem = Keypair.generate();
-
-      // init token accounts
-      const { address: mAta } = await spl.getOrCreateAssociatedTokenAccount(
-        connection,
-        payer,
-        mint.publicKey,
-        payer.publicKey,
-        true,
-        undefined,
-        undefined,
-        TOKEN_PROGRAM,
-      );
+    test('can send extension tokens - owns thawed $M account', async () => {
+      // init token account
       const { address: extAta } = await spl.getOrCreateAssociatedTokenAccount(
         connection,
         payer,
@@ -463,56 +537,8 @@ describe('Portal unit tests', () => {
       );
 
       const amount = 1_000;
-
-      // create generator that returns transfer_extension instruction
-      async function* transferExtension() {
-        const tx = new Transaction().add(
-          // spending approval for custodian
-          createApproveInstruction(
-            mAta,
-            ntt.pdas.sessionAuthority(payer.publicKey, {
-              amount: new BN(amount),
-              recipientChain: {
-                id: 2,
-              },
-              recipientAddress: [...Array(32)],
-              shouldQueue: false,
-            }),
-            payer.publicKey,
-            amount,
-            [],
-            spl.TOKEN_2022_PROGRAM_ID,
-          ),
-          buildTransferExtensionIx(
-            ntt,
-            amount,
-            signer.address(),
-            outboxItem.publicKey,
-            mint.publicKey,
-            extMint.publicKey,
-            mAta,
-            extAta,
-          ),
-        );
-
-        tx.feePayer = payer.publicKey;
-        tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-        tx.sign(outboxItem);
-
-        yield ntt.createUnsignedTx({ transaction: tx }, 'Ntt.Transfer');
-
-        // release
-        const whTransceiver = await ntt.getWormholeTransceiver();
-        const release = new Transaction().add(
-          await whTransceiver!.createReleaseWormholeOutboundIx(payer.publicKey, outboxItem.publicKey, true),
-        );
-
-        release.feePayer = payer.publicKey;
-        release.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-        yield ntt.createUnsignedTx({ transaction: release }, 'Ntt.Release');
-      }
-
-      await ssw(ctx, transferExtension(), signer);
+      const outboxItem = Keypair.generate();
+      await ssw(ctx, transferExtension(payer, outboxItem, amount, extAta), signer);
 
       // assert that released bitmap has transceiver bits set
       const outboxItemInfo = await ntt.program.account.outboxItem.fetch(outboxItem.publicKey);
@@ -528,12 +554,47 @@ describe('Portal unit tests', () => {
       const payloadAmount = BigInt('0x' + payloadHex.slice(10, 26));
 
       // assert that amount is what we expect
-      expect(payloadAmount.toString()).toBe('100');
+      expect(payloadAmount.toString()).toBe(amount.toString());
 
       // $M balance did not change (we unwrapped an extension token)
       const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
       const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
-      expect(parsedTokenAccount.amount).toBe(9890000n);
+      expect(parsedTokenAccount.amount).toBe(9880000n);
+
+      // verify that 1000 extension tokens were sent
+      const extTokenAccountInfo = await connection.getAccountInfo(extAta);
+      const extParsedTokenAccount = spl.unpackAccount(tokenAccount, extTokenAccountInfo, TOKEN_PROGRAM);
+      expect(extParsedTokenAccount.amount).toBe(9000n);
+    });
+
+    test('can send extension tokens - cannot hold $M', async () => {
+      const rSigner = new SolanaSendSigner(connection, 'Solana', randomUser, false, {});
+      const extAta = getAssociatedTokenAddressSync(extMint.publicKey, randomUser.publicKey, false, TOKEN_PROGRAM);
+
+      const amount = 1_000;
+      const outboxItem = Keypair.generate();
+      await ssw(ctx, transferExtension(randomUser, outboxItem, amount, extAta), rSigner);
+
+      // assert that released bitmap has transceiver bits set
+      const outboxItemInfo = await ntt.program.account.outboxItem.fetch(outboxItem.publicKey);
+      expect(outboxItemInfo.released.map.bitLength()).toBe(1);
+
+      const [wormholeMessage] = PublicKey.findProgramAddressSync(
+        [Buffer.from('message'), outboxItem.publicKey.toBytes()],
+        config.PORTAL_PROGRAM_ID,
+      );
+
+      const unsignedVaa = await wc.coreBridge.parsePostMessageAccount(wormholeMessage);
+      const payloadHex = Buffer.from(unsignedVaa.payload).toString('hex').slice(272);
+      const payloadAmount = BigInt('0x' + payloadHex.slice(10, 26));
+
+      // assert that amount is what we expect
+      expect(payloadAmount.toString()).toBe(amount.toString());
+
+      // $M balance did not change (we unwrapped an extension token)
+      const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
+      const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
+      expect(parsedTokenAccount.amount).toBe(9880000n);
 
       // verify that 1000 extension tokens were sent
       const extTokenAccountInfo = await connection.getAccountInfo(extAta);
@@ -548,7 +609,7 @@ describe('Portal unit tests', () => {
 
     // transfer payload builder with custom additional data
     let sequenceCount = 0;
-    const transferPayload = (additionalPayload: string) => {
+    const transferPayload = (additionalPayload: string, recipient?: PublicKey) => {
       return {
         sourceNttManager: wc.remoteMgr.address as UniversalAddress,
         recipientNttManager: new UniversalAddress(ntt.program.programId.toBytes()),
@@ -561,7 +622,7 @@ describe('Portal unit tests', () => {
               decimals: 8,
             },
             sourceToken: new UniversalAddress('FAFA'.padStart(64, '0')),
-            recipientAddress: new UniversalAddress(payer.publicKey.toBytes()),
+            recipientAddress: new UniversalAddress(recipient?.toBytes() ?? payer.publicKey.toBytes()),
             recipientChain: 'Solana',
             additionalPayload: Buffer.from(additionalPayload.slice(2), 'hex'),
           },
@@ -572,13 +633,18 @@ describe('Portal unit tests', () => {
 
     let inboxItem: PublicKey;
 
-    const redeem = (additionalAccounts: AccountMeta[], additionalPayload?: string, extension?: boolean) => {
+    const redeem = (
+      additionalAccounts: AccountMeta[],
+      additionalPayload?: string,
+      extension?: boolean,
+      recipient?: PublicKey,
+    ) => {
       additionalPayload ??= utils.encodePacked(
         { type: 'uint64', value: 1_000_000_000_001n }, // index
         { type: 'bytes32', value: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b' }, // destination
       );
 
-      const serialized = serializePayload('Ntt:WormholeTransfer', transferPayload(additionalPayload));
+      const serialized = serializePayload('Ntt:WormholeTransfer', transferPayload(additionalPayload, recipient));
 
       const published = emitter.publishMessage(0, serialized, 200);
       const rawVaa = guardians.addSignatures(published, [0]);
@@ -646,12 +712,12 @@ describe('Portal unit tests', () => {
       const logs = await fetchTransactionLogs(provider, txIds[txIds.length - 1].txid);
 
       // bridge event log exists
-      expect(logs[logs.length - 3].startsWith('Program data: bEUUGiR+tFmghgEAAAAAA')).toBeTruthy();
+      expect(logs[logs.length - 3].startsWith('Program data: bEUUGiR+')).toBeTruthy();
       expect(logs).toContain('Program log: Index update: 1000000000001 | root update: false');
 
       // verify data was propagated (scaled-ui multiplier was updated)
-      const mult = getScaledUIMult(connection, mint.publicKey);
-      expect(mult).toBe('1000000000001');
+      const mult = await getScaledUIMult(connection, mint.publicKey);
+      expect(mult).toBe(1.000000000001);
 
       // verify inbox item was released
       const item = await ntt.program.account.inboxItem.fetch(inboxItem);
@@ -660,7 +726,47 @@ describe('Portal unit tests', () => {
       // check balance
       const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
       const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
-      expect(parsedTokenAccount.amount).toBe(9990000n);
+      expect(parsedTokenAccount.amount).toBe(9880099n);
+    });
+
+    it('$M tokens - frozen', async () => {
+      const randomUser = new Keypair().publicKey;
+
+      await spl.getOrCreateAssociatedTokenAccount(
+        connection,
+        payer,
+        mint.publicKey,
+        randomUser,
+        true,
+        undefined,
+        undefined,
+        TOKEN_PROGRAM,
+      );
+
+      const getRedeemTxns = redeem(
+        [
+          {
+            pubkey: config.EARN_PROGRAM,
+            isSigner: false,
+            isWritable: false,
+          },
+          {
+            pubkey: config.EARN_GLOBAL_ACCOUNT,
+            isSigner: false,
+            isWritable: true,
+          },
+        ],
+        undefined,
+        undefined,
+        randomUser, // random recipient to trigger frozen error
+      );
+
+      try {
+        await ssw(ctx, getRedeemTxns(), signer);
+        throw new Error('send should have failed');
+      } catch (e: any) {
+        expect(e.toString()).toContain('Program log: Error: Account is frozen');
+      }
     });
 
     it('extension tokens', async () => {
@@ -685,12 +791,12 @@ describe('Portal unit tests', () => {
       const logs = await fetchTransactionLogs(provider, txIds[txIds.length - 1].txid);
 
       // bridge event log exists
-      expect(logs[15].startsWith('Program data: bEUUGiR+tFmghgEAAAAAA')).toBeTruthy();
+      expect(logs[15].startsWith('Program data: bEUUGiR+')).toBeTruthy();
       expect(logs).toContain('Program log: Index update: 1000000000001 | root update: false');
 
       // verify data was propagated (scaled-ui multiplier was updated)
-      const mult = getScaledUIMult(connection, mint.publicKey);
-      expect(mult).toBe('1000000000001');
+      const mult = await getScaledUIMult(connection, mint.publicKey);
+      expect(mult).toBe(1.000000000001);
 
       // verify inbox item was released
       const item = await ntt.program.account.inboxItem.fetch(inboxItem);
@@ -699,12 +805,12 @@ describe('Portal unit tests', () => {
       // check balance
       const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
       const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
-      expect(parsedTokenAccount.amount).toBe(9990000n); // should be unchanged
+      expect(parsedTokenAccount.amount).toBe(9880099n); // should be unchanged
 
       // check balance
       const extTokenAccountInfo = await connection.getAccountInfo(extAta);
       const extParsedTokenAccount = spl.unpackAccount(extAta, extTokenAccountInfo, TOKEN_PROGRAM);
-      expect(extParsedTokenAccount.amount).toBe(109000n);
+      expect(extParsedTokenAccount.amount).toBe(9099n);
     });
 
     it('tokens with merkle roots', async () => {
@@ -746,7 +852,7 @@ describe('Portal unit tests', () => {
   });
 
   describe('Mint', () => {
-    it('can mint independently', async () => {
+    it('cannot mint - frozen', async () => {
       const recipient = Keypair.generate();
       const associatedToken = getAssociatedTokenAddressSync(mint.publicKey, recipient.publicKey, false, TOKEN_PROGRAM);
 
@@ -761,11 +867,12 @@ describe('Portal unit tests', () => {
         createMintToInstruction(mint.publicKey, associatedToken, multisig.publicKey, 1, [owner], TOKEN_PROGRAM),
       );
 
-      await provider.sendAndConfirm!(tx, [payer, owner]);
-
-      const tokenAccountInfo = await connection.getAccountInfo(associatedToken);
-      const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
-      expect(parsedTokenAccount.amount).toBe(1n);
+      try {
+        await provider.sendAndConfirm!(tx, [payer, owner]);
+        throw new Error('send should have failed');
+      } catch (e: any) {
+        expect(e?.transactionLogs[e?.transactionLogs.length - 3]).toEqual('Program log: Error: Account is frozen');
+      }
     });
   });
 });
@@ -773,7 +880,7 @@ describe('Portal unit tests', () => {
 function buildTransferExtensionIx(
   ntt: SolanaNtt<'Mainnet', 'Solana'>,
   amount: number,
-  signer: string,
+  signer: PublicKey,
   outboxItem: PublicKey,
   mMint: PublicKey,
   extMint: PublicKey,
@@ -784,7 +891,7 @@ function buildTransferExtensionIx(
     programId: config.PORTAL_PROGRAM_ID,
     keys: [
       {
-        pubkey: new PublicKey(signer),
+        pubkey: signer,
         isSigner: true,
         isWritable: true,
       },
@@ -938,12 +1045,6 @@ function buildTransferExtensionIx(
         isSigner: false,
         isWritable: false,
       },
-      {
-        // ata program
-        pubkey: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
-        isSigner: false,
-        isWritable: false,
-      },
     ],
     data: Buffer.concat([
       Buffer.from(sha256('global:transfer_extension_burn').subarray(0, 8)),
@@ -1036,12 +1137,6 @@ function additionalRedeemAccounts(mMint: PublicKey, extMint: PublicKey, extAta: 
     {
       // ext token program
       pubkey: TOKEN_PROGRAM,
-      isSigner: false,
-      isWritable: false,
-    },
-    {
-      // ata program
-      pubkey: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
       isSigner: false,
       isWritable: false,
     },

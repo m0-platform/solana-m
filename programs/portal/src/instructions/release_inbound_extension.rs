@@ -1,11 +1,10 @@
 use anchor_lang::prelude::*;
-use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
-use earn::state::EarnGlobal;
+use earn::state::GLOBAL_SEED;
+use ext_swap::accounts::SwapGlobal;
 use ext_swap::program::ExtSwap;
-use ext_swap::state::{SwapGlobal, GLOBAL_SEED};
 
-use crate::instructions::release_inbound_mint_multisig;
+use crate::instructions::{ext_swap, release_inbound_mint_multisig};
 use crate::instructions::{ReleaseInboundArgs, ReleaseInboundMintMultisig};
 use crate::ReleaseInboundMintMultisigBumps;
 use crate::__client_accounts_release_inbound_mint_multisig;
@@ -27,13 +26,6 @@ pub struct ReleaseInboundMintExtensionMultisig<'info> {
         bump = swap_global.bump,
     )]
     pub swap_global: Box<Account<'info, SwapGlobal>>,
-
-    #[account(
-        seeds = [GLOBAL_SEED],
-        seeds::program = earn::ID,
-        bump = m_global.bump,
-    )]
-    pub m_global: Box<Account<'info, EarnGlobal>>,
 
     #[account(
         mut,
@@ -86,8 +78,6 @@ pub struct ReleaseInboundMintExtensionMultisig<'info> {
     pub ext_program: AccountInfo<'info>,
 
     pub ext_token_program: Interface<'info, TokenInterface>,
-
-    pub associated_token_program: Program<'info, AssociatedToken>,
 
     pub system_program: Program<'info, System>,
 }
@@ -143,7 +133,6 @@ pub fn release_inbound_mint_extension_multisig<'info>(
                 to_token_program: ctx.accounts.ext_token_program.to_account_info(),
                 m_token_program: ctx.accounts.common.common.token_program.to_account_info(),
                 to_ext_program: ctx.accounts.ext_program.to_account_info(),
-                associated_token_program: ctx.accounts.associated_token_program.to_account_info(),
                 system_program: ctx.accounts.system_program.to_account_info(),
             },
             &[&[crate::TOKEN_AUTHORITY_SEED, &[token_auth_bump]]],

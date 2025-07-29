@@ -135,7 +135,7 @@ pub struct TransferBurn<'info> {
 impl<'info> TransferBurn<'info> {
     // Manually validate accounts instead of using anchor constraints
     // so that the context can be shared (nested contexts do not support instruction args)
-    pub fn validate_accounts(&self, args: &TransferArgs) -> Result<u8> {
+    pub fn validate_accounts(&self, args: &TransferArgs) -> Result<(Pubkey, u8)> {
         let inbox_rate_limit = Pubkey::create_program_address(
             &[
                 InboxRateLimit::SEED_PREFIX,
@@ -161,10 +161,18 @@ impl<'info> TransferBurn<'info> {
             return err!(ErrorCode::ConstraintAddress);
         }
 
+        // Owner of the $M token account depends on whether this function
+        // was called directly or by tranfer_extension_burn.
+        let session_owner_seed = if self.common.from.owner.eq(self.token_authority.key) {
+            self.common.payer.key()
+        } else {
+            self.common.from.owner.key()
+        };
+
         let (session_authority, session_authority_bump) = Pubkey::find_program_address(
             &[
                 crate::SESSION_AUTHORITY_SEED,
-                self.common.from.owner.as_ref(),
+                session_owner_seed.as_ref(),
                 args.keccak256().as_ref(),
             ],
             &crate::ID,
@@ -173,7 +181,7 @@ impl<'info> TransferBurn<'info> {
             return err!(ErrorCode::ConstraintAddress);
         }
 
-        Ok(session_authority_bump)
+        Ok((session_owner_seed, session_authority_bump))
     }
 }
 
@@ -181,7 +189,7 @@ pub fn transfer_burn<'info>(
     ctx: Context<'_, '_, '_, 'info, TransferBurn<'info>>,
     args: TransferArgs,
 ) -> Result<()> {
-    let session_authority_bump = ctx.accounts.validate_accounts(&args)?;
+    let (session_owner_seed, session_authority_bump) = ctx.accounts.validate_accounts(&args)?;
 
     let accs = ctx.accounts;
 
@@ -237,7 +245,7 @@ pub fn transfer_burn<'info>(
         accs.common.mint.decimals,
         &[&[
             crate::SESSION_AUTHORITY_SEED,
-            accs.common.from.owner.as_ref(),
+            session_owner_seed.as_ref(),
             args.keccak256().as_ref(),
             &[session_authority_bump],
         ]],

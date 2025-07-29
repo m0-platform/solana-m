@@ -27,16 +27,7 @@ pub struct ReleaseInbound<'info> {
     #[account(mut)]
     pub inbox_item: Account<'info, InboxItem>,
 
-    #[account(
-        mut,
-        address = get_recipient_token_account(
-            &inbox_item.transfer,
-            &recipient.owner,
-            &mint.key(),
-            &token_program.key,
-            &token_authority.key()
-        ).unwrap_or(recipient.key()),
-    )]
+    #[account(mut)]
     pub recipient: InterfaceAccount<'info, token_interface::TokenAccount>,
 
     #[account(
@@ -96,7 +87,25 @@ pub fn release_inbound_mint_multisig<'info>(
     ctx: Context<'_, '_, '_, 'info, ReleaseInboundMintMultisig<'info>>,
     args: ReleaseInboundArgs,
 ) -> Result<()> {
+    release_inbound(ctx, args, false)
+}
+
+pub fn release_inbound<'info>(
+    ctx: Context<'_, '_, '_, 'info, ReleaseInboundMintMultisig<'info>>,
+    args: ReleaseInboundArgs,
+    release_extension: bool,
+) -> Result<()> {
     let inbox_item = &mut ctx.accounts.common.inbox_item;
+
+    // Validate token account depending on call context
+    validate_recipient_token_account(
+        &ctx.accounts.common.recipient.key(),
+        &inbox_item.transfer,
+        &ctx.accounts.common.token_authority.key(),
+        &ctx.accounts.common.mint.key(),
+        &ctx.accounts.common.token_program.key(),
+        release_extension,
+    )?;
 
     if !inbox_item.try_release()? {
         msg!("Item cannot be released: {:?}", inbox_item.release_status);
@@ -196,31 +205,42 @@ pub fn release_inbound_mint_multisig<'info>(
     Ok(())
 }
 
-fn get_recipient_token_account(
+fn validate_recipient_token_account(
+    recipient: &Pubkey,
     transfer: &TokenTransfer,
-    account_owner: &Pubkey,
+    token_authority: &Pubkey,
     mint: &Pubkey,
     token_program: &Pubkey,
-    token_authority: &Pubkey,
-) -> Option<Pubkey> {
+    release_extension: bool,
+) -> Result<()> {
     // Only bridging data
     if transfer.amount == 0 {
-        return None;
+        return Ok(());
     }
 
     // Bridging to extension, require intermediate portal token account
-    if account_owner.eq(token_authority) {
-        return Some(get_associated_token_address_with_program_id(
+    if release_extension {
+        if !recipient.eq(&get_associated_token_address_with_program_id(
             token_authority,
             mint,
             token_program,
-        ));
+        )) {
+            msg!("expected recipient to be token authority");
+            return err!(NTTError::InvalidRecipientAddress);
+        }
+
+        return Ok(());
     }
 
     // Bridging $M, require user token account
-    Some(get_associated_token_address_with_program_id(
+    if !recipient.eq(&get_associated_token_address_with_program_id(
         &transfer.recipient,
         mint,
         token_program,
-    ))
+    )) {
+        msg!("expected recipient to match inbox item");
+        return err!(NTTError::InvalidRecipientAddress);
+    }
+
+    Ok(())
 }

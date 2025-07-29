@@ -4,8 +4,8 @@ use earn::state::GLOBAL_SEED;
 use ext_swap::accounts::SwapGlobal;
 use ext_swap::program::ExtSwap;
 
-use crate::instructions::{ext_swap, release_inbound_mint_multisig};
-use crate::instructions::{ReleaseInboundArgs, ReleaseInboundMintMultisig};
+use crate::instructions::ext_swap;
+use crate::instructions::{release_inbound, ReleaseInboundArgs, ReleaseInboundMintMultisig};
 use crate::ReleaseInboundMintMultisigBumps;
 use crate::__client_accounts_release_inbound_mint_multisig;
 use crate::__cpi_client_accounts_release_inbound_mint_multisig;
@@ -66,7 +66,12 @@ pub struct ReleaseInboundMintExtensionMultisig<'info> {
     )]
     pub ext_m_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        associated_token::mint = ext_mint,
+        associated_token::authority = common.common.inbox_item.transfer.recipient,
+        associated_token::token_program = ext_token_program,
+    )]
     pub ext_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /*
@@ -89,7 +94,7 @@ pub fn release_inbound_mint_extension_multisig<'info>(
     let token_auth_bump = ctx.bumps.common.common.token_authority;
 
     // Release bridged $M
-    release_inbound_mint_multisig(
+    release_inbound(
         Context::new(
             ctx.program_id,
             &mut ctx.accounts.common,
@@ -102,6 +107,7 @@ pub fn release_inbound_mint_extension_multisig<'info>(
             // always revert on delay or wrap will fail
             revert_on_delay: true,
         },
+        true,
     )?;
 
     ctx.accounts.common.common.recipient.reload()?;
@@ -119,7 +125,7 @@ pub fn release_inbound_mint_extension_multisig<'info>(
         CpiContext::new_with_signer(
             ctx.accounts.swap_program.to_account_info(),
             ext_swap::cpi::accounts::Wrap {
-                signer: ctx.accounts.common.common.payer.to_account_info(),
+                signer: ctx.accounts.common.common.token_authority.to_account_info(),
                 wrap_authority: Some(ctx.accounts.common.common.token_authority.to_account_info()),
                 swap_global: ctx.accounts.swap_global.to_account_info(),
                 to_global: ctx.accounts.ext_global.to_account_info(),

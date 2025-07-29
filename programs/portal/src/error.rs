@@ -59,8 +59,6 @@ pub enum NTTError {
     InvalidPendingTokenAuthority,
     #[msg("IncorrectRentPayer")]
     IncorrectRentPayer,
-    #[msg("InvalidMultisig")]
-    InvalidMultisig,
     #[msg("ThresholdTooHigh")]
     ThresholdTooHigh,
     #[msg("InvalidTransceiverProgram")]

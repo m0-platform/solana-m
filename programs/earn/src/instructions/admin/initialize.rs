@@ -157,15 +157,12 @@ impl Initialize<'_> {
 
     #[access_control(ctx.accounts.validate())]
     pub fn handler(ctx: Context<Initialize>, _current_index: u64) -> Result<()> {
-        // Portal authority that will propagate indexes and roots
-        let portal_authority =
-            Pubkey::find_program_address(&[TOKEN_AUTHORITY_SEED], &PORTAL_PROGRAM).0;
-
         // Set global state
         ctx.accounts.global_account.set_inner(EarnGlobal {
             admin: ctx.accounts.admin.key(),
             m_mint: ctx.accounts.m_mint.key(),
-            portal_authority,
+            portal_authority: ctx.accounts.portal_token_authority.key(),
+            ext_swap_global_account: ctx.accounts.ext_swap_global.key(),
             earner_merkle_root: [0; 32],
             bump: ctx.bumps.global_account,
         });

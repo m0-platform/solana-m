@@ -54,6 +54,13 @@ impl RemoveRegistrarEarner<'_> {
             neighbors,
         )?;
 
+        // Don't allow removal of token accounts owned by the portal token authority or the ext swap global account
+        if self.user_token_account.owner == self.global_account.portal_authority
+            || self.user_token_account.owner == self.global_account.ext_swap_global_account
+        {
+            return err!(EarnError::NotAuthorized);
+        }
+
         Ok(())
     }
 

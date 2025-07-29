@@ -755,6 +755,64 @@ describe('Portal unit tests', () => {
       expect(result.meta().logs()).toContain('Program log: expected recipient to match inbox item');
     });
 
+    it('$M tokens - calling redeem with portal auth', async () => {
+      const getRedeemTxns = redeem(
+        [],
+        undefined,
+        undefined,
+        undefined,
+        true, // skip release ix
+      );
+
+      await ssw(ctx, getRedeemTxns(), signer);
+
+      await spl.getOrCreateAssociatedTokenAccount(
+        connection,
+        randomUser,
+        mint.publicKey,
+        randomUser.publicKey,
+        false,
+        undefined,
+        undefined,
+        TOKEN_PROGRAM,
+      );
+
+      // try to release to random user
+      const ix = await NTT.createReleaseInboundMintMultisigInstruction(ntt.program, await ntt.getConfig(), {
+        payer: randomUser.publicKey,
+        nttMessage: payload,
+        recipient: randomUser.publicKey,
+        chain: 'Ethereum',
+        revertOnDelay: false,
+        multisig: multisig.publicKey,
+      });
+
+      // add additional keys required for portal CPI
+      ix.keys.push(
+        {
+          pubkey: config.EARN_PROGRAM,
+          isSigner: false,
+          isWritable: false,
+        },
+        {
+          pubkey: config.EARN_GLOBAL_ACCOUNT,
+          isSigner: false,
+          isWritable: true,
+        },
+      );
+
+      // update the $M token account to be the portal token authority
+      ix.keys[3].pubkey = getAssociatedTokenAddressSync(mint.publicKey, ntt.pdas.tokenAuthority(), true, TOKEN_PROGRAM);
+
+      const tx = new Transaction().add(ix);
+      tx.feePayer = randomUser.publicKey;
+      tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+      tx.sign(randomUser);
+
+      const result = svm.sendTransaction!(tx) as FailedTransactionMetadata;
+      expect(result.meta().logs()).toContain('Program log: expected recipient to match inbox item');
+    });
+
     it('$M tokens - frozen', async () => {
       const randomUser = new Keypair().publicKey;
 

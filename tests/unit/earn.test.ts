@@ -466,7 +466,7 @@ class EarnTest<V extends Variant = Variant.New> {
     let tx = new Transaction();
     tx.add(...ixs);
 
-    await this.provider.sendAndConfirm!(tx, [this.admin, mint, mintAuthority]);
+    await this.provider.sendAndConfirm!(tx, [this.admin, mint]);
 
     // Verify the mint was created properly
     const mintInfo = await this.provider.connection.getAccountInfo(mint.publicKey);

@@ -140,17 +140,17 @@ impl Initialize<'_> {
             return err!(EarnError::InvalidMint);
         }
 
-        // // 3. Must have the Permanent Delegate extension
-        // // and the global account as the delegate
-        // // The reason this is required is to enable forced exits to wM in the event
-        // // an earner is removed from the earner list.
-        // if !extensions.contains(&ExtensionType::PermanentDelegate) {
-        //     return err!(EarnError::InvalidMint);
-        // }
-        // let permanent_delegate_config = mint_ext_data.get_extension::<PermanentDelegate>()?;
-        // if permanent_delegate_config.delegate != OptionalNonZeroPubkey(*global_key) {
-        //     return err!(EarnError::InvalidMint);
-        // }
+        // 3. Must have the Permanent Delegate extension
+        // and the global account as the delegate
+        // The reason this is required is to enable forced exits to wM in the event
+        // an earner is removed from the earner list.
+        if !extensions.contains(&ExtensionType::PermanentDelegate) {
+            return err!(EarnError::InvalidMint);
+        }
+        let permanent_delegate_config = mint_ext_data.get_extension::<PermanentDelegate>()?;
+        if permanent_delegate_config.delegate != OptionalNonZeroPubkey(*global_key) {
+            return err!(EarnError::InvalidMint);
+        }
 
         Ok(())
     }

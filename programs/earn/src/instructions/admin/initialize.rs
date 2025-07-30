@@ -8,7 +8,7 @@ use anchor_spl::{
 };
 use cfg_if::cfg_if;
 use spl_token_2022::extension::{
-    default_account_state::DefaultAccountState, // permanent_delegate::PermanentDelegate,
+    default_account_state::DefaultAccountState, permanent_delegate::PermanentDelegate,
     scaled_ui_amount::ScaledUiAmountConfig,
     BaseStateWithExtensions,
     ExtensionType,

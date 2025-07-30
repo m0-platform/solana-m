@@ -14,7 +14,6 @@ pub mod peer;
 pub mod pending_token_authority;
 pub mod queue;
 pub mod registered_transceiver;
-pub mod spl_multisig;
 pub mod transceivers;
 
 use crate::ntt_messages::ChainId;
@@ -69,11 +68,8 @@ pub const VERSION: &str = "3.0.0";
 pub mod portal {
     use super::*;
 
-    pub fn initialize_multisig(
-        ctx: Context<InitializeMultisig>,
-        args: InitializeArgs,
-    ) -> Result<()> {
-        instructions::initialize_multisig(ctx, args)
+    pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> {
+        instructions::initialize(ctx, args)
     }
 
     pub fn set_destination_addresses(
@@ -121,17 +117,17 @@ pub mod portal {
         instructions::redeem(ctx, args)
     }
 
-    pub fn release_inbound_mint_multisig<'info>(
-        ctx: Context<'_, '_, '_, 'info, ReleaseInboundMintMultisig<'info>>,
+    pub fn release_inbound_mint<'info>(
+        ctx: Context<'_, '_, '_, 'info, ReleaseInboundMint<'info>>,
         args: ReleaseInboundArgs,
     ) -> Result<()> {
-        instructions::release_inbound_mint_multisig(ctx, args)
+        instructions::release_inbound_mint(ctx, args)
     }
 
-    pub fn release_inbound_mint_extension_multisig<'info>(
-        ctx: Context<'_, '_, '_, 'info, ReleaseInboundMintExtensionMultisig<'info>>,
+    pub fn release_inbound_mint_extension<'info>(
+        ctx: Context<'_, '_, '_, 'info, ReleaseInboundMintExtension<'info>>,
     ) -> Result<()> {
-        instructions::release_inbound_mint_extension_multisig(ctx)
+        instructions::release_inbound_mint_extension(ctx)
     }
 
     pub fn transfer_ownership(ctx: Context<TransferOwnership>) -> Result<()> {
@@ -180,6 +176,10 @@ pub mod portal {
         instructions::register_transceiver(ctx)
     }
 
+    pub fn deregister_transceiver(ctx: Context<DeregisterTransceiver>) -> Result<()> {
+        instructions::deregister_transceiver(ctx)
+    }
+
     pub fn set_outbound_limit(
         ctx: Context<SetOutboundLimit>,
         args: SetOutboundLimitArgs,
@@ -192,6 +192,10 @@ pub mod portal {
         args: SetInboundLimitArgs,
     ) -> Result<()> {
         instructions::set_inbound_limit(ctx, args)
+    }
+
+    pub fn set_threshold(ctx: Context<SetThreshold>, threshold: u8) -> Result<()> {
+        instructions::set_threshold(ctx, threshold)
     }
 
     // standalone transceiver stuff

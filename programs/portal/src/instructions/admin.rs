@@ -60,21 +60,26 @@ pub struct TransferOwnership<'info> {
 pub fn transfer_ownership(ctx: Context<TransferOwnership>) -> Result<()> {
     ctx.accounts.config.pending_owner = Some(ctx.accounts.new_owner.key());
 
-    // TODO: only transfer authority when the authority is not already the upgrade lock
-    bpf_loader_upgradeable::set_upgrade_authority_checked(
-        CpiContext::new_with_signer(
-            ctx.accounts
-                .bpf_loader_upgradeable_program
-                .to_account_info(),
-            bpf_loader_upgradeable::SetUpgradeAuthorityChecked {
-                program_data: ctx.accounts.program_data.to_account_info(),
-                current_authority: ctx.accounts.owner.to_account_info(),
-                new_authority: ctx.accounts.upgrade_lock.to_account_info(),
-            },
-            &[&[b"upgrade_lock", &[ctx.bumps.upgrade_lock]]],
-        ),
-        &crate::ID,
-    )
+    // only transfer authority when the authority is not already the upgrade lock
+    if ctx.accounts.program_data.upgrade_authority_address != Some(ctx.accounts.upgrade_lock.key())
+    {
+        return bpf_loader_upgradeable::set_upgrade_authority_checked(
+            CpiContext::new_with_signer(
+                ctx.accounts
+                    .bpf_loader_upgradeable_program
+                    .to_account_info(),
+                bpf_loader_upgradeable::SetUpgradeAuthorityChecked {
+                    program_data: ctx.accounts.program_data.to_account_info(),
+                    current_authority: ctx.accounts.owner.to_account_info(),
+                    new_authority: ctx.accounts.upgrade_lock.to_account_info(),
+                },
+                &[&[b"upgrade_lock", &[ctx.bumps.upgrade_lock]]],
+            ),
+            &crate::ID,
+        );
+    }
+
+    Ok(())
 }
 
 pub fn transfer_ownership_one_step_unchecked(ctx: Context<TransferOwnership>) -> Result<()> {
@@ -244,7 +249,12 @@ pub fn set_token_authority(ctx: Context<SetTokenAuthorityChecked>) -> Result<()>
         .set_inner(PendingTokenAuthority {
             bump: ctx.bumps.pending_token_authority,
             pending_authority: ctx.accounts.common.new_authority.key(),
-            rent_payer: ctx.accounts.rent_payer.key(),
+            rent_payer: if ctx.accounts.pending_token_authority.rent_payer != Pubkey::default() {
+                // do not update rent_payer if already initialized
+                ctx.accounts.pending_token_authority.rent_payer
+            } else {
+                ctx.accounts.rent_payer.key()
+            },
         });
     Ok(())
 }
@@ -368,6 +378,7 @@ pub struct SetPeer<'info> {
 
     #[account(
         has_one = owner,
+        constraint = args.chain_id != config.chain_id @ NTTError::InvalidChainId
     )]
     pub config: Account<'info, Config>,
 
@@ -411,10 +422,18 @@ pub fn set_peer(ctx: Context<SetPeer>, args: SetPeerArgs) -> Result<()> {
         token_decimals: args.token_decimals,
     });
 
-    ctx.accounts.inbox_rate_limit.set_inner(InboxRateLimit {
-        bump: ctx.bumps.inbox_rate_limit,
-        rate_limit: RateLimitState::new(args.limit),
-    });
+    // if rate limit is uninitialized/unused, set new rate limit
+    if ctx.accounts.inbox_rate_limit.rate_limit.last_tx_timestamp == 0 {
+        ctx.accounts.inbox_rate_limit.set_inner(InboxRateLimit {
+            bump: ctx.bumps.inbox_rate_limit,
+            rate_limit: RateLimitState::new(args.limit),
+        });
+    }
+    // else update rate limit
+    else {
+        ctx.accounts.inbox_rate_limit.set_limit(args.limit);
+    }
+
     Ok(())
 }
 
@@ -433,13 +452,16 @@ pub struct RegisterTransceiver<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
 
-    #[account(executable)]
+    #[account(
+        executable,
+        constraint = transceiver.key() != Pubkey::default() @ NTTError::InvalidTransceiverProgram
+    )]
     /// CHECK: transceiver is meant to be a transceiver program. Arguably a `Program` constraint could be
     /// used here that wraps the Transceiver account type.
     pub transceiver: UncheckedAccount<'info>,
 
     #[account(
-        init,
+        init_if_needed,
         space = 8 + RegisteredTransceiver::INIT_SPACE,
         payer = payer,
         seeds = [RegisteredTransceiver::SEED_PREFIX, transceiver.key().as_ref()],
@@ -451,17 +473,58 @@ pub struct RegisterTransceiver<'info> {
 }
 
 pub fn register_transceiver(ctx: Context<RegisterTransceiver>) -> Result<()> {
-    let id = ctx.accounts.config.next_transceiver_id;
-    ctx.accounts.config.next_transceiver_id += 1;
-    ctx.accounts
-        .registered_transceiver
-        .set_inner(RegisteredTransceiver {
-            bump: ctx.bumps.registered_transceiver,
-            id,
-            transceiver_address: ctx.accounts.transceiver.key(),
-        });
+    // initialize registered transceiver with new id on init
+    if ctx.accounts.registered_transceiver.transceiver_address == Pubkey::default() {
+        let id = ctx.accounts.config.next_transceiver_id;
+        ctx.accounts.config.next_transceiver_id += 1;
+        ctx.accounts
+            .registered_transceiver
+            .set_inner(RegisteredTransceiver {
+                bump: ctx.bumps.registered_transceiver,
+                id,
+                transceiver_address: ctx.accounts.transceiver.key(),
+            });
+    }
 
-    ctx.accounts.config.enabled_transceivers.set(id, true)?;
+    ctx.accounts
+        .config
+        .enabled_transceivers
+        .set(ctx.accounts.registered_transceiver.id, true)?;
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct DeregisterTransceiver<'info> {
+    #[account(
+        mut,
+        has_one = owner,
+    )]
+    pub config: Account<'info, Config>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    #[account(
+        seeds = [RegisteredTransceiver::SEED_PREFIX, registered_transceiver.transceiver_address.as_ref()],
+        bump,
+        constraint = config.enabled_transceivers.get(registered_transceiver.id)? @ NTTError::DisabledTransceiver,
+    )]
+    pub registered_transceiver: Account<'info, RegisteredTransceiver>,
+}
+
+pub fn deregister_transceiver(ctx: Context<DeregisterTransceiver>) -> Result<()> {
+    ctx.accounts
+        .config
+        .enabled_transceivers
+        .set(ctx.accounts.registered_transceiver.id, false)?;
+
+    // decrement threshold if too high
+    let num_enabled_transceivers = ctx.accounts.config.enabled_transceivers.len();
+    if num_enabled_transceivers < ctx.accounts.config.threshold {
+        // threshold should be at least 1
+        ctx.accounts.config.threshold = num_enabled_transceivers.max(1);
+    }
     Ok(())
 }
 
@@ -538,5 +601,27 @@ pub struct SetPaused<'info> {
 
 pub fn set_paused(ctx: Context<SetPaused>, paused: bool) -> Result<()> {
     ctx.accounts.config.paused = paused;
+    Ok(())
+}
+
+// * Set Threshold
+#[derive(Accounts)]
+#[instruction(threshold: u8)]
+pub struct SetThreshold<'info> {
+    pub owner: Signer<'info>,
+
+    #[account(
+        mut,
+        has_one = owner,
+        constraint = threshold <= config.enabled_transceivers.len() @ NTTError::ThresholdTooHigh
+    )]
+    pub config: Account<'info, Config>,
+}
+
+pub fn set_threshold(ctx: Context<SetThreshold>, threshold: u8) -> Result<()> {
+    if threshold == 0 {
+        return Err(NTTError::ZeroThreshold.into());
+    }
+    ctx.accounts.config.threshold = threshold;
     Ok(())
 }

@@ -7,10 +7,10 @@ use crate::{
     error::NTTError,
     ntt_messages::{BpfLoaderUpgradeable, ChainId, Mode},
     queue::{outbox::OutboxRateLimit, rate_limit::RateLimitState},
-    spl_multisig::SplMultisig,
 };
 
 #[derive(Accounts)]
+#[instruction(args: InitializeArgs)]
 pub struct Initialize<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
@@ -27,15 +27,16 @@ pub struct Initialize<'info> {
 
     #[account(
         init,
-        space = 8 + crate::config::Config::INIT_SPACE,
+        space = 8 + Config::INIT_SPACE,
         payer = payer,
-        seeds = [crate::config::Config::SEED_PREFIX],
+        seeds = [Config::SEED_PREFIX],
         bump
     )]
-    pub config: Box<Account<'info, crate::config::Config>>,
+    pub config: Box<Account<'info, Config>>,
 
-    // NOTE: this account is unconstrained and is the responsibility of the
-    // handler to constrain it
+    #[account(
+        constraint = mint.mint_authority.unwrap() == token_authority.key() @ NTTError::InvalidMintAuthority
+    )]
     pub mint: Box<InterfaceAccount<'info, token_interface::Mint>>,
 
     #[account(
@@ -88,42 +89,21 @@ pub struct InitializeArgs {
     pub mode: Mode,
 }
 
-#[derive(Accounts)]
-#[instruction(args: InitializeArgs)]
-pub struct InitializeMultisig<'info> {
-    #[account(
-        constraint =
-            args.mode == Mode::Locking
-            || common.mint.mint_authority.unwrap() == multisig.key()
-            @ NTTError::InvalidMintAuthority,
-    )]
-    pub common: Initialize<'info>,
-
-    #[account(
-        constraint =
-            multisig.m == 1 && multisig.signers.contains(&common.token_authority.key())
-            @ NTTError::InvalidMultisig,
-    )]
-    pub multisig: InterfaceAccount<'info, SplMultisig>,
-}
-
-pub fn initialize_multisig(ctx: Context<InitializeMultisig>, args: InitializeArgs) -> Result<()> {
-    let common = &mut ctx.accounts.common;
-
-    common.config.set_inner(crate::config::Config {
-        bump: ctx.bumps.common.config,
-        mint: common.mint.key(),
-        token_program: common.token_program.key(),
+pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> {
+    ctx.accounts.config.set_inner(crate::config::Config {
+        bump: ctx.bumps.config,
+        mint: ctx.accounts.mint.key(),
+        token_program: ctx.accounts.token_program.key(),
         mode: args.mode,
         chain_id: ChainId { id: args.chain_id },
-        owner: common.deployer.key(),
+        owner: ctx.accounts.deployer.key(),
         pending_owner: None,
         paused: false,
         next_transceiver_id: 0,
-        // NOTE: can't be changed for now
+        // NOTE: can be changed via `set_threshold` ix
         threshold: 1,
         enabled_transceivers: Bitmap::new(),
-        custody: common.custody.key(),
+        custody: ctx.accounts.custody.key(),
         release_inbound_remaining_accounts: [
             RemainingAccount::new(earn::ID, false),
             RemainingAccount::new(
@@ -135,7 +115,7 @@ pub fn initialize_multisig(ctx: Context<InitializeMultisig>, args: InitializeArg
         evm_wrapped_token: [0; 32],
     });
 
-    common.rate_limit.set_inner(OutboxRateLimit {
+    ctx.accounts.rate_limit.set_inner(OutboxRateLimit {
         rate_limit: RateLimitState::new(args.limit),
     });
 

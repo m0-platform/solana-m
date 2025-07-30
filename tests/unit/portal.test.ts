@@ -203,6 +203,7 @@ describe('Portal unit tests', () => {
         mint.publicKey,
         spl.AccountState.Frozen,
         PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_PROGRAM)[0],
+        true, // mint tokens
       )),
     );
     await provider.sendAndConfirm!(tx, [payer, mint]);

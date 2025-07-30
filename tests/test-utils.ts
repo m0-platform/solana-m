@@ -129,6 +129,7 @@ export async function createMintInstruction(
   mint: PublicKey,
   defaultAccountState = AccountState.Initialized,
   vault?: PublicKey,
+  mintTokens = false,
 ) {
   // mint size with extensions
   const mintLen = getMintLen([
@@ -153,23 +154,22 @@ export async function createMintInstruction(
     createInitializeMintInstruction(mint, 6, payer.publicKey, payer.publicKey, TOKEN_2022_PROGRAM_ID),
   ];
 
-  // mint tokens to payer before setting default to frozen
-  if (defaultAccountState === AccountState.Frozen) {
-    const tokenAccount = getAssociatedTokenAddressSync(mint, payer.publicKey, false, TOKEN_2022_PROGRAM_ID);
+  const tokenAccount = getAssociatedTokenAddressSync(mint, payer.publicKey, false, TOKEN_2022_PROGRAM_ID);
 
-    if (vault) {
-      const vaultAccount = getAssociatedTokenAddressSync(mint, vault, true, TOKEN_2022_PROGRAM_ID);
-      const ix = createAssociatedTokenAccountInstruction(
-        payer.publicKey,
-        vaultAccount,
-        vault,
-        mint,
-        TOKEN_2022_PROGRAM_ID,
-      );
-      instructions.push(ix);
-    }
+  if (vault) {
+    const vaultAccount = getAssociatedTokenAddressSync(mint, vault, true, TOKEN_2022_PROGRAM_ID);
+    const ix = createAssociatedTokenAccountInstruction(
+      payer.publicKey,
+      vaultAccount,
+      vault,
+      mint,
+      TOKEN_2022_PROGRAM_ID,
+    );
+    instructions.push(ix);
+  }
 
-    // Mint tokens to payer
+  // Mint tokens to payer
+  if (mintTokens) {
     instructions.push(
       createAssociatedTokenAccountInstruction(
         payer.publicKey,
@@ -179,6 +179,11 @@ export async function createMintInstruction(
         TOKEN_2022_PROGRAM_ID,
       ),
       createMintToInstruction(mint, tokenAccount, payer.publicKey, 10_000_000n, undefined, TOKEN_2022_PROGRAM_ID),
+    );
+  }
+
+  if (defaultAccountState === AccountState.Frozen) {
+    instructions.push(
       createUpdateDefaultAccountStateInstruction(
         mint,
         AccountState.Frozen,
@@ -186,19 +191,19 @@ export async function createMintInstruction(
         undefined,
         TOKEN_2022_PROGRAM_ID,
       ),
-      createSetAuthorityInstruction(
-        mint,
-        payer.publicKey,
-        AuthorityType.FreezeAccount,
-        extensionAuth,
-        undefined,
-        TOKEN_2022_PROGRAM_ID,
-      ),
     );
   }
 
-  // Set mint authority back to intended authority
+  // Set authorities
   instructions.push(
+    createSetAuthorityInstruction(
+      mint,
+      payer.publicKey,
+      AuthorityType.FreezeAccount,
+      extensionAuth,
+      undefined,
+      TOKEN_2022_PROGRAM_ID,
+    ),
     createSetAuthorityInstruction(
       mint,
       payer.publicKey,

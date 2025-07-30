@@ -150,7 +150,7 @@ export async function createMintInstruction(
     createInitializeScaledUiAmountConfigInstruction(mint, extensionAuth, 1.0, TOKEN_2022_PROGRAM_ID),
     createInitializeDefaultAccountStateInstruction(mint, AccountState.Initialized, TOKEN_2022_PROGRAM_ID),
     // createInitializePermanentDelegateInstruction(mint, payer.publicKey, TOKEN_2022_PROGRAM_ID),
-    createInitializeMintInstruction(mint, 6, mintAuth, payer.publicKey, TOKEN_2022_PROGRAM_ID),
+    createInitializeMintInstruction(mint, 6, payer.publicKey, payer.publicKey, TOKEN_2022_PROGRAM_ID),
   ];
 
   // mint tokens to payer before setting default to frozen
@@ -178,7 +178,7 @@ export async function createMintInstruction(
         mint,
         TOKEN_2022_PROGRAM_ID,
       ),
-      createMintToInstruction(mint, tokenAccount, mintAuth, 10_000_000n, undefined, TOKEN_2022_PROGRAM_ID),
+      createMintToInstruction(mint, tokenAccount, payer.publicKey, 10_000_000n, undefined, TOKEN_2022_PROGRAM_ID),
       createUpdateDefaultAccountStateInstruction(
         mint,
         AccountState.Frozen,
@@ -196,6 +196,18 @@ export async function createMintInstruction(
       ),
     );
   }
+
+  // Set mint authority back to intended authority
+  instructions.push(
+    createSetAuthorityInstruction(
+      mint,
+      payer.publicKey,
+      AuthorityType.MintTokens,
+      mintAuth,
+      undefined,
+      TOKEN_2022_PROGRAM_ID,
+    ),
+  );
 
   return instructions;
 }

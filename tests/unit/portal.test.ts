@@ -5,7 +5,6 @@ import {
   Keypair,
   LAMPORTS_PER_SOL,
   PublicKey,
-  SystemProgram,
   Transaction,
   TransactionInstruction,
   VersionedTransaction,
@@ -35,12 +34,7 @@ import {
   loadKeypair,
 } from '../test-utils';
 import { fromWorkspace } from 'anchor-litesvm';
-import {
-  createAssociatedTokenAccountInstruction,
-  createMintToInstruction,
-  createSetAuthorityInstruction,
-  getAssociatedTokenAddressSync,
-} from '@solana/spl-token';
+import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import NodeWallet from '@coral-xyz/anchor/dist/cjs/nodewallet';
 import { utils } from 'web3';
 import { BN, Program } from '@coral-xyz/anchor';
@@ -122,7 +116,6 @@ describe('Portal unit tests', () => {
   let ntt: SolanaNtt<'Mainnet', 'Solana'>;
   let signer: Signer;
   let sender: AccountAddress<'Solana'>;
-  let multisig = Keypair.generate();
 
   const mint = loadKeypair('keys/mint.json');
   const tokenAddress = mint.publicKey.toBase58();
@@ -205,7 +198,7 @@ describe('Portal unit tests', () => {
       ...(await createMintInstruction(
         connection,
         owner,
-        owner.publicKey,
+        PublicKey.findProgramAddressSync([Buffer.from('token_authority')], config.PORTAL_PROGRAM_ID)[0],
         PublicKey.findProgramAddressSync([Buffer.from('global')], config.EARN_PROGRAM)[0],
         mint.publicKey,
         spl.AccountState.Frozen,
@@ -263,41 +256,12 @@ describe('Portal unit tests', () => {
   });
 
   describe('Initialize', () => {
-    test('initialize multisig', async () => {
-      // Create multisig and set authority
-      const multiSigTx = new Transaction().add(
-        SystemProgram.createAccount({
-          fromPubkey: payer.publicKey,
-          newAccountPubkey: multisig.publicKey,
-          space: spl.MULTISIG_SIZE,
-          lamports: await spl.getMinimumBalanceForRentExemptMultisig(connection),
-          programId: TOKEN_PROGRAM,
-        }),
-        spl.createInitializeMultisigInstruction(
-          multisig.publicKey,
-          [owner.publicKey, ntt.pdas.tokenAuthority()],
-          1,
-          TOKEN_PROGRAM,
-        ),
-        createSetAuthorityInstruction(
-          mint.publicKey,
-          owner.publicKey,
-          spl.AuthorityType.MintTokens,
-          multisig.publicKey,
-          [],
-          TOKEN_PROGRAM,
-        ),
-      );
-
-      await provider.sendAndConfirm!(multiSigTx, [payer, owner, multisig]);
-    });
     test('initialize portal', async () => {
       // init
       const initTxs = ntt.initialize(sender, {
         mint: mint.publicKey,
         outboundLimit: 1000000n,
         mode: 'burning',
-        multisig: multisig.publicKey,
       });
       // TODO: creating the LUT throws an error due to recent slot checks
       async function* onlyInit() {
@@ -652,7 +616,7 @@ describe('Portal unit tests', () => {
       const published = emitter.publishMessage(0, serialized, 200);
       const rawVaa = guardians.addSignatures(published, [0]);
       const vaa = deserialize('Ntt:WormholeTransfer', serialize(rawVaa));
-      const redeemTxs = ntt.redeem({ wormhole: vaa }, sender, multisig.publicKey);
+      const redeemTxs = ntt.redeem({ wormhole: vaa }, sender);
 
       const pdas = NTT.pdas(config.PORTAL_PROGRAM_ID);
       inboxItem = pdas.inboxItemAccount(vaa.emitterChain as any, vaa.payload.nttManagerPayload);
@@ -687,7 +651,7 @@ describe('Portal unit tests', () => {
             // rewrite instruction discriminator
             if (extension) {
               ixs[ixs.length - 1].data = Buffer.concat([
-                Buffer.from(sha256('global:release_inbound_mint_extension_multisig').subarray(0, 8)),
+                Buffer.from(sha256('global:release_inbound_mint_extension').subarray(0, 8)),
                 ixs[ixs.length - 1].data.subarray(8, ixs[ixs.length - 1].data.length - 1), // remove revert bool arg
               ]);
 
@@ -768,13 +732,12 @@ describe('Portal unit tests', () => {
       );
 
       // try to release to random user
-      const ix = await NTT.createReleaseInboundMintMultisigInstruction(ntt.program, await ntt.getConfig(), {
+      const ix = await NTT.createReleaseInboundMintInstruction(ntt.program, await ntt.getConfig(), {
         payer: randomUser.publicKey,
         nttMessage: payload,
         recipient: randomUser.publicKey,
         chain: 'Ethereum',
         revertOnDelay: false,
-        multisig: multisig.publicKey,
       });
 
       // add additional keys required for portal CPI
@@ -823,13 +786,12 @@ describe('Portal unit tests', () => {
       );
 
       // try to release to random user
-      const ix = await NTT.createReleaseInboundMintMultisigInstruction(ntt.program, await ntt.getConfig(), {
+      const ix = await NTT.createReleaseInboundMintInstruction(ntt.program, await ntt.getConfig(), {
         payer: randomUser.publicKey,
         nttMessage: payload,
         recipient: randomUser.publicKey,
         chain: 'Ethereum',
         revertOnDelay: false,
-        multisig: multisig.publicKey,
       });
 
       // add additional keys required for portal CPI
@@ -977,31 +939,6 @@ describe('Portal unit tests', () => {
       const txIds = await ssw(ctx, getRedeemTxns(), signer);
       const logs = await fetchTransactionLogs(provider, txIds[txIds.length - 1].txid);
       expect(logs).toContain('Program log: Index update: 123456 | root update: true');
-    });
-  });
-
-  describe('Mint', () => {
-    it('cannot mint - frozen', async () => {
-      const recipient = Keypair.generate();
-      const associatedToken = getAssociatedTokenAddressSync(mint.publicKey, recipient.publicKey, false, TOKEN_PROGRAM);
-
-      const tx = new Transaction().add(
-        createAssociatedTokenAccountInstruction(
-          payer.publicKey,
-          associatedToken,
-          recipient.publicKey,
-          mint.publicKey,
-          TOKEN_PROGRAM,
-        ),
-        createMintToInstruction(mint.publicKey, associatedToken, multisig.publicKey, 1, [owner], TOKEN_PROGRAM),
-      );
-
-      try {
-        await provider.sendAndConfirm!(tx, [payer, owner]);
-        throw new Error('send should have failed');
-      } catch (e: any) {
-        expect(e?.transactionLogs[e?.transactionLogs.length - 3]).toEqual('Program log: Error: Account is frozen');
-      }
     });
   });
 });

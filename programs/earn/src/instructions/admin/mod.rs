@@ -2,6 +2,8 @@ use anchor_lang::prelude::*;
 
 pub mod initialize;
 pub use initialize::*;
+pub mod recover;
+pub use recover::*;
 
 use crate::{
     errors::EarnError,

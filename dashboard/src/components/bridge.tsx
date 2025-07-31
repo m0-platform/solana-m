@@ -317,7 +317,14 @@ export const Bridge = () => {
 
       let sig: string;
       if (inputChain.namespace === 'svm') {
-        sig = await bridgeFromSolana(walletProvider, amountValue, recipientAddress, outputChain.label);
+        sig = await bridgeFromSolana(
+          walletProvider,
+          amountValue,
+          inputToken.address,
+          recipientAddress,
+          outputChain.label,
+          outputToken.address,
+        );
       } else {
         sig = await bridgeFromEvm(
           sendTransaction,
@@ -325,7 +332,9 @@ export const Bridge = () => {
           amountValue,
           recipientAddress,
           inputChain.label,
+          inputToken.address,
           outputChain.label,
+          outputToken.address,
         );
       }
 

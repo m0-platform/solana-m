@@ -46,8 +46,10 @@ export const getMintsRPC = async (): Promise<Record<string, Mint>> => {
 export const bridgeFromSolana = async (
   walletProvider: Provider,
   amount: Decimal,
+  fromToken: string,
   recipient: string,
   toChain: string,
+  toToken: string,
   noncePubkey?: PublicKey,
 ) => {
   const ntt = NttManager(connection, MINTS.M);
@@ -157,7 +159,9 @@ export const bridgeFromEvm = async (
   amount: Decimal,
   recipient: string,
   fromChain: string,
+  fromToken: string,
   toChain: string,
+  toToken: string,
 ) => {
   if (!address) {
     throw new Error('Wallet not connected');

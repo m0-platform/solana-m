@@ -13,7 +13,7 @@ import {
 import { AccountAddress, ChainAddress, chainToChainId, Network, sha256, toUniversal } from '@wormhole-foundation/sdk';
 import { SolanaChains, SolanaUnsignedTransaction, SolanaAddress } from '@wormhole-foundation/sdk-solana';
 import { SolanaNtt, WEI_PER_GWEI } from '@wormhole-foundation/sdk-solana-ntt';
-import { EARN_PROGRAM_ID, MINTS } from './consts';
+import { MINTS } from './consts';
 import BN from 'bn.js';
 
 export async function* transferSolanaExtension<N extends Network, C extends SolanaChains>(
@@ -242,12 +242,6 @@ function getTransferExtensionBurnIx<N extends Network, C extends SolanaChains>(
           [Buffer.from('global')],
           new PublicKey('MSwapi3WhNKMUGm9YrxGhypgUEt7wYQH3ZgG32XoWzH'),
         )[0],
-        isSigner: false,
-        isWritable: false,
-      },
-      {
-        // m global
-        pubkey: PublicKey.findProgramAddressSync([Buffer.from('global')], EARN_PROGRAM_ID)[0],
         isSigner: false,
         isWritable: false,
       },

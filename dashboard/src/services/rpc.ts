@@ -170,7 +170,7 @@ export const bridgeFromEvm = async (
     sender.address,
     BigInt(amount.toString()),
     {
-      address: new UniversalAddress(recipient),
+      address: new UniversalAddress(recipient, recipient.startsWith('0x') ? 'hex' : 'base58'),
       chain: toChain as any,
     },
     {

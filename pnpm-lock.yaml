@@ -171,6 +171,9 @@ importers:
       '@wormhole-foundation/sdk-solana-ntt':
         specifier: 1.0.2
         version: 1.0.2(@wormhole-foundation/sdk-base@1.16.1)(@wormhole-foundation/sdk-definitions@1.16.1)(@wormhole-foundation/sdk-solana-core@1.16.1(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(@wormhole-foundation/sdk-solana@1.16.1(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      bn.js:
+        specifier: 'catalog:'
+        version: 5.2.2
       bs58:
         specifier: 'catalog:'
         version: 4.0.1

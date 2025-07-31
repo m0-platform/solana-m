@@ -21,6 +21,7 @@ import { Config } from 'wagmi';
 import { JsonRpcProvider } from 'ethers';
 import evm from '@wormhole-foundation/sdk/evm';
 import { wormhole } from '@wormhole-foundation/sdk';
+import { transferSolanaExtension } from './bridging';
 
 export const NETWORK: 'devnet' | 'mainnet' = import.meta.env.VITE_NETWORK;
 export const connection = new Connection(import.meta.env.VITE_RPC_URL);
@@ -61,14 +62,16 @@ export const bridgeFromSolana = async (
   const sender = Wormhole.parseAddress('Solana', walletProvider.publicKey.toBase58());
 
   const outboxItem = Keypair.generate();
-  const xferTxs = ntt.transfer(
+  const xferTxs = transferSolanaExtension(
+    ntt,
     sender,
     BigInt(amount.toString()),
     {
       address: new UniversalAddress(recipient, 'hex'),
       chain: toChain as any,
     },
-    { queue: false, automatic: true },
+    fromToken,
+    toToken,
     outboxItem,
   );
 

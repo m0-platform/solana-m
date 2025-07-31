@@ -104,7 +104,7 @@ define upgrade_program
 		--keypair $(DEVNET_KEYPAIR) \
 		--max-sign-attempts $(MAX_SIGN_ATTEMPTS) \
 		--buffer temp-buffer.json \
-		target/deploy/$(1).so 
+		target/verifiable/$(1).so 
 	@echo "Upgrading program with buffer $$(solana address --keypair temp-buffer.json)" 
 	@solana program upgrade \
 		--keypair $(DEVNET_KEYPAIR) \

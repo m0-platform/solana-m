@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{approve, Approve, Mint, TokenAccount, TokenInterface};
-use earn::state::{EarnGlobal, GLOBAL_SEED};
+use earn::state::GLOBAL_SEED;
 use ext_swap::{accounts::SwapGlobal, program::ExtSwap};
 
 use crate::{
@@ -22,13 +22,6 @@ pub struct TransferExtensionBurn<'info> {
         bump = swap_global.bump,
     )]
     pub swap_global: Box<Account<'info, SwapGlobal>>,
-
-    #[account(
-        seeds = [GLOBAL_SEED],
-        seeds::program = earn::ID,
-        bump = m_global.bump,
-    )]
-    pub m_global: Box<Account<'info, EarnGlobal>>,
 
     #[account(
         mut,

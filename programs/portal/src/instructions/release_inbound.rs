@@ -1,10 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{associated_token::get_associated_token_address_with_program_id, token_interface};
 use earn::{
-    cpi::accounts::PropagateIndex,
-    program::Earn,
-    state::{EarnGlobal, GLOBAL_SEED},
-    utils::conversion::amount_to_principal_down,
+    cpi::accounts::PropagateIndex, program::Earn, utils::conversion::amount_to_principal_down,
 };
 use spl_token_2022::onchain;
 
@@ -57,12 +54,8 @@ pub struct ReleaseInboundMint<'info> {
 
     pub earn_program: Program<'info, Earn>,
 
-    #[account(
-        seeds = [GLOBAL_SEED],
-        seeds::program = earn::ID,
-        bump = m_global.bump,
-    )]
-    pub m_global: Box<Account<'info, EarnGlobal>>,
+    /// CHECK: checked by earn program
+    pub m_global: UncheckedAccount<'info>,
 }
 
 #[derive(AnchorDeserialize, AnchorSerialize)]

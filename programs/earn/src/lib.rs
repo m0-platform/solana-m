@@ -25,7 +25,7 @@ solana_security_txt::security_txt! {
     auditors: "Asymmetric Research, Sec3, OtterSec, Halborn"
 }
 
-declare_id!("mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z");
+declare_id!("MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c");
 
 #[program]
 pub mod earn {

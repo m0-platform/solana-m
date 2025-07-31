@@ -42,9 +42,7 @@ export const useAccount = () => {
       body: `{"jsonrpc":"2.0","id":"1","method":"getAssetsByOwner","params":{"ownerAddress":"${address}","options":{"showUnverifiedCollections":false,"showCollectionMetadata":false,"showFungible":true}}}`,
     };
 
-    const resp = await (
-      await fetch('https://mainnet.helius-rpc.com/?api-key=ae31684d-357b-487a-871d-80de08a02850', options)
-    ).json();
+    const resp = await (await fetch(import.meta.env.VITE_RPC_URL, options)).json();
 
     for (const token of resp.result.items.filter((i: any) => i.interface === 'FungibleToken')) {
       solanaBalances[token.id] = {

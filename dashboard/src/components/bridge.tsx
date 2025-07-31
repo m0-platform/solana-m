@@ -9,7 +9,9 @@ import { chainIcons } from './bridges';
 import { useReadContract, useSendTransaction } from 'wagmi';
 import { switchChain, waitForTransactionReceipt, writeContract } from '@wagmi/core';
 import { wagmiAdapter } from '../main';
-import { M_EVM, MINTS } from '../services/consts';
+import { EVM_TOKENS, MINTS } from '../services/consts';
+import { useQuery } from '@tanstack/react-query';
+import { ApiClient } from '../services/sdk';
 
 type Chain = {
   name: string;
@@ -17,6 +19,13 @@ type Chain = {
   icon: string;
   namespace: 'evm' | 'svm';
   id?: number;
+  tokens: Token[];
+};
+
+type Token = {
+  address: string;
+  symbol: string;
+  icon: string;
 };
 
 const chains: Chain[] = [
@@ -25,6 +34,13 @@ const chains: Chain[] = [
     label: 'Solana',
     icon: chainIcons.Solana,
     namespace: 'svm',
+    tokens: [
+      {
+        address: MINTS.M.toBase58(),
+        symbol: 'M',
+        icon: 'https://gistcdn.githack.com/SC4RECOIN/a729afb77aa15a4aa6b1b46c3afa1b52/raw/209da531ed46c1aaef0b1d3d7b67b3a5cec257f3/M_Symbol_512.svg',
+      },
+    ],
   },
   {
     name: NETWORK === 'devnet' ? 'Sepolia' : 'Ethereum',
@@ -32,6 +48,7 @@ const chains: Chain[] = [
     icon: chainIcons.Ethereum,
     namespace: 'evm',
     id: NETWORK === 'devnet' ? 11155111 : 1,
+    tokens: EVM_TOKENS,
   },
   {
     name: 'Arbitrum',
@@ -39,6 +56,7 @@ const chains: Chain[] = [
     icon: chainIcons.Arbitrum,
     namespace: 'evm',
     id: NETWORK === 'devnet' ? 421614 : 42161,
+    tokens: EVM_TOKENS,
   },
   {
     name: 'Optimism',
@@ -46,6 +64,7 @@ const chains: Chain[] = [
     icon: chainIcons.Optimism,
     namespace: 'evm',
     id: NETWORK === 'devnet' ? 11155420 : 10,
+    tokens: EVM_TOKENS,
   },
 ];
 
@@ -98,6 +117,63 @@ const ChainDropdown = ({ selectedChain, onChange }: { selectedChain: Chain; onCh
   );
 };
 
+// Dropdown component for token selection
+const TokenDropdown = ({
+  tokens,
+  selectedToken,
+  onChange,
+}: {
+  tokens: Token[];
+  selectedToken: Token;
+  onChange: (token: Token) => void;
+}) => {
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+
+  const handleClickOutside = (event: MouseEvent) => {
+    if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      setIsOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const handleSelect = (token: Token) => {
+    onChange(token);
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button className="flex items-center space-x-2 bg-off-blue px-4 py-2" onClick={() => setIsOpen(!isOpen)}>
+        <img src={selectedToken.icon} alt={selectedToken.symbol} className="w-6 h-6 rounded-full" />
+        <span>{selectedToken.symbol}</span>
+      </button>
+      {isOpen && (
+        <div className="absolute bg-off-blue mt-2 w-full z-10">
+          {tokens.map((token) => (
+            <button
+              key={token.address}
+              onClick={() => handleSelect(token)}
+              className={
+                'flex items-center space-x-2 px-4 py-2 w-full text-left hover:bg-gray-100 hover:cursor-pointer'
+              }
+            >
+              <img src={token.icon} alt={token.symbol} className="w-6 h-6" />
+              <span>{token.symbol}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const Bridge = () => {
   const { isConnected, solanaBalances, evmBalances, isSolanaWallet, isEvmWallet, address, caipAddress } = useAccount();
   const { walletProvider } = useAppKitProvider<Provider>('solana');
@@ -108,6 +184,21 @@ export const Bridge = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [inputChain, setInputChain] = useState<Chain>(chains[0]);
   const [outputChain, setOutputChain] = useState<Chain>(chains[1]);
+  const [inputToken, setInputToken] = useState<Token>(chains[0].tokens[0]);
+  const [outputToken, setOutputToken] = useState<Token>(chains[1].tokens[0]);
+
+  const { data: extensionData } = useQuery({
+    queryKey: ['extensions'],
+    queryFn: () => ApiClient.extensions.extensions(),
+  });
+
+  // add extensions fetched from the API
+  if (extensionData) {
+    chains[0].tokens = [
+      chains[0].tokens[0],
+      ...extensionData.extensions.map((ext) => ({ address: ext.mint, symbol: ext.symbol, icon: ext.icon })),
+    ];
+  }
 
   const {
     data: allowanceValue,
@@ -115,11 +206,11 @@ export const Bridge = () => {
     error: allowanceError,
     ...allowanceQuery
   } = useReadContract({
-    address: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b',
+    address: inputToken?.address as `0x${string}`,
     abi: erc20Abi,
     functionName: 'allowance',
     args: [address as `0x${string}`, '0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd'],
-    query: { enabled: !!address && isEvmWallet },
+    query: { enabled: !!address && isEvmWallet && !!inputToken?.address },
   });
 
   const allowance = allowanceValue ?? 0n;
@@ -146,12 +237,20 @@ export const Bridge = () => {
 
   const handleInputChainChange = async (chain: Chain) => {
     setInputChain(chain);
+    // Update selected token for the new chain
+    if (chain.tokens.length > 0) {
+      setInputToken(chain.tokens[0]);
+    }
+
     // Cannot select the same chain for input and output
     if (outputChain === chain) {
       // Find the first chain that's not the same chain
       const newOutputChain = chains.find((c) => c !== chain);
       if (newOutputChain) {
         setOutputChain(newOutputChain);
+        if (newOutputChain.tokens.length > 0) {
+          setOutputToken(newOutputChain.tokens[0]);
+        }
       }
     }
 
@@ -162,12 +261,28 @@ export const Bridge = () => {
 
   const handleOutputChainChange = (chain: Chain) => {
     setOutputChain(chain);
+    // Update selected token for the new chain
+    if (chain.tokens.length > 0) {
+      setOutputToken(chain.tokens[0]);
+    }
+
     if (inputChain === chain) {
       const newInputChain = chains.find((c) => c !== chain);
       if (newInputChain) {
         setInputChain(newInputChain);
+        if (newInputChain.tokens.length > 0) {
+          setInputToken(newInputChain.tokens[0]);
+        }
       }
     }
+  };
+
+  const handleInputTokenChange = (token: { address: string; symbol: string; icon: string }) => {
+    setInputToken(token);
+  };
+
+  const handleOutputTokenChange = (token: { address: string; symbol: string; icon: string }) => {
+    setOutputToken(token);
   };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -184,13 +299,14 @@ export const Bridge = () => {
     setRecipientAddress(e.target.value.trim());
   };
 
-  const getMBalance = () => {
-    const balances = inputChain.name === 'Solana' ? solanaBalances[MINTS.M.toBase58()] : evmBalances[M_EVM];
+  const getTokenBalance = () => {
+    const tokenAddress = inputToken.address;
+    const balances = inputChain.name === 'Solana' ? solanaBalances[tokenAddress] : evmBalances[tokenAddress];
     return balances?.balance ?? new Decimal(0);
   };
 
   const handleMaxClick = () => {
-    setAmount(getMBalance().toString());
+    setAmount(getTokenBalance().toString());
   };
 
   const handleBridge = async () => {
@@ -222,7 +338,7 @@ export const Bridge = () => {
 
       toast.success(
         <div>
-          <div>{`Bridged ${amount} tokens to ${outputChain.name}`}</div>
+          <div>{`Bridged ${amount} ${inputToken.symbol} to ${outputChain.name}`}</div>
           <div>
             <a href={txUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">
               View on WormholeScan
@@ -251,7 +367,7 @@ export const Bridge = () => {
       const amountValue = new Decimal(amount).mul(1e6).floor().toString();
 
       const hash = await writeContract(wagmiAdapter.wagmiConfig, {
-        address: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b',
+        address: inputToken.address as `0x${string}`,
         abi: erc20Abi,
         functionName: 'approve',
         args: ['0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd', BigInt(amountValue)],
@@ -291,10 +407,13 @@ export const Bridge = () => {
   const hasAllowance =
     inputChain.name === 'Solana' || (isValidAmount && allowance >= BigInt(new Decimal(amount).mul(1e6).toFixed(0)));
 
+  // Determine if tokens selection should be enabled or if only M token is available
+  const showTokenSelections = inputChain.tokens.length > 1 || outputChain.tokens.length > 1;
+
   return (
     <div className="flex justify-center mt-20">
       <div className="p-6 w-full max-w-md">
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block mb-2 text-gray-400 text-xs">Input Chain</label>
             <ChainDropdown selectedChain={inputChain} onChange={handleInputChainChange} />
@@ -305,11 +424,28 @@ export const Bridge = () => {
           </div>
         </div>
 
+        {showTokenSelections && (
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div>
+              <label className="block mb-2 text-gray-400 text-xs">Input Token</label>
+              <TokenDropdown tokens={inputChain.tokens} selectedToken={inputToken} onChange={handleInputTokenChange} />
+            </div>
+            <div>
+              <label className="block mb-2 text-gray-400 text-xs">Output Token</label>
+              <TokenDropdown
+                tokens={outputChain.tokens}
+                selectedToken={outputToken}
+                onChange={handleOutputTokenChange}
+              />
+            </div>
+          </div>
+        )}
+
         <div className="mb-6">
           <div className="flex justify-between items-center mb-2 text-gray-400 text-xs">
             <label>M Amount</label>
             <div>
-              Balance: {getMBalance().toFixed(4) ?? '0.00'}
+              Balance: {getTokenBalance().toFixed(4) ?? '0.00'}
               <button onClick={handleMaxClick} className="ml-2 text-blue-400 hover:text-blue-300 hover:cursor-pointer">
                 MAX
               </button>
@@ -324,8 +460,7 @@ export const Bridge = () => {
               className="w-full bg-off-blue py-3 px-4 pr-20 focus:outline-none"
             />
             <div className="absolute right-2 flex items-center space-x-1">
-              <img src={'https://media.m0.org/logos/svg/M_Symbol_512.svg'} className="w-6 h-6 -translate-y-0.5" />
-              <span className="w-8">M</span>
+              <img src={inputToken.icon} className="w-6 h-6 rounded-full" />
             </div>
           </div>
         </div>

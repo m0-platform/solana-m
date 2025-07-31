@@ -6,15 +6,20 @@ export const PORTAL = new PublicKey('mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY
 
 export const MINTS =
   import.meta.env.VITE_NETWORK === 'devnet'
-    ? {
-        M: new PublicKey('mzeroZRGCah3j5xEWp2Nih3GDejSBbH1rbHoxDg8By6'),
-        wM: new PublicKey('mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp'),
-        USDK: new PublicKey('usdkbee86pkLyRmxfFCdkyySpxRb5ndCxVsK2BkRXwX'),
-        USDKY: new PublicKey('usdkyPPxgV7sfNyKb8eDz66ogPrkRXG3wS2FVb6LLUf'),
-      }
-    : {
-        M: new PublicKey('mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo'),
-        wM: new PublicKey('mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp'),
-      };
+    ? { M: new PublicKey('mzeroZRGCah3j5xEWp2Nih3GDejSBbH1rbHoxDg8By6') }
+    : { M: new PublicKey('mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo') };
 
 export const M_EVM = '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b';
+
+export const EVM_TOKENS = [
+  {
+    address: M_EVM,
+    symbol: 'M',
+    icon: 'https://gistcdn.githack.com/SC4RECOIN/a729afb77aa15a4aa6b1b46c3afa1b52/raw/209da531ed46c1aaef0b1d3d7b67b3a5cec257f3/M_Symbol_512.svg',
+  },
+  {
+    address: '0x437cc33344a0B27A429f795ff6B469C72698B291',
+    symbol: 'wM',
+    icon: 'https://gistcdn.githack.com/SC4RECOIN/d383d31baee720e8481edae4620eb047/raw/00cd11302f663bf5fe086d5b71b81d1fb0fb31ac/wM_Symbol_512.svg',
+  },
+];

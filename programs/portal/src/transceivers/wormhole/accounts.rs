@@ -3,15 +3,7 @@ use anchor_lang::prelude::*;
 use wormhole_anchor_sdk::wormhole;
 use wormhole_io::TypePrefixedPayload;
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "tilt-devnet2")] {
-        const FINALITY: wormhole::Finality = wormhole::Finality::Confirmed;
-    } else if #[cfg(feature = "tilt-devnet")] {
-        const FINALITY: wormhole::Finality = wormhole::Finality::Confirmed;
-    } else {
-        const FINALITY: wormhole::Finality = wormhole::Finality::Finalized;
-    }
-}
+const FINALITY: wormhole::Finality = wormhole::Finality::Finalized;
 
 // TODO: should we add emitter in here too?
 #[derive(Accounts)]

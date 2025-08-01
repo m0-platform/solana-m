@@ -1,6 +1,7 @@
 #![allow(unexpected_cfgs)]
 
 use anchor_lang::prelude::*;
+use executor_account_resolver_svm::{InstructionGroups, Resolver, RESOLVER_EXECUTE_VAA_V1};
 
 pub mod bitmap;
 pub mod clock;
@@ -128,6 +129,14 @@ pub mod portal {
         ctx: Context<'_, '_, '_, 'info, ReleaseInboundMintExtension<'info>>,
     ) -> Result<()> {
         instructions::release_inbound_mint_extension(ctx)
+    }
+
+    #[instruction(discriminator = &RESOLVER_EXECUTE_VAA_V1)]
+    pub fn resolve_execute_vaa_v1(
+        ctx: Context<ResolveExecuteVaaV1>,
+        vaa_body: Vec<u8>,
+    ) -> Result<Resolver<InstructionGroups>> {
+        instructions::resolve_execute_vaa_v1(ctx, vaa_body)
     }
 
     pub fn transfer_ownership(ctx: Context<TransferOwnership>) -> Result<()> {

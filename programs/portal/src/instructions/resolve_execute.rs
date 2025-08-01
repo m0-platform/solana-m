@@ -1,17 +1,33 @@
-use anchor_lang::prelude::*;
-use executor_account_resolver_svm::{InstructionGroups, Resolver};
+use anchor_lang::{prelude::*, InstructionData};
+use executor_account_resolver_svm::{
+    find_account, missing_account, InstructionGroup, InstructionGroups, Resolver,
+    SerializableAccountMeta, SerializableInstruction, RESOLVER_PUBKEY_PAYER,
+    RESOLVER_PUBKEY_POSTED_VAA,
+};
 
 use crate::{
+    config::Config,
     error::NTTError,
-    ntt_messages::{TransceiverMessage, WormholeTransceiver},
+    instruction::{
+        ReceiveWormholeMessage, Redeem, ReleaseInboundMint, ReleaseInboundMintExtension,
+    },
+    instructions::{RedeemArgs, ReleaseInboundArgs},
+    messages::ValidatedTransceiverMessage,
+    ntt_messages::{ChainId, TransceiverMessage, TransceiverMessageData, WormholeTransceiver},
     payloads::Payload,
+    queue::{
+        inbox::{InboxItem, InboxRateLimit},
+        outbox::OutboxRateLimit,
+    },
+    registered_transceiver::RegisteredTransceiver,
+    transceivers::accounts::peer::TransceiverPeer,
 };
 
 #[derive(Accounts)]
 pub struct ResolveExecuteVaaV1 {}
 
 pub fn resolve_execute_vaa_v1(
-    _ctx: Context<ResolveExecuteVaaV1>,
+    ctx: Context<ResolveExecuteVaaV1>,
     vaa_body: Vec<u8>,
 ) -> Result<Resolver<InstructionGroups>> {
     if vaa_body.len() < 51 {
@@ -19,16 +35,212 @@ pub fn resolve_execute_vaa_v1(
     }
 
     // Parse NativeTokenTransfer from VAA body
-    let (_header, mut body) = &vaa_body.split_at(51);
+    let (fields, mut payload_body) = &vaa_body.split_at(51);
     let message: TransceiverMessage<WormholeTransceiver, Payload> =
-        TransceiverMessage::deserialize(&mut body).map_err(|_| NTTError::InvalidVAA)?;
+        TransceiverMessage::deserialize(&mut payload_body).map_err(|_| NTTError::InvalidVAA)?;
 
     // This manager should be the recipient
     if message.recipient_ntt_manager != crate::ID.to_bytes() {
         return err!(NTTError::InvalidVAA);
     }
 
-    Ok(Resolver::Resolved(InstructionGroups(vec![])))
+    let emitter_chain = &fields[8..10];
+
+    let (config, _) = Pubkey::find_program_address(&[Config::SEED_PREFIX], &crate::ID);
+
+    let config_data = if let Some(acc_info) = find_account(ctx.remaining_accounts, config) {
+        let mut buf = &acc_info.try_borrow_mut_data()?[..];
+        Config::try_deserialize(&mut buf)?
+    } else {
+        return Ok(missing_account(config));
+    };
+
+    let (peer, _) =
+        Pubkey::find_program_address(&[TransceiverPeer::SEED_PREFIX, emitter_chain], &crate::ID);
+
+    let (transceiver_message, _) = Pubkey::find_program_address(
+        &[
+            ValidatedTransceiverMessage::<TransceiverMessageData<Payload>>::SEED_PREFIX,
+            emitter_chain,
+            message.ntt_manager_payload.id.as_ref(),
+        ],
+        &crate::ID,
+    );
+
+    let receive_message = SerializableInstruction {
+        program_id: crate::ID,
+        data: ReceiveWormholeMessage {}.data(),
+        accounts: vec![
+            SerializableAccountMeta {
+                pubkey: RESOLVER_PUBKEY_PAYER,
+                is_writable: true,
+                is_signer: true,
+            },
+            SerializableAccountMeta {
+                pubkey: config,
+                is_writable: false,
+                is_signer: false,
+            },
+            SerializableAccountMeta {
+                pubkey: peer,
+                is_writable: false,
+                is_signer: false,
+            },
+            SerializableAccountMeta {
+                pubkey: RESOLVER_PUBKEY_POSTED_VAA,
+                is_writable: false,
+                is_signer: false,
+            },
+            SerializableAccountMeta {
+                pubkey: transceiver_message,
+                is_writable: true,
+                is_signer: false,
+            },
+            SerializableAccountMeta {
+                pubkey: System::id(),
+                is_writable: false,
+                is_signer: false,
+            },
+        ],
+    };
+
+    let redeem = {
+        let (transceiver, _) = Pubkey::find_program_address(
+            &[RegisteredTransceiver::SEED_PREFIX, &crate::ID.to_bytes()],
+            &crate::ID,
+        );
+
+        let (inbox_item, _) = Pubkey::find_program_address(
+            &[
+                InboxItem::SEED_PREFIX,
+                message
+                    .ntt_manager_payload
+                    .keccak256(ChainId {
+                        id: u16::from_be_bytes(emitter_chain.try_into().unwrap()),
+                    })
+                    .as_ref(),
+            ],
+            &crate::ID,
+        );
+
+        let (inbox_rate_limit, _) =
+            Pubkey::find_program_address(&[InboxRateLimit::SEED_PREFIX, emitter_chain], &crate::ID);
+
+        let (outbox_rate_limit, _) =
+            Pubkey::find_program_address(&[OutboxRateLimit::SEED_PREFIX], &crate::ID);
+
+        SerializableInstruction {
+            program_id: crate::ID,
+            data: Redeem {
+                args: RedeemArgs {},
+            }
+            .data(),
+            accounts: vec![
+                SerializableAccountMeta {
+                    pubkey: RESOLVER_PUBKEY_PAYER,
+                    is_writable: true,
+                    is_signer: true,
+                },
+                SerializableAccountMeta {
+                    pubkey: config,
+                    is_writable: false,
+                    is_signer: false,
+                },
+                SerializableAccountMeta {
+                    pubkey: peer,
+                    is_writable: false,
+                    is_signer: false,
+                },
+                SerializableAccountMeta {
+                    pubkey: transceiver_message,
+                    is_writable: false,
+                    is_signer: false,
+                },
+                SerializableAccountMeta {
+                    pubkey: transceiver,
+                    is_writable: false,
+                    is_signer: false,
+                },
+                SerializableAccountMeta {
+                    pubkey: config_data.mint,
+                    is_writable: false,
+                    is_signer: false,
+                },
+                SerializableAccountMeta {
+                    pubkey: inbox_item,
+                    is_writable: true,
+                    is_signer: false,
+                },
+                SerializableAccountMeta {
+                    pubkey: inbox_rate_limit,
+                    is_writable: true,
+                    is_signer: false,
+                },
+                SerializableAccountMeta {
+                    pubkey: outbox_rate_limit,
+                    is_writable: true,
+                    is_signer: false,
+                },
+                SerializableAccountMeta {
+                    pubkey: System::id(),
+                    is_writable: false,
+                    is_signer: false,
+                },
+            ],
+        }
+    };
+
+    let destination_mint = match &message.ntt_manager_payload.payload {
+        Payload::NativeTokenTransfer(ntt) => {
+            Pubkey::new_from_array(ntt.additional_payload.destination_token)
+        }
+    };
+
+    // release_inbound_mint and release_inbound_mint_extension share accounts
+    let release_accounts = vec![SerializableAccountMeta {
+        pubkey: RESOLVER_PUBKEY_PAYER,
+        is_writable: true,
+        is_signer: true,
+    }];
+
+    // redeeming $M, use the standard release_inbound_mint instruction
+    if destination_mint.eq(&config_data.mint) {
+        let release_inbound_mint = {
+            SerializableInstruction {
+                program_id: crate::ID,
+                data: ReleaseInboundMint {
+                    args: ReleaseInboundArgs {
+                        revert_when_not_ready: true,
+                    },
+                }
+                .data(),
+                accounts: release_accounts,
+            }
+        };
+
+        return Ok(Resolver::Resolved(InstructionGroups(vec![
+            InstructionGroup {
+                instructions: vec![receive_message, redeem, release_inbound_mint],
+                address_lookup_tables: vec![],
+            },
+        ])));
+    }
+
+    // redeeming extension tokens, use the release_inbound_mint_extension instruction
+    let release_inbound_mint = {
+        SerializableInstruction {
+            program_id: crate::ID,
+            data: ReleaseInboundMintExtension {}.data(),
+            accounts: release_accounts,
+        }
+    };
+
+    Ok(Resolver::Resolved(InstructionGroups(vec![
+        InstructionGroup {
+            instructions: vec![receive_message, redeem, release_inbound_mint],
+            address_lookup_tables: vec![],
+        },
+    ])))
 }
 
 #[cfg(test)]

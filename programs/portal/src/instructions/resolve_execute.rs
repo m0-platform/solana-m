@@ -1,6 +1,11 @@
 use anchor_lang::{prelude::*, InstructionData};
+use anchor_spl::{associated_token::get_associated_token_address_with_program_id, token_2022};
+use earn::{
+    instructions::ext_swap::{self},
+    state::GLOBAL_SEED,
+};
 use executor_account_resolver_svm::{
-    find_account, missing_account, InstructionGroup, InstructionGroups, Resolver,
+    find_account, InstructionGroup, InstructionGroups, MissingAccounts, Resolver,
     SerializableAccountMeta, SerializableInstruction, RESOLVER_PUBKEY_PAYER,
     RESOLVER_PUBKEY_POSTED_VAA,
 };
@@ -11,7 +16,10 @@ use crate::{
     instruction::{
         ReceiveWormholeMessage, Redeem, ReleaseInboundMint, ReleaseInboundMintExtension,
     },
-    instructions::{RedeemArgs, ReleaseInboundArgs},
+    instructions::{
+        ext_swap::{accounts::SwapGlobal, types::WhitelistedExtension},
+        get_inbox_recipient_token_account, RedeemArgs, ReleaseInboundArgs,
+    },
     messages::ValidatedTransceiverMessage,
     ntt_messages::{ChainId, TransceiverMessage, TransceiverMessageData, WormholeTransceiver},
     payloads::Payload,
@@ -21,6 +29,7 @@ use crate::{
     },
     registered_transceiver::RegisteredTransceiver,
     transceivers::accounts::peer::TransceiverPeer,
+    TOKEN_AUTHORITY_SEED,
 };
 
 #[derive(Accounts)]
@@ -39,33 +48,71 @@ pub fn resolve_execute_vaa_v1(
     let message: TransceiverMessage<WormholeTransceiver, Payload> =
         TransceiverMessage::deserialize(&mut payload_body).map_err(|_| NTTError::InvalidVAA)?;
 
+    let emitter_chain = &fields[8..10];
+    let message_hash = message.ntt_manager_payload.keccak256(ChainId {
+        id: u16::from_be_bytes(emitter_chain.try_into().unwrap()),
+    });
+
     // This manager should be the recipient
     if message.recipient_ntt_manager != crate::ID.to_bytes() {
         return err!(NTTError::InvalidVAA);
     }
 
-    let emitter_chain = &fields[8..10];
-
-    let (config, _) = Pubkey::find_program_address(&[Config::SEED_PREFIX], &crate::ID);
-
-    let config_data = if let Some(acc_info) = find_account(ctx.remaining_accounts, config) {
-        let mut buf = &acc_info.try_borrow_mut_data()?[..];
-        Config::try_deserialize(&mut buf)?
-    } else {
-        return Ok(missing_account(config));
+    let destination_mint = match &message.ntt_manager_payload.payload {
+        Payload::NativeTokenTransfer(ntt) => {
+            Pubkey::new_from_array(ntt.additional_payload.destination_token)
+        }
     };
 
-    let (peer, _) =
-        Pubkey::find_program_address(&[TransceiverPeer::SEED_PREFIX, emitter_chain], &crate::ID);
+    // Accounts we need read data on
+    let config = pda(&[Config::SEED_PREFIX]);
+    let inbox_item = pda(&[InboxItem::SEED_PREFIX, message_hash.as_ref()]);
+    let swap_global = Pubkey::find_program_address(&[GLOBAL_SEED], &ext_swap::ID).0;
 
-    let (transceiver_message, _) = Pubkey::find_program_address(
-        &[
-            ValidatedTransceiverMessage::<TransceiverMessageData<Payload>>::SEED_PREFIX,
-            emitter_chain,
-            message.ntt_manager_payload.id.as_ref(),
-        ],
-        &crate::ID,
-    );
+    // Check for missing accounts
+    {
+        let mut missing: Vec<Pubkey> = vec![];
+        if let Some(acc_info) = find_account(ctx.remaining_accounts, config) {
+            let config = Config::try_deserialize(&mut &acc_info.try_borrow_mut_data()?[..])?;
+
+            // Get mint for correct token account
+            if find_account(ctx.remaining_accounts, config.mint).is_none() {
+                missing.push(config.mint);
+            }
+        } else {
+            missing.push(config);
+        }
+
+        if find_account(ctx.remaining_accounts, inbox_item).is_none() {
+            missing.push(inbox_item);
+        }
+        if find_account(ctx.remaining_accounts, swap_global).is_none() {
+            missing.push(swap_global);
+        }
+
+        if missing.len() > 0 {
+            return Ok(Resolver::Missing(MissingAccounts {
+                accounts: missing,
+                address_lookup_tables: vec![],
+            }));
+        }
+    }
+
+    // Parse accounts we know are on remaining_accounts
+    let config_data = deserialize_account::<Config>(ctx.remaining_accounts, config)?;
+    let inbox_item_data = deserialize_account::<InboxItem>(ctx.remaining_accounts, inbox_item)?;
+    let swap_global_data = deserialize_account::<SwapGlobal>(ctx.remaining_accounts, swap_global)?;
+
+    let token_program = find_account(ctx.remaining_accounts, config_data.mint)
+        .unwrap()
+        .owner;
+
+    let peer = pda(&[TransceiverPeer::SEED_PREFIX, emitter_chain]);
+    let transceiver_message = pda(&[
+        ValidatedTransceiverMessage::<TransceiverMessageData<Payload>>::SEED_PREFIX,
+        emitter_chain,
+        message.ntt_manager_payload.id.as_ref(),
+    ]);
 
     let receive_message = SerializableInstruction {
         program_id: crate::ID,
@@ -105,29 +152,9 @@ pub fn resolve_execute_vaa_v1(
     };
 
     let redeem = {
-        let (transceiver, _) = Pubkey::find_program_address(
-            &[RegisteredTransceiver::SEED_PREFIX, &crate::ID.to_bytes()],
-            &crate::ID,
-        );
-
-        let (inbox_item, _) = Pubkey::find_program_address(
-            &[
-                InboxItem::SEED_PREFIX,
-                message
-                    .ntt_manager_payload
-                    .keccak256(ChainId {
-                        id: u16::from_be_bytes(emitter_chain.try_into().unwrap()),
-                    })
-                    .as_ref(),
-            ],
-            &crate::ID,
-        );
-
-        let (inbox_rate_limit, _) =
-            Pubkey::find_program_address(&[InboxRateLimit::SEED_PREFIX, emitter_chain], &crate::ID);
-
-        let (outbox_rate_limit, _) =
-            Pubkey::find_program_address(&[OutboxRateLimit::SEED_PREFIX], &crate::ID);
+        let transceiver = pda(&[RegisteredTransceiver::SEED_PREFIX, &crate::ID.to_bytes()]);
+        let inbox_rate_limit = pda(&[InboxRateLimit::SEED_PREFIX, emitter_chain]);
+        let outbox_rate_limit = pda(&[OutboxRateLimit::SEED_PREFIX]);
 
         SerializableInstruction {
             program_id: crate::ID,
@@ -190,20 +217,81 @@ pub fn resolve_execute_vaa_v1(
         }
     };
 
-    let destination_mint = match &message.ntt_manager_payload.payload {
-        Payload::NativeTokenTransfer(ntt) => {
-            Pubkey::new_from_array(ntt.additional_payload.destination_token)
-        }
+    let token_auth = pda(&[TOKEN_AUTHORITY_SEED]);
+
+    let recipient = get_inbox_recipient_token_account(
+        &inbox_item_data,
+        &token_auth,
+        &config_data.mint,
+        &token_program,
+    );
+
+    let recipient = if let Some(recipient) = recipient {
+        recipient
+    } else {
+        // Tranfer size is 0 so this account is just a placeholder
+        get_associated_token_address_with_program_id(&token_auth, &config_data.mint, &token_program)
     };
 
     // release_inbound_mint and release_inbound_mint_extension share accounts
-    let release_accounts = vec![SerializableAccountMeta {
-        pubkey: RESOLVER_PUBKEY_PAYER,
-        is_writable: true,
-        is_signer: true,
-    }];
+    let mut release_accounts = {
+        let m_global = earn_pda(&[GLOBAL_SEED]);
 
-    // redeeming $M, use the standard release_inbound_mint instruction
+        vec![
+            SerializableAccountMeta {
+                pubkey: RESOLVER_PUBKEY_PAYER,
+                is_writable: true,
+                is_signer: true,
+            },
+            SerializableAccountMeta {
+                pubkey: config,
+                is_writable: false,
+                is_signer: false,
+            },
+            SerializableAccountMeta {
+                pubkey: inbox_item,
+                is_writable: true,
+                is_signer: false,
+            },
+            SerializableAccountMeta {
+                pubkey: recipient,
+                is_writable: true,
+                is_signer: false,
+            },
+            SerializableAccountMeta {
+                pubkey: token_auth,
+                is_writable: false,
+                is_signer: false,
+            },
+            SerializableAccountMeta {
+                pubkey: config_data.mint,
+                is_writable: true,
+                is_signer: false,
+            },
+            SerializableAccountMeta {
+                pubkey: token_2022::ID,
+                is_writable: false,
+                is_signer: false,
+            },
+            SerializableAccountMeta {
+                pubkey: config_data.custody,
+                is_writable: true,
+                is_signer: false,
+            },
+            SerializableAccountMeta {
+                pubkey: earn::ID,
+                is_writable: false,
+                is_signer: false,
+            },
+            SerializableAccountMeta {
+                pubkey: m_global,
+                is_writable: false,
+                is_signer: false,
+            },
+        ]
+    };
+
+    // Redeeming $M, use the standard release_inbound_mint instruction
     if destination_mint.eq(&config_data.mint) {
         let release_inbound_mint = {
             SerializableInstruction {
@@ -226,7 +314,101 @@ pub fn resolve_execute_vaa_v1(
         ])));
     }
 
-    // redeeming extension tokens, use the release_inbound_mint_extension instruction
+    // Find the extension program ID based on the destination mint
+    let ext_program = if let Some(ext) = swap_global_data
+        .whitelisted_extensions
+        .iter()
+        .find(|ext| ext.mint.eq(&destination_mint))
+    {
+        ext
+    } else {
+        // If the extension program is not found, fallback to first whitelisted extension
+        let fallback = &swap_global_data.whitelisted_extensions[0];
+        msg!(
+            "Extension for {} not found, falling back to first whitelisted extension: {}",
+            destination_mint.to_string(),
+            fallback.mint.to_string(),
+        );
+        fallback
+    };
+
+    let &WhitelistedExtension {
+        mint: destination_mint,
+        program_id: ext_pid,
+        token_program: ext_token_program,
+    } = ext_program;
+
+    let swap_global = Pubkey::find_program_address(&[GLOBAL_SEED], &ext_swap::ID).0;
+    let ext_global = Pubkey::find_program_address(&[GLOBAL_SEED], &ext_pid).0;
+    let ext_m_vault_auth = Pubkey::find_program_address(&[b"m_vault"], &ext_pid).0;
+    let ext_mint_auth = Pubkey::find_program_address(&[b"mint_authority"], &ext_pid).0;
+
+    let ext_m_vault = get_associated_token_address_with_program_id(
+        &ext_m_vault_auth,
+        &config_data.mint,
+        token_program,
+    );
+    let ext_token_account = get_associated_token_address_with_program_id(
+        &inbox_item_data.transfer.recipient,
+        &destination_mint,
+        &ext_token_program,
+    );
+
+    // Add extra accounts required for wrapping $M to extension tokens
+    release_accounts.extend_from_slice(&[
+        SerializableAccountMeta {
+            pubkey: destination_mint,
+            is_writable: true,
+            is_signer: false,
+        },
+        SerializableAccountMeta {
+            pubkey: swap_global,
+            is_writable: true,
+            is_signer: false,
+        },
+        SerializableAccountMeta {
+            pubkey: ext_global,
+            is_writable: true,
+            is_signer: false,
+        },
+        SerializableAccountMeta {
+            pubkey: ext_m_vault_auth,
+            is_writable: false,
+            is_signer: false,
+        },
+        SerializableAccountMeta {
+            pubkey: ext_mint_auth,
+            is_writable: false,
+            is_signer: false,
+        },
+        SerializableAccountMeta {
+            pubkey: ext_m_vault,
+            is_writable: true,
+            is_signer: false,
+        },
+        SerializableAccountMeta {
+            pubkey: ext_token_account,
+            is_writable: true,
+            is_signer: false,
+        },
+        SerializableAccountMeta {
+            pubkey: ext_swap::ID,
+            is_writable: false,
+            is_signer: false,
+        },
+        SerializableAccountMeta {
+            pubkey: ext_pid,
+            is_writable: false,
+            is_signer: false,
+        },
+        SerializableAccountMeta {
+            pubkey: System::id(),
+            is_writable: false,
+            is_signer: false,
+        },
+    ]);
+
+    // Redeeming extension tokens, use the release_inbound_mint_extension instruction
     let release_inbound_mint = {
         SerializableInstruction {
             program_id: crate::ID,
@@ -241,6 +423,22 @@ pub fn resolve_execute_vaa_v1(
             address_lookup_tables: vec![],
         },
     ])))
+}
+
+fn deserialize_account<T: AccountDeserialize>(
+    remaining_accounts: &[AccountInfo],
+    pubkey: Pubkey,
+) -> Result<T> {
+    let account = find_account(remaining_accounts, pubkey).unwrap();
+    T::try_deserialize(&mut &account.try_borrow_mut_data()?[..])
+}
+
+fn pda(seeds: &[&[u8]]) -> Pubkey {
+    Pubkey::find_program_address(seeds, &crate::ID).0
+}
+
+fn earn_pda(seeds: &[&[u8]]) -> Pubkey {
+    Pubkey::find_program_address(seeds, &earn::ID).0
 }
 
 #[cfg(test)]

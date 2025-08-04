@@ -13,7 +13,7 @@ use crate::{
     error::NTTError,
     instructions::BridgeEvent,
     ntt_messages::Mode,
-    queue::inbox::{InboxItem, ReleaseStatus, TokenTransfer},
+    queue::inbox::{InboxItem, ReleaseStatus},
 };
 
 #[derive(Accounts)]
@@ -74,24 +74,15 @@ pub fn release_inbound_mint<'info>(
     ctx: Context<'_, '_, '_, 'info, ReleaseInboundMint<'info>>,
     args: ReleaseInboundArgs,
 ) -> Result<()> {
-    release_inbound(ctx, args, false)
-}
-
-pub fn release_inbound<'info>(
-    ctx: Context<'_, '_, '_, 'info, ReleaseInboundMint<'info>>,
-    args: ReleaseInboundArgs,
-    release_extension: bool,
-) -> Result<()> {
     let inbox_item = &mut ctx.accounts.inbox_item;
 
     // Validate token account depending on call context
     validate_recipient_token_account(
         &ctx.accounts.recipient.key(),
-        &inbox_item.transfer,
+        &inbox_item,
         &ctx.accounts.token_authority.key(),
         &ctx.accounts.mint.key(),
         &ctx.accounts.token_program.key(),
-        release_extension,
     )?;
 
     if !inbox_item.try_release()? {
@@ -186,40 +177,45 @@ pub fn release_inbound<'info>(
 
 fn validate_recipient_token_account(
     recipient: &Pubkey,
-    transfer: &TokenTransfer,
+    inbox_item: &InboxItem,
     token_authority: &Pubkey,
-    mint: &Pubkey,
+    m_mint: &Pubkey,
     token_program: &Pubkey,
-    release_extension: bool,
 ) -> Result<()> {
-    // Only bridging data
-    if transfer.amount == 0 {
-        return Ok(());
-    }
+    let expected =
+        get_inbox_recipient_token_account(inbox_item, token_authority, m_mint, token_program);
 
-    // Bridging to extension, require intermediate portal token account
-    if release_extension {
-        if !recipient.eq(&get_associated_token_address_with_program_id(
-            token_authority,
-            mint,
-            token_program,
-        )) {
-            msg!("expected recipient to be token authority");
-            return err!(NTTError::InvalidRecipientAddress);
-        }
-
-        return Ok(());
-    }
-
-    // Bridging $M, require user token account
-    if !recipient.eq(&get_associated_token_address_with_program_id(
-        &transfer.recipient,
-        mint,
-        token_program,
-    )) {
-        msg!("expected recipient to match inbox item");
+    if expected.is_some() && !expected.unwrap().eq(recipient) {
         return err!(NTTError::InvalidRecipientAddress);
     }
 
     Ok(())
+}
+
+pub fn get_inbox_recipient_token_account(
+    inbox_item: &InboxItem,
+    token_authority: &Pubkey,
+    m_mint: &Pubkey,
+    token_program: &Pubkey,
+) -> Option<Pubkey> {
+    // Only bridging data
+    if inbox_item.transfer.amount == 0 {
+        return None;
+    }
+
+    // Bridging to extension, require intermediate portal token account
+    if !inbox_item.destination_mint.eq(m_mint) {
+        return Some(get_associated_token_address_with_program_id(
+            token_authority,
+            m_mint,
+            token_program,
+        ));
+    }
+
+    // Bridging $M, require user token account
+    Some(get_associated_token_address_with_program_id(
+        &inbox_item.transfer.recipient,
+        m_mint,
+        token_program,
+    ))
 }

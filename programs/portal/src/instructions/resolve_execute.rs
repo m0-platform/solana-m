@@ -44,9 +44,10 @@ pub fn resolve_execute_vaa_v1(
     }
 
     // Parse NativeTokenTransfer from VAA body
-    let (fields, mut payload_body) = &vaa_body.split_at(51);
+    let (fields, payload_body) = vaa_body.split_at(51);
     let message: TransceiverMessage<WormholeTransceiver, Payload> =
-        TransceiverMessage::deserialize(&mut payload_body).map_err(|_| NTTError::InvalidVAA)?;
+        TransceiverMessage::deserialize(&mut payload_body.as_ref())
+            .map_err(|_| NTTError::InvalidVAA)?;
 
     let emitter_chain = &fields[8..10];
     let message_hash = message.ntt_manager_payload.keccak256(ChainId {
@@ -71,7 +72,7 @@ pub fn resolve_execute_vaa_v1(
 
     // Check for missing accounts
     {
-        let mut missing: Vec<Pubkey> = vec![];
+        let mut missing: Vec<Pubkey> = Vec::with_capacity(3);
         if let Some(acc_info) = find_account(ctx.remaining_accounts, config) {
             let config = Config::try_deserialize(&mut &acc_info.try_borrow_mut_data()?[..])?;
 
@@ -90,10 +91,10 @@ pub fn resolve_execute_vaa_v1(
             missing.push(swap_global);
         }
 
-        if missing.len() > 0 {
+        if !missing.is_empty() {
             return Ok(Resolver::Missing(MissingAccounts {
                 accounts: missing,
-                address_lookup_tables: vec![],
+                address_lookup_tables: Vec::new(),
             }));
         }
     }
@@ -224,14 +225,11 @@ pub fn resolve_execute_vaa_v1(
         &token_auth,
         &config_data.mint,
         &token_program,
-    );
-
-    let recipient = if let Some(recipient) = recipient {
-        recipient
-    } else {
+    )
+    .unwrap_or_else(|| {
         // Transfer size is 0 so this account is just a placeholder
         get_associated_token_address_with_program_id(&token_auth, &config_data.mint, &token_program)
-    };
+    });
 
     // release_inbound_mint and release_inbound_mint_extension share accounts
     let mut release_accounts = {
@@ -309,28 +307,26 @@ pub fn resolve_execute_vaa_v1(
         return Ok(Resolver::Resolved(InstructionGroups(vec![
             InstructionGroup {
                 instructions: vec![receive_message, redeem, release_inbound_mint],
-                address_lookup_tables: vec![],
+                address_lookup_tables: Vec::new(),
             },
         ])));
     }
 
     // Find the extension program ID based on the destination mint
-    let ext_program = if let Some(ext) = swap_global_data
+    let ext_program = swap_global_data
         .whitelisted_extensions
         .iter()
         .find(|ext| ext.mint.eq(&destination_mint))
-    {
-        ext
-    } else {
-        // If the extension program is not found, fallback to first whitelisted extension
-        let fallback = &swap_global_data.whitelisted_extensions[0];
-        msg!(
-            "Extension for {} not found, falling back to first whitelisted extension: {}",
-            destination_mint.to_string(),
-            fallback.mint.to_string(),
-        );
-        fallback
-    };
+        .unwrap_or_else(|| {
+            // If the extension program is not found, fallback to first whitelisted extension
+            let fallback = &swap_global_data.whitelisted_extensions[0];
+            msg!(
+                "Extension for {} not found, falling back to first whitelisted extension: {}",
+                destination_mint.to_string(),
+                fallback.mint.to_string(),
+            );
+            fallback
+        });
 
     let &WhitelistedExtension {
         mint: destination_mint,
@@ -420,7 +416,7 @@ pub fn resolve_execute_vaa_v1(
     Ok(Resolver::Resolved(InstructionGroups(vec![
         InstructionGroup {
             instructions: vec![receive_message, redeem, release_inbound_mint],
-            address_lookup_tables: vec![],
+            address_lookup_tables: Vec::new(),
         },
     ])))
 }

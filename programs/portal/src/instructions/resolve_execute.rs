@@ -1,5 +1,8 @@
 use anchor_lang::{prelude::*, InstructionData};
-use anchor_spl::{associated_token::get_associated_token_address_with_program_id, token_2022};
+use anchor_spl::{
+    associated_token::get_associated_token_address_with_program_id, token_2022,
+    token_interface::Mint,
+};
 use earn::{
     instructions::ext_swap::{self},
     state::GLOBAL_SEED,
@@ -45,9 +48,12 @@ pub fn resolve_execute_vaa_v1(
 
     // Parse NativeTokenTransfer from VAA body
     let (fields, payload_body) = vaa_body.split_at(51);
+
     let message: TransceiverMessage<WormholeTransceiver, Payload> =
-        TransceiverMessage::deserialize(&mut payload_body.as_ref())
-            .map_err(|_| NTTError::InvalidVAA)?;
+        TransceiverMessage::deserialize(&mut payload_body.as_ref()).map_err(|e| {
+            msg!("Body did not deserialize: {}", e);
+            NTTError::InvalidVAA
+        })?;
 
     let emitter_chain = &fields[8..10];
     let message_hash = message.ntt_manager_payload.keccak256(ChainId {
@@ -56,14 +62,9 @@ pub fn resolve_execute_vaa_v1(
 
     // This manager should be the recipient
     if message.recipient_ntt_manager != crate::ID.to_bytes() {
+        msg!("Invalid recipient NTT manager");
         return err!(NTTError::InvalidVAA);
     }
-
-    let destination_mint = match &message.ntt_manager_payload.payload {
-        Payload::NativeTokenTransfer(ntt) => {
-            Pubkey::new_from_array(ntt.additional_payload.destination_token)
-        }
-    };
 
     // Accounts we need read data on
     let config = pda(&[Config::SEED_PREFIX]);
@@ -84,9 +85,6 @@ pub fn resolve_execute_vaa_v1(
             missing.push(config);
         }
 
-        if find_account(ctx.remaining_accounts, inbox_item).is_none() {
-            missing.push(inbox_item);
-        }
         if find_account(ctx.remaining_accounts, swap_global).is_none() {
             missing.push(swap_global);
         }
@@ -101,12 +99,23 @@ pub fn resolve_execute_vaa_v1(
 
     // Parse accounts we know are on remaining_accounts
     let config_data = deserialize_account::<Config>(ctx.remaining_accounts, config)?;
-    let inbox_item_data = deserialize_account::<InboxItem>(ctx.remaining_accounts, inbox_item)?;
     let swap_global_data = deserialize_account::<SwapGlobal>(ctx.remaining_accounts, swap_global)?;
+    let mint_data = deserialize_account::<Mint>(ctx.remaining_accounts, config_data.mint)?;
 
     let token_program = find_account(ctx.remaining_accounts, config_data.mint)
         .unwrap()
         .owner;
+
+    // NTT payload data
+    let ntt_payload = match &message.ntt_manager_payload.payload {
+        Payload::NativeTokenTransfer(ntt) => ntt,
+    };
+    let destination_mint = Pubkey::new_from_array(ntt_payload.additional_payload.destination_token);
+    let ntt_recipient = Pubkey::new_from_array(ntt_payload.to);
+    let amount = ntt_payload
+        .amount
+        .untrim(mint_data.decimals)
+        .map_err(NTTError::from)?;
 
     let peer = pda(&[TransceiverPeer::SEED_PREFIX, emitter_chain]);
     let transceiver_message = pda(&[
@@ -221,7 +230,9 @@ pub fn resolve_execute_vaa_v1(
     let token_auth = pda(&[TOKEN_AUTHORITY_SEED]);
 
     let recipient = get_inbox_recipient_token_account(
-        &inbox_item_data,
+        &ntt_recipient,
+        &destination_mint,
+        amount,
         &token_auth,
         &config_data.mint,
         &token_program,
@@ -345,7 +356,7 @@ pub fn resolve_execute_vaa_v1(
         token_program,
     );
     let ext_token_account = get_associated_token_address_with_program_id(
-        &inbox_item_data.transfer.recipient,
+        &recipient,
         &destination_mint,
         &ext_token_program,
     );
@@ -426,7 +437,14 @@ fn deserialize_account<T: AccountDeserialize>(
     pubkey: Pubkey,
 ) -> Result<T> {
     let account = find_account(remaining_accounts, pubkey).unwrap();
-    T::try_deserialize(&mut &account.try_borrow_mut_data()?[..])
+
+    match T::try_deserialize(&mut &account.try_borrow_mut_data()?[..]) {
+        Ok(data) => Ok(data),
+        Err(e) => {
+            msg!("Failed to deserialize account {}", pubkey);
+            Err(e)
+        }
+    }
 }
 
 fn pda(seeds: &[&[u8]]) -> Pubkey {

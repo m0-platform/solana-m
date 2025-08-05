@@ -599,6 +599,7 @@ describe('Portal unit tests', () => {
 
     let inboxItem: PublicKey;
     let payload: any;
+    let vaaBytes: Uint8Array;
 
     const redeem = (
       additionalAccounts: AccountMeta[],
@@ -616,6 +617,7 @@ describe('Portal unit tests', () => {
 
       const published = emitter.publishMessage(0, serialized, 200);
       const rawVaa = guardians.addSignatures(published, [0]);
+      vaaBytes = rawVaa.payload as Uint8Array;
       const vaa = deserialize('Ntt:WormholeTransfer', serialize(rawVaa));
       const redeemTxs = ntt.redeem({ wormhole: vaa }, sender);
 
@@ -899,10 +901,91 @@ describe('Portal unit tests', () => {
       const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
       expect(parsedTokenAccount.amount).toBe(9880099n); // should be unchanged
 
-      // check balance
+      // check ext balance
       const extTokenAccountInfo = await connection.getAccountInfo(extAta);
       const extParsedTokenAccount = spl.unpackAccount(extAta, extTokenAccountInfo, TOKEN_PROGRAM);
       expect(extParsedTokenAccount.amount).toBe(9099n);
+    });
+
+    it('extension tokens - use resolver', async () => {
+      const { address: extAta } = await spl.getOrCreateAssociatedTokenAccount(
+        connection,
+        payer,
+        extMint.publicKey,
+        payer.publicKey,
+        true,
+        undefined,
+        undefined,
+        TOKEN_PROGRAM,
+      );
+
+      // publish message and load in vaa body bytes
+      redeem(additionalRedeemAccounts(mint.publicKey, extMint.publicKey, extAta), undefined, true);
+
+      // check that first 64 bytes is the source and recipient manager
+      const dest_manager = new PublicKey(vaaBytes.slice(36, 68)).toBase58();
+      expect(dest_manager).toBe(config.PORTAL_PROGRAM_ID.toBase58());
+
+      // add VAA header
+      const vaaBody = Buffer.concat([Buffer.alloc(51), vaaBytes]);
+
+      const ix = new TransactionInstruction({
+        programId: ntt.program.programId,
+        keys: [],
+        data: Buffer.concat([
+          Buffer.from([148, 184, 169, 222, 207, 8, 154, 127]), // discriminator
+          new BN(vaaBody.length).toArrayLike(Buffer, 'le', 4), // vec length
+          Buffer.from(vaaBody), // vec
+        ]),
+      });
+
+      // simulate and get return data
+      let tx = new Transaction().add(ix);
+      tx.feePayer = payer.publicKey;
+      tx.recentBlockhash = svm.latestBlockhash();
+      tx.sign(payer);
+      let result = svm.simulateTransaction!(tx);
+      let data = result.meta().returnData().data();
+
+      expect(data[0]).toBe(1); // MissingAccounts
+      expect(data.slice(1, 5).toString()).toBe('2,0,0,0'); // 2 missing accounts (be)
+
+      const account1 = new PublicKey(data.slice(5, 37));
+      const account2 = new PublicKey(data.slice(37, 69));
+
+      // expect config account
+      expect(account1.toBase58()).toBe(ntt.pdas.configAccount().toBase58());
+
+      // remaining accounts
+      ix.keys.push(
+        {
+          pubkey: account1,
+          isSigner: false,
+          isWritable: false,
+        },
+        {
+          pubkey: account2,
+          isSigner: false,
+          isWritable: false,
+        },
+        {
+          pubkey: mint.publicKey,
+          isSigner: false,
+          isWritable: false,
+        },
+      );
+
+      tx = new Transaction().add(ix);
+      tx.feePayer = payer.publicKey;
+      tx.recentBlockhash = svm.latestBlockhash();
+      tx.sign(payer);
+      result = svm.simulateTransaction!(tx);
+      data = result.meta().returnData().data();
+
+      console.log('result', result.toString());
+      console.log('data', data.toString());
+
+      expect(data[0]).toBe(0); // Resolved
     });
 
     it('tokens with merkle roots', async () => {

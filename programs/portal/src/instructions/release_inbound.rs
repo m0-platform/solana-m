@@ -182,8 +182,14 @@ fn validate_recipient_token_account(
     m_mint: &Pubkey,
     token_program: &Pubkey,
 ) -> Result<()> {
-    let expected =
-        get_inbox_recipient_token_account(inbox_item, token_authority, m_mint, token_program);
+    let expected = get_inbox_recipient_token_account(
+        &inbox_item.transfer.recipient,
+        &inbox_item.destination_mint,
+        inbox_item.transfer.amount,
+        token_authority,
+        m_mint,
+        token_program,
+    );
 
     if expected.is_some() && !expected.unwrap().eq(recipient) {
         return err!(NTTError::InvalidRecipientAddress);
@@ -193,18 +199,20 @@ fn validate_recipient_token_account(
 }
 
 pub fn get_inbox_recipient_token_account(
-    inbox_item: &InboxItem,
+    recipient: &Pubkey,
+    destination_mint: &Pubkey,
+    amount: u64,
     token_authority: &Pubkey,
     m_mint: &Pubkey,
     token_program: &Pubkey,
 ) -> Option<Pubkey> {
     // Only bridging data
-    if inbox_item.transfer.amount == 0 {
+    if amount == 0 {
         return None;
     }
 
     // Bridging to extension, require intermediate portal token account
-    if !inbox_item.destination_mint.eq(m_mint) {
+    if !destination_mint.eq(m_mint) {
         return Some(get_associated_token_address_with_program_id(
             token_authority,
             m_mint,
@@ -214,7 +222,7 @@ pub fn get_inbox_recipient_token_account(
 
     // Bridging $M, require user token account
     Some(get_associated_token_address_with_program_id(
-        &inbox_item.transfer.recipient,
+        &recipient,
         m_mint,
         token_program,
     ))

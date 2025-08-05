@@ -229,7 +229,7 @@ pub fn resolve_execute_vaa_v1(
     let recipient = if let Some(recipient) = recipient {
         recipient
     } else {
-        // Tranfer size is 0 so this account is just a placeholder
+        // Transfer size is 0 so this account is just a placeholder
         get_associated_token_address_with_program_id(&token_auth, &config_data.mint, &token_program)
     };
 
@@ -443,6 +443,8 @@ fn earn_pda(seeds: &[&[u8]]) -> Pubkey {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
     use base64::prelude::*;
 
@@ -467,12 +469,54 @@ mod tests {
             ResolveExecuteVaaV1Bumps {},
         );
 
-        // Call the function
-        let result = resolve_execute_vaa_v1(ctx, vaa_body);
+        // Resolve the instructions
+        let result = resolve_execute_vaa_v1(ctx, vaa_body.clone());
 
         // Assert the result
         assert!(result.is_ok());
-        let resolver = result.unwrap();
-        assert!(matches!(resolver, Resolver::Resolved(_)));
+        let config = Pubkey::from_str("3WEmFf1y7MYgNgEKHjY6p7cRDR2HGtBgxzfABb91eqHv").unwrap();
+
+        match result.unwrap() {
+            Resolver::Missing(missing) => {
+                assert_eq!(missing.accounts.len(), 3);
+                assert!(missing.accounts.contains(&config));
+            }
+            _ => panic!("Expected missing accounts"),
+        }
+
+        // Create config account
+        let mut lamports = 3145920;
+        let mut data = BASE64_STANDARD.decode("mwyq4B76zIL+fPdFxqVBFEp5/7f0fz7A3Zkq0wRAXqv3BYdIM/5geN8AC4a+ZtMrxaS1qx/r30jjOwbDtaFjsZwXMO14cF9+9owG3fbh7nWP3hhCXbzkbM3athr8TYO5DSf+vfko2KGL/AEBAAEBAQAAAAAAAAAAAAAAAAAAAAAPd/5swwIxm9aXWu3JBLq3Wd/touUX6Yg7zEIGWSGolgVgy8JwqLBOVRq04BrlmUIX0OY4HKRi8JolMXaC9I71AADkaDAG2jLyQU8kHCzJrJ2g5B9BcGWvkMJK2AkIIY/zFQABAAAAAAAAAAAAAAAAhmor9OVyy8831QcaelhQO/s2vhsAAAAAAAAAAAAAAABDfMMzRKCyekKfeV/2tGnHJpiykQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA").expect("config data to decode");
+        let remaining_accounts = [AccountInfo::new(
+            &config,
+            false,
+            false,
+            &mut lamports,
+            data.as_mut_slice(),
+            &crate::ID,
+            false,
+            0,
+        )];
+
+        // Add the requested accounts
+        let ctx = Context::<ResolveExecuteVaaV1>::new(
+            &crate::ID,
+            &mut accounts,
+            &remaining_accounts,
+            ResolveExecuteVaaV1Bumps {},
+        );
+
+        // Resolve the instructions
+        let result = resolve_execute_vaa_v1(ctx, vaa_body);
+
+        match result.unwrap() {
+            Resolver::Missing(missing) => {
+                assert_eq!(missing.accounts.len(), 3);
+
+                // config no longer missing
+                assert!(!missing.accounts.contains(&config));
+            }
+            _ => panic!("Expected missing accounts"),
+        }
     }
 }

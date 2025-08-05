@@ -36,7 +36,6 @@ import {
 import { fromWorkspace } from 'anchor-litesvm';
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import NodeWallet from '@coral-xyz/anchor/dist/cjs/nodewallet';
-import { utils } from 'web3';
 import { BN, Program } from '@coral-xyz/anchor';
 import { Earn } from '../../target/types/earn';
 import { sha256 } from '@noble/hashes/sha2';
@@ -576,7 +575,7 @@ describe('Portal unit tests', () => {
 
     // transfer payload builder with custom additional data
     let sequenceCount = 0;
-    const transferPayload = (additionalPayload: string, recipient?: PublicKey) => {
+    const transferPayload = (additionalPayload: Buffer<ArrayBuffer>, recipient?: PublicKey) => {
       return {
         sourceNttManager: wc.remoteMgr.address as UniversalAddress,
         recipientNttManager: new UniversalAddress(ntt.program.programId.toBytes()),
@@ -591,7 +590,7 @@ describe('Portal unit tests', () => {
             sourceToken: new UniversalAddress('FAFA'.padStart(64, '0')),
             recipientAddress: new UniversalAddress(recipient?.toBytes() ?? payer.publicKey.toBytes()),
             recipientChain: 'Solana',
-            additionalPayload: Buffer.from(additionalPayload.slice(2), 'hex'),
+            additionalPayload: additionalPayload,
           },
         },
         transceiverPayload: new Uint8Array(),
@@ -603,15 +602,15 @@ describe('Portal unit tests', () => {
 
     const redeem = (
       additionalAccounts: AccountMeta[],
-      additionalPayload?: string,
+      additionalPayload?: Buffer<ArrayBuffer>,
       extension?: boolean,
       recipient?: PublicKey,
       skipRelease = false,
     ) => {
-      additionalPayload ??= utils.encodePacked(
-        { type: 'uint64', value: 1_000_000_000_001n }, // index
-        { type: 'bytes32', value: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b' }, // destination
-      );
+      additionalPayload ??= Buffer.concat([
+        new BN(1_000_000_000_001).toArrayLike(Buffer, 'be', 8), // index
+        (extension ? extMint : mint).publicKey.toBuffer(), // destination
+      ]);
 
       const serialized = serializePayload('Ntt:WormholeTransfer', transferPayload(additionalPayload, recipient));
 
@@ -762,7 +761,7 @@ describe('Portal unit tests', () => {
       tx.sign(randomUser);
 
       const result = svm.sendTransaction!(tx) as FailedTransactionMetadata;
-      expect(result.meta().logs()).toContain('Program log: expected recipient to match inbox item');
+      expect(result.meta().logs().join('. ')).toContain('Error Message: InvalidRecipientAddress');
     });
 
     it('$M tokens - calling redeem with portal auth', async () => {
@@ -819,7 +818,7 @@ describe('Portal unit tests', () => {
       tx.sign(randomUser);
 
       const result = svm.sendTransaction!(tx) as FailedTransactionMetadata;
-      expect(result.meta().logs()).toContain('Program log: expected recipient to match inbox item');
+      expect(result.meta().logs().join('. ')).toContain('Error Message: InvalidRecipientAddress');
     });
 
     it('$M tokens - frozen', async () => {
@@ -907,20 +906,11 @@ describe('Portal unit tests', () => {
     });
 
     it('tokens with merkle roots', async () => {
-      const additionalPayload = utils.encodePacked(
-        // index
-        { type: 'uint64', value: 123456 },
-        {
-          // destination
-          type: 'bytes32',
-          value: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b',
-        },
-        {
-          // earner root
-          type: 'bytes32',
-          value: '0x1111111111111111111111111111111111111111',
-        },
-      );
+      const additionalPayload = Buffer.concat([
+        new BN(123456).toArrayLike(Buffer, 'be', 8), // index
+        mint.publicKey.toBuffer(), // destination
+        new Keypair().publicKey.toBuffer(), // random earner root
+      ]);
 
       const getRedeemTxns = redeem(
         [

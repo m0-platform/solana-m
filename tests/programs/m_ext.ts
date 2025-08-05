@@ -1003,11 +1003,11 @@ export type MExt = {
             "type": "pubkey"
           },
           {
-            "name": "wmMint",
+            "name": "portalAuthority",
             "type": "pubkey"
           },
           {
-            "name": "portalAuthority",
+            "name": "extSwapGlobalAccount",
             "type": "pubkey"
           },
           {

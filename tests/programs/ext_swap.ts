@@ -887,6 +887,33 @@ export type ExtSwap = {
         },
         {
           "name": "extProgram"
+        },
+        {
+          "name": "extGlobal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108
+                ]
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "extProgram"
+            }
+          }
+        },
+        {
+          "name": "extMint",
+          "writable": true
         }
       ],
       "args": []
@@ -1279,8 +1306,32 @@ export type ExtSwap = {
           {
             "name": "whitelistedExtensions",
             "type": {
-              "vec": "pubkey"
+              "vec": {
+                "defined": {
+                  "name": "whitelistedExtension"
+                }
+              }
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "whitelistedExtension",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "programId",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "tokenProgram",
+            "type": "pubkey"
           }
         ]
       }

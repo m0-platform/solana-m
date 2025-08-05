@@ -293,7 +293,7 @@ describe('Portal unit tests', () => {
     });
     test('initialize earn', async () => {
       await earn.methods
-        .initialize()
+        .initialize(new BN(100_000_000))
         .accounts({
           admin: admin.publicKey,
           mMint: mint.publicKey,
@@ -315,15 +315,6 @@ describe('Portal unit tests', () => {
         spl.TOKEN_2022_PROGRAM_ID,
       );
 
-      await swapProgram.methods
-        .whitelistExtension()
-        .accountsPartial({
-          admin: admin.publicKey,
-          extProgram: config.EXT_PROGRAM,
-        })
-        .signers([admin])
-        .rpc();
-
       await mExt.methods
         .initialize([])
         .accounts({
@@ -339,6 +330,16 @@ describe('Portal unit tests', () => {
         [Buffer.from('token_authority')],
         config.PORTAL_PROGRAM_ID,
       )[0];
+
+      await swapProgram.methods
+        .whitelistExtension()
+        .accountsPartial({
+          admin: admin.publicKey,
+          extProgram: config.EXT_PROGRAM,
+          extMint: extMint.publicKey,
+        })
+        .signers([admin])
+        .rpc();
 
       // Add wrap authorities to extension
       await mExt.methods.addWrapAuthority(portalAuth).accounts({ admin: admin.publicKey }).signers([admin]).rpc();

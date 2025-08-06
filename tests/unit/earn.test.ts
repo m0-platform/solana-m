@@ -30,6 +30,8 @@ import {
   ExtensionType,
   getExtensionData,
   createApproveCheckedInstruction,
+  createThawAccountInstruction,
+  createFreezeAccountInstruction,
   AccountState,
 } from '@solana/spl-token';
 import { randomInt } from 'crypto';
@@ -596,19 +598,32 @@ class EarnTest<V extends Variant = Variant.New> {
   public async mintM(to: PublicKey, amount: BN) {
     const toATA: PublicKey = await this.getATA(this.mMint.publicKey, to);
 
+    // Check if the account is frozen, and if so, thaw it temporarily for minting
+    const accountInfo = await getAccount(this.provider.connection, toATA, undefined, TOKEN_2022_PROGRAM_ID);
+    const wasFrozen = accountInfo.isFrozen;
+
+    if (wasFrozen) {
+      await this.thawTokenAccount(toATA);
+    }
+
     const mintToInstruction = createMintToCheckedInstruction(
       this.mMint.publicKey,
       toATA,
       this.mMintAuthority.publicKey,
       BigInt(amount.toString()),
       6,
-      [this.admin],
+      [],
       TOKEN_2022_PROGRAM_ID,
     );
 
     let tx = new Transaction();
     tx.add(mintToInstruction);
-    await this.provider.sendAndConfirm!(tx, [this.admin]);
+    await this.provider.sendAndConfirm!(tx, [this.mMintAuthority]);
+
+    // Re-freeze the account if it was originally frozen
+    if (wasFrozen) {
+      await this.freezeTokenAccount(toATA);
+    }
   }
 
   public async getTokenBalance(tokenAccount: PublicKey) {
@@ -664,6 +679,32 @@ class EarnTest<V extends Variant = Variant.New> {
     await this.provider.sendAndConfirm!(tx, [source]);
 
     return { sourceATA };
+  }
+
+  public async thawTokenAccount(tokenAccount: PublicKey) {
+    // For testing purposes, we'll directly manipulate the account state using the SVM
+    // In a real scenario, only the freeze authority (global account) can thaw the account
+    const accountInfo = this.svm.getAccount(tokenAccount)!;
+
+    // Token account state is at offset 108 for Token2022 accounts
+    // AccountState: Uninitialized = 0, Initialized = 1, Frozen = 2
+    // We set it to Initialized (1) to thaw it
+    accountInfo.data[108] = 1;
+
+    this.svm.setAccount(tokenAccount, accountInfo);
+  }
+
+  public async freezeTokenAccount(tokenAccount: PublicKey) {
+    // For testing purposes, we'll directly manipulate the account state using the SVM
+    // In a real scenario, only the freeze authority (global account) can freeze the account
+    const accountInfo = this.svm.getAccount(tokenAccount)!;
+
+    // Token account state is at offset 108 for Token2022 accounts
+    // AccountState: Uninitialized = 0, Initialized = 1, Frozen = 2
+    // We set it to Frozen (2) to freeze it
+    accountInfo.data[108] = 2;
+
+    this.svm.setAccount(tokenAccount, accountInfo);
   }
 
   // general SVM cheat functions
@@ -1900,6 +1941,282 @@ for (const variant of VARIANTS) {
 
         // Verify the token account is frozen earner account was closed correctly
         await $.expectTokenAccountState(earnerTwoATA, AccountState.Frozen);
+      });
+    });
+
+    describe('recover_m unit tests', () => {
+      beforeEach(async () => {
+        // Initialize the program
+        await $.initializeEarn(initialIndex);
+      });
+
+      test('source_token_account not frozen - reverts', async () => {
+        // Create source and destination token accounts
+        const sourceAccount = await $.getATA($.mMint.publicKey, $.earnerOne.publicKey);
+        const destinationAccount = await $.getATA($.mMint.publicKey, $.admin.publicKey);
+
+        // Mint some tokens to the source account
+        await $.mintM($.earnerOne.publicKey, new BN(1000));
+
+        // Source account should be frozen by default due to M mint configuration
+        // Thaw the source account to make it invalid for recover_m
+        await $.thawTokenAccount(sourceAccount);
+
+        // Attempt to recover from unfrozen source account should fail
+        await $.expectAnchorError(
+          $.earn.methods
+            .recoverM(null)
+            .accountsPartial({
+              admin: $.admin.publicKey,
+              sourceTokenAccount: sourceAccount,
+              destinationTokenAccount: destinationAccount,
+            })
+            .signers([$.admin])
+            .rpc(),
+          'InvalidAccount',
+        );
+      });
+
+      test('m_mint doesnt match stored value in global account - reverts', async () => {
+        // Create a different mint
+        const wrongMint = new Keypair();
+        await $.createMint(wrongMint, $.mMintAuthority.publicKey);
+
+        // Create source and destination token accounts for the wrong mint
+        const sourceAccount = await $.getATA(wrongMint.publicKey, $.earnerOne.publicKey);
+        const destinationAccount = await $.getATA(wrongMint.publicKey, $.admin.publicKey);
+
+        // Attempt to recover with wrong mint should fail
+        await $.expectSystemError(
+          $.earn.methods
+            .recoverM(null)
+            .accountsPartial({
+              admin: $.admin.publicKey,
+              mMint: wrongMint.publicKey,
+              sourceTokenAccount: sourceAccount,
+              destinationTokenAccount: destinationAccount,
+            })
+            .signers([$.admin])
+            .rpc(),
+        );
+      });
+
+      test('token accounts are for the wrong mint - reverts', async () => {
+        // Create a different mint
+        const wrongMint = new Keypair();
+        await $.createMint(wrongMint, $.admin.publicKey);
+
+        // Create source and destination token accounts for the wrong mint
+        const sourceAccount = await $.getATA(wrongMint.publicKey, $.earnerOne.publicKey);
+        const destinationAccount = await $.getATA(wrongMint.publicKey, $.admin.publicKey);
+
+        // Attempt to recover with token accounts for wrong mint should fail
+        await $.expectAnchorError(
+          $.earn.methods
+            .recoverM(null)
+            .accountsPartial({
+              admin: $.admin.publicKey,
+              sourceTokenAccount: sourceAccount,
+              destinationTokenAccount: destinationAccount,
+            })
+            .signers([$.admin])
+            .rpc(),
+          'InvalidAccount',
+        );
+      });
+
+      test('amount is more than source token balance - reverts', async () => {
+        // Create source and destination token accounts
+        const sourceAccount = await $.getATA($.mMint.publicKey, $.earnerOne.publicKey);
+        const destinationAccount = await $.getATA($.mMint.publicKey, $.admin.publicKey);
+
+        // Mint some tokens to the source account
+        const sourceBalance = new BN(1000);
+        await $.mintM($.earnerOne.publicKey, sourceBalance);
+
+        // Attempt to recover more than available balance
+        const excessiveAmount = sourceBalance.add(new BN(500));
+        await $.expectSystemError(
+          $.earn.methods
+            .recoverM(excessiveAmount)
+            .accountsPartial({
+              admin: $.admin.publicKey,
+              sourceTokenAccount: sourceAccount,
+              destinationTokenAccount: destinationAccount,
+            })
+            .signers([$.admin])
+            .rpc(),
+        );
+      });
+
+      test('amount is None, transfers full balance - success', async () => {
+        // Create source and destination token accounts
+        const sourceAccount = await $.getATA($.mMint.publicKey, $.earnerOne.publicKey);
+        const destinationAccount = await $.getATA($.mMint.publicKey, $.admin.publicKey);
+
+        // Mint some tokens to the source account
+        const sourceBalance = new BN(1000);
+        await $.mintM($.earnerOne.publicKey, sourceBalance);
+
+        // Get initial balances
+        const initialSourceBalance = await $.getTokenBalance(sourceAccount);
+        const initialDestBalance = await $.getTokenBalance(destinationAccount);
+
+        // Execute recover_m with no amount (should transfer full balance)
+        await $.earn.methods
+          .recoverM(null)
+          .accountsPartial({
+            admin: $.admin.publicKey,
+            sourceTokenAccount: sourceAccount,
+            destinationTokenAccount: destinationAccount,
+          })
+          .signers([$.admin])
+          .rpc();
+
+        // Verify balances after recovery
+        await $.expectTokenBalance(sourceAccount, new BN(0));
+        await $.expectTokenBalance(destinationAccount, initialDestBalance.add(initialSourceBalance));
+
+        // Verify account states
+        await $.expectTokenAccountState(sourceAccount, AccountState.Frozen);
+        await $.expectTokenAccountState(destinationAccount, AccountState.Initialized);
+      });
+
+      test('amount is less than or equal to source_token_balance - success', async () => {
+        // Create source and destination token accounts
+        const sourceAccount = await $.getATA($.mMint.publicKey, $.earnerOne.publicKey);
+        const destinationAccount = await $.getATA($.mMint.publicKey, $.admin.publicKey);
+
+        // Mint some tokens to the source account
+        const sourceBalance = new BN(1000);
+        await $.mintM($.earnerOne.publicKey, sourceBalance);
+
+        // Get initial balances
+        const initialSourceBalance = await $.getTokenBalance(sourceAccount);
+        const initialDestBalance = await $.getTokenBalance(destinationAccount);
+
+        // Execute recover_m with partial amount
+        const transferAmount = new BN(600);
+        await $.earn.methods
+          .recoverM(transferAmount)
+          .accountsPartial({
+            admin: $.admin.publicKey,
+            sourceTokenAccount: sourceAccount,
+            destinationTokenAccount: destinationAccount,
+          })
+          .signers([$.admin])
+          .rpc();
+
+        // Verify balances after recovery
+        const expectedSourceBalance = initialSourceBalance.sub(transferAmount);
+        const expectedDestBalance = initialDestBalance.add(transferAmount);
+        await $.expectTokenBalance(sourceAccount, expectedSourceBalance);
+        await $.expectTokenBalance(destinationAccount, expectedDestBalance);
+
+        // Verify account states
+        await $.expectTokenAccountState(sourceAccount, AccountState.Frozen);
+        await $.expectTokenAccountState(destinationAccount, AccountState.Initialized);
+      });
+
+      test('destination token account already thawed - success', async () => {
+        // Create source and destination token accounts
+        const sourceAccount = await $.getATA($.mMint.publicKey, $.earnerOne.publicKey);
+        const destinationAccount = await $.getATA($.mMint.publicKey, $.admin.publicKey);
+
+        // Mint some tokens to the source account
+        const sourceBalance = new BN(1000);
+        await $.mintM($.earnerOne.publicKey, sourceBalance);
+
+        // Thaw destination account
+        await $.thawTokenAccount(destinationAccount);
+
+        // Get initial balances
+        const initialSourceBalance = await $.getTokenBalance(sourceAccount);
+        const initialDestBalance = await $.getTokenBalance(destinationAccount);
+
+        // Execute recover_m
+        const transferAmount = new BN(600);
+        await $.earn.methods
+          .recoverM(transferAmount)
+          .accountsPartial({
+            admin: $.admin.publicKey,
+            sourceTokenAccount: sourceAccount,
+            destinationTokenAccount: destinationAccount,
+          })
+          .signers([$.admin])
+          .rpc();
+
+        // Verify balances after recovery
+        const expectedSourceBalance = initialSourceBalance.sub(transferAmount);
+        const expectedDestBalance = initialDestBalance.add(transferAmount);
+        await $.expectTokenBalance(sourceAccount, expectedSourceBalance);
+        await $.expectTokenBalance(destinationAccount, expectedDestBalance);
+
+        // Verify account states
+        await $.expectTokenAccountState(sourceAccount, AccountState.Frozen);
+        await $.expectTokenAccountState(destinationAccount, AccountState.Initialized);
+      });
+
+      test('destination token account frozen - success', async () => {
+        // Create source and destination token accounts
+        const sourceAccount = await $.getATA($.mMint.publicKey, $.earnerOne.publicKey);
+        const destinationAccount = await $.getATA($.mMint.publicKey, $.admin.publicKey);
+
+        // Mint some tokens to the source account
+        const sourceBalance = new BN(1000);
+        await $.mintM($.earnerOne.publicKey, sourceBalance);
+
+        // Destination account should be frozen by default due to M mint configuration
+        await $.expectTokenAccountState(destinationAccount, AccountState.Frozen);
+
+        // Get initial balances
+        const initialSourceBalance = await $.getTokenBalance(sourceAccount);
+        const initialDestBalance = await $.getTokenBalance(destinationAccount);
+
+        // Execute recover_m
+        const transferAmount = new BN(600);
+        await $.earn.methods
+          .recoverM(transferAmount)
+          .accountsPartial({
+            admin: $.admin.publicKey,
+            sourceTokenAccount: sourceAccount,
+            destinationTokenAccount: destinationAccount,
+          })
+          .signers([$.admin])
+          .rpc();
+
+        // Verify balances after recovery
+        const expectedSourceBalance = initialSourceBalance.sub(transferAmount);
+        const expectedDestBalance = initialDestBalance.add(transferAmount);
+        await $.expectTokenBalance(sourceAccount, expectedSourceBalance);
+        await $.expectTokenBalance(destinationAccount, expectedDestBalance);
+
+        // Verify account states
+        await $.expectTokenAccountState(sourceAccount, AccountState.Frozen);
+        await $.expectTokenAccountState(destinationAccount, AccountState.Initialized);
+      });
+
+      test('non-admin cannot recover - reverts', async () => {
+        // Create source and destination token accounts
+        const sourceAccount = await $.getATA($.mMint.publicKey, $.earnerOne.publicKey);
+        const destinationAccount = await $.getATA($.mMint.publicKey, $.nonAdmin.publicKey);
+
+        // Mint some tokens to the source account
+        await $.mintM($.earnerOne.publicKey, new BN(1000));
+
+        // Attempt to recover as non-admin should fail
+        await $.expectAnchorError(
+          $.earn.methods
+            .recoverM(null)
+            .accountsPartial({
+              admin: $.nonAdmin.publicKey,
+              sourceTokenAccount: sourceAccount,
+              destinationTokenAccount: destinationAccount,
+            })
+            .signers([$.nonAdmin])
+            .rpc(),
+          'NotAuthorized',
+        );
       });
     });
   });

@@ -1,10 +1,14 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{associated_token::AssociatedToken, token_interface};
+use executor_account_resolver_svm::{
+    RESOLVER_RESULT_ACCOUNT_INIT_SIZE, RESOLVER_RESULT_ACCOUNT_SEED,
+};
 
 use crate::{
     bitmap::Bitmap,
     config::{Config, RemainingAccount},
     error::NTTError,
+    instructions::ExecutorAccountResolverResult,
     ntt_messages::{BpfLoaderUpgradeable, ChainId, Mode},
     queue::{outbox::OutboxRateLimit, rate_limit::RateLimitState},
 };
@@ -87,6 +91,7 @@ pub struct InitializeArgs {
     pub chain_id: u16,
     pub limit: u64,
     pub mode: Mode,
+    pub evm_token: [u8; 32],
 }
 
 pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> {
@@ -111,8 +116,8 @@ pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> 
                 true,
             ),
         ],
-        evm_token: [0; 32],
-        evm_wrapped_token: [0; 32],
+        evm_token: args.evm_token,
+        resolve_lut: Pubkey::default(),
     });
 
     ctx.accounts.rate_limit.set_inner(OutboxRateLimit {
@@ -123,25 +128,33 @@ pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> 
 }
 
 #[derive(Accounts)]
-pub struct SetDestinationAddresses<'info> {
+pub struct InitializeResolverAccounts<'info> {
+    #[account(mut)]
     pub owner: Signer<'info>,
 
     #[account(
         mut,
         has_one = owner,
-        seeds = [Config::SEED_PREFIX],
+    )]
+    pub config: Account<'info, Config>,
+
+    #[account(
+        init_if_needed,
+        payer = owner,
+        space = 8 + RESOLVER_RESULT_ACCOUNT_INIT_SIZE,
+        seeds = [RESOLVER_RESULT_ACCOUNT_SEED],
         bump
     )]
-    pub config: Box<Account<'info, Config>>,
+    pub result_account: Account<'info, ExecutorAccountResolverResult>,
+
+    system_program: Program<'info, System>,
 }
 
-pub fn set_destination_addresses(
-    ctx: Context<SetDestinationAddresses>,
-    evm_token: [u8; 32],
-    evm_wrapped_token: [u8; 32],
+pub fn initalize_resolver_accounts(
+    ctx: Context<InitializeResolverAccounts>,
+    additional_lut: Option<Pubkey>,
 ) -> Result<()> {
-    ctx.accounts.config.evm_token = evm_token;
-    ctx.accounts.config.evm_wrapped_token = evm_wrapped_token;
+    ctx.accounts.config.resolve_lut = additional_lut.unwrap_or_default();
 
     Ok(())
 }

@@ -3,16 +3,14 @@ use anchor_lang::{
     solana_program::{
         entrypoint::MAX_PERMITTED_DATA_INCREASE, system_instruction::MAX_PERMITTED_DATA_LENGTH,
     },
-    system_program, InstructionData,
+    system_program::{self},
+    InstructionData,
 };
 use anchor_spl::{
     associated_token::get_associated_token_address_with_program_id, token_2022,
     token_interface::Mint,
 };
-use earn::{
-    instructions::ext_swap::{self},
-    state::GLOBAL_SEED,
-};
+use earn::{instructions::ext_swap, state::GLOBAL_SEED};
 use executor_account_resolver_svm::{
     find_account, InstructionGroup, InstructionGroups, MissingAccounts, Resolver,
     SerializableAccountMeta, SerializableInstruction, RESOLVER_PUBKEY_PAYER,
@@ -112,12 +110,10 @@ pub fn resolve_execute_vaa_v1<'a>(
             missing.push(System::id());
         }
 
-        // Pays rent
-        if find_account(ctx.remaining_accounts, RESOLVER_PUBKEY_PAYER).is_none() {
-            missing.push(RESOLVER_PUBKEY_PAYER);
-        }
-
         if !missing.is_empty() {
+            // Placeholder for payer we know is missing
+            missing.push(RESOLVER_PUBKEY_PAYER);
+
             return Ok(Resolver::Missing(MissingAccounts {
                 accounts: missing,
                 address_lookup_tables: Vec::new(),
@@ -129,7 +125,17 @@ pub fn resolve_execute_vaa_v1<'a>(
     let mut ret = {
         let return_account = find_account(ctx.remaining_accounts, result_account).unwrap();
         let system_account = find_account(ctx.remaining_accounts, System::id()).unwrap();
-        let payer_account = find_account(ctx.remaining_accounts, RESOLVER_PUBKEY_PAYER).unwrap();
+
+        // Find the payer account
+        let payer_account = ctx
+            .remaining_accounts
+            .iter()
+            .find(|acc_info| acc_info.is_signer && acc_info.is_writable)
+            .ok_or(NTTError::MissingPayerAccount)?;
+
+        if !return_account.is_writable {
+            return err!(NTTError::InvalidReturnAccount);
+        }
 
         let size = usize::min(
             return_account.data_len() + MAX_PERMITTED_DATA_INCREASE,

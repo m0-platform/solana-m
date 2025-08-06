@@ -5,6 +5,7 @@ import {
   Keypair,
   LAMPORTS_PER_SOL,
   PublicKey,
+  SystemProgram,
   Transaction,
   TransactionInstruction,
   VersionedTransaction,
@@ -86,29 +87,6 @@ export function getWormholeContext(connection: Connection) {
     coreBridge: WORMHOLE_SOLANA.toBase58(),
   });
   return { ctx, coreBridge, remoteXcvr, remoteMgr };
-}
-
-export function createSetEvmAddresses(pid: PublicKey, admin: PublicKey, M: string, wM: string) {
-  return new TransactionInstruction({
-    programId: pid,
-    keys: [
-      {
-        pubkey: admin,
-        isSigner: true,
-        isWritable: true,
-      },
-      {
-        pubkey: NTT.pdas(pid).configAccount(),
-        isSigner: false,
-        isWritable: true,
-      },
-    ],
-    data: Buffer.concat([
-      sha256('global:set_destination_addresses').slice(0, 8),
-      Buffer.from(M.slice(2).padStart(64, '0'), 'hex'),
-      Buffer.from(wM.slice(2).padStart(64, '0'), 'hex'),
-    ]),
-  });
 }
 
 describe('Portal unit tests', () => {
@@ -263,16 +241,16 @@ describe('Portal unit tests', () => {
         outboundLimit: 1000000n,
         mode: 'burning',
       });
-      // TODO: creating the LUT throws an error due to recent slot checks
-      async function* onlyInit() {
-        yield (await initTxs.next()).value as SolanaUnsignedTransaction<'Mainnet', 'Solana'>;
-      }
-      await ssw(ctx, onlyInit(), signer);
 
-      // set evm destination addresses
-      const tx = new Transaction().add(
-        createSetEvmAddresses(config.PORTAL_PROGRAM_ID, owner.publicKey, config.EVM_M, config.EVM_WRAPPED_M),
-      );
+      const initTx = (await initTxs.next()).value as SolanaUnsignedTransaction<'Mainnet', 'Solana'>;
+      const tx = initTx.transaction.transaction as Transaction;
+
+      // include evm address instruction arg
+      tx.instructions[0].data = Buffer.concat([
+        tx.instructions[0].data,
+        Buffer.from(config.EVM_M.slice(2).padStart(64, '0'), 'hex'),
+      ]);
+
       await provider.sendAndConfirm!(tx, [owner]);
 
       // register
@@ -929,7 +907,47 @@ describe('Portal unit tests', () => {
       // add VAA header
       const vaaBody = Buffer.concat([Buffer.alloc(51), vaaBytes]);
 
-      const ix = new TransactionInstruction({
+      const initIx = new TransactionInstruction({
+        programId: ntt.program.programId,
+        keys: [
+          {
+            pubkey: payer.publicKey,
+            isSigner: true,
+            isWritable: true,
+          },
+          {
+            pubkey: ntt.pdas.configAccount(),
+            isSigner: false,
+            isWritable: true,
+          },
+          {
+            pubkey: PublicKey.findProgramAddressSync(
+              [Buffer.from('executor-account-resolver:result')],
+              config.PORTAL_PROGRAM_ID,
+            )[0],
+            isSigner: false,
+            isWritable: true,
+          },
+          {
+            pubkey: SystemProgram.programId,
+            isSigner: false,
+            isWritable: false,
+          },
+        ],
+        data: Buffer.concat([
+          Buffer.from(sha256('global:initalize_resolver_accounts').subarray(0, 8)), // discriminator
+          new BN(0).toArrayLike(Buffer, 'le', 1), // optional flag for lut
+        ]),
+      });
+
+      // send init so simulations below work
+      let tx = new Transaction().add(initIx);
+      tx.feePayer = payer.publicKey;
+      tx.recentBlockhash = svm.latestBlockhash();
+      tx.sign(payer);
+      svm.sendTransaction!(tx);
+
+      const resolveIx = new TransactionInstruction({
         programId: ntt.program.programId,
         keys: [],
         data: Buffer.concat([
@@ -940,7 +958,7 @@ describe('Portal unit tests', () => {
       });
 
       // simulate and get return data
-      let tx = new Transaction().add(ix);
+      tx = new Transaction().add(resolveIx);
       tx.feePayer = payer.publicKey;
       tx.recentBlockhash = svm.latestBlockhash();
       tx.sign(payer);
@@ -948,25 +966,47 @@ describe('Portal unit tests', () => {
       let data = result.meta().returnData().data();
 
       expect(data[0]).toBe(1); // MissingAccounts
-      expect(data.slice(1, 5).toString()).toBe('2,0,0,0'); // 2 missing accounts (be)
+      expect(data.slice(1, 5).toString()).toBe('5,0,0,0'); // 5 missing accounts
 
       const account1 = new PublicKey(data.slice(5, 37));
       const account2 = new PublicKey(data.slice(37, 69));
+      const account3 = new PublicKey(data.slice(69, 101));
+      const account4 = new PublicKey(data.slice(101, 133));
+
+      // account5 is the payer, which is just a placeholder
+      let account5 = new PublicKey(data.slice(133, 165));
+      expect(account5.toBase58()).toBe(new PublicKey(Buffer.from('payer_00000000000000000000000000')).toBase58());
+      account5 = payer.publicKey;
 
       // expect config account
-      expect(account1.toBase58()).toBe(ntt.pdas.configAccount().toBase58());
+      expect(account2.toBase58()).toBe(ntt.pdas.configAccount().toBase58());
 
       // remaining accounts
-      ix.keys.push(
+      resolveIx.keys.push(
         {
           pubkey: account1,
           isSigner: false,
-          isWritable: false,
+          isWritable: true,
         },
         {
           pubkey: account2,
           isSigner: false,
           isWritable: false,
+        },
+        {
+          pubkey: account3,
+          isSigner: false,
+          isWritable: false,
+        },
+        {
+          pubkey: account4,
+          isSigner: false,
+          isWritable: false,
+        },
+        {
+          pubkey: account5,
+          isSigner: true,
+          isWritable: true,
         },
         {
           pubkey: mint.publicKey,
@@ -975,17 +1015,17 @@ describe('Portal unit tests', () => {
         },
       );
 
-      tx = new Transaction().add(ix);
+      tx = new Transaction().add(resolveIx);
       tx.feePayer = payer.publicKey;
       tx.recentBlockhash = svm.latestBlockhash();
       tx.sign(payer);
       result = svm.simulateTransaction!(tx);
       data = result.meta().returnData().data();
 
-      console.log('result', result.toString());
-      console.log('data', data.toString());
+      expect(data[0]).toBe(2); // Resolved Account
 
-      expect(data[0]).toBe(0); // Resolved
+      // send transaction to load in account data
+      svm.sendTransaction!(tx);
     });
 
     it('tokens with merkle roots', async () => {

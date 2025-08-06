@@ -1,4 +1,10 @@
-use anchor_lang::{prelude::*, InstructionData};
+use anchor_lang::{
+    prelude::*,
+    solana_program::{
+        entrypoint::MAX_PERMITTED_DATA_INCREASE, system_instruction::MAX_PERMITTED_DATA_LENGTH,
+    },
+    system_program, InstructionData,
+};
 use anchor_spl::{
     associated_token::get_associated_token_address_with_program_id, token_2022,
     token_interface::Mint,
@@ -10,7 +16,7 @@ use earn::{
 use executor_account_resolver_svm::{
     find_account, InstructionGroup, InstructionGroups, MissingAccounts, Resolver,
     SerializableAccountMeta, SerializableInstruction, RESOLVER_PUBKEY_PAYER,
-    RESOLVER_PUBKEY_POSTED_VAA,
+    RESOLVER_PUBKEY_POSTED_VAA, RESOLVER_RESULT_ACCOUNT, RESOLVER_RESULT_ACCOUNT_SEED,
 };
 
 use crate::{
@@ -37,6 +43,9 @@ use crate::{
 
 #[derive(Accounts)]
 pub struct ResolveExecuteVaaV1 {}
+
+#[account(discriminator = RESOLVER_RESULT_ACCOUNT)]
+pub struct ExecutorAccountResolverResult(Resolver<InstructionGroups>);
 
 pub fn resolve_execute_vaa_v1(
     ctx: Context<ResolveExecuteVaaV1>,
@@ -70,10 +79,18 @@ pub fn resolve_execute_vaa_v1(
     let config = pda(&[Config::SEED_PREFIX]);
     let inbox_item = pda(&[InboxItem::SEED_PREFIX, message_hash.as_ref()]);
     let swap_global = Pubkey::find_program_address(&[GLOBAL_SEED], &ext_swap::ID).0;
+    let result_account = pda(&[RESOLVER_RESULT_ACCOUNT_SEED]);
 
     // Check for missing accounts
     {
         let mut missing: Vec<Pubkey> = Vec::with_capacity(3);
+
+        // Account to load result into
+        if find_account(ctx.remaining_accounts, result_account).is_none() {
+            missing.push(result_account);
+        }
+
+        // Need portal config for mint info
         if let Some(acc_info) = find_account(ctx.remaining_accounts, config) {
             let config = Config::try_deserialize(&mut &acc_info.try_borrow_mut_data()?[..])?;
 
@@ -85,8 +102,19 @@ pub fn resolve_execute_vaa_v1(
             missing.push(config);
         }
 
+        // Need swap global for extension info
         if find_account(ctx.remaining_accounts, swap_global).is_none() {
             missing.push(swap_global);
+        }
+
+        // Need system program for creating result account
+        if find_account(ctx.remaining_accounts, System::id()).is_none() {
+            missing.push(System::id());
+        }
+
+        // Pays rent
+        if find_account(ctx.remaining_accounts, RESOLVER_PUBKEY_PAYER).is_none() {
+            missing.push(RESOLVER_PUBKEY_PAYER);
         }
 
         if !missing.is_empty() {
@@ -96,6 +124,38 @@ pub fn resolve_execute_vaa_v1(
             }));
         }
     }
+
+    // Increase the size of the return account then parse it
+    let mut ret = {
+        let return_account = find_account(ctx.remaining_accounts, result_account).unwrap();
+        let system_account = find_account(ctx.remaining_accounts, System::id()).unwrap();
+        let payer_account = find_account(ctx.remaining_accounts, RESOLVER_PUBKEY_PAYER).unwrap();
+
+        let size = usize::min(
+            return_account.data_len() + MAX_PERMITTED_DATA_INCREASE,
+            MAX_PERMITTED_DATA_LENGTH.try_into()?,
+        );
+
+        let lamports = Rent::get()
+            .unwrap()
+            .minimum_balance(size)
+            .saturating_sub(return_account.lamports());
+
+        system_program::transfer(
+            CpiContext::new(
+                system_account.to_account_info(),
+                system_program::Transfer {
+                    from: payer_account.to_account_info(),
+                    to: return_account.to_account_info(),
+                },
+            ),
+            lamports,
+        )?;
+
+        return_account.realloc(size, false)?;
+
+        Account::<ExecutorAccountResolverResult>::try_from(return_account)?
+    };
 
     // Parse accounts we know are on remaining_accounts
     let config_data = deserialize_account::<Config>(ctx.remaining_accounts, config)?;
@@ -315,12 +375,14 @@ pub fn resolve_execute_vaa_v1(
             }
         };
 
-        return Ok(Resolver::Resolved(InstructionGroups(vec![
-            InstructionGroup {
+        ret.set_inner(ExecutorAccountResolverResult(Resolver::Resolved(
+            InstructionGroups(vec![InstructionGroup {
                 instructions: vec![receive_message, redeem, release_inbound_mint],
                 address_lookup_tables: Vec::new(),
-            },
-        ])));
+            }]),
+        )));
+        ret.exit(ctx.program_id)?;
+        return Ok(Resolver::Account());
     }
 
     // Find the extension program ID based on the destination mint
@@ -424,12 +486,14 @@ pub fn resolve_execute_vaa_v1(
         }
     };
 
-    Ok(Resolver::Resolved(InstructionGroups(vec![
-        InstructionGroup {
+    ret.set_inner(ExecutorAccountResolverResult(Resolver::Resolved(
+        InstructionGroups(vec![InstructionGroup {
             instructions: vec![receive_message, redeem, release_inbound_mint],
             address_lookup_tables: Vec::new(),
-        },
-    ])))
+        }]),
+    )));
+    ret.exit(ctx.program_id)?;
+    return Ok(Resolver::Account());
 }
 
 fn deserialize_account<T: AccountDeserialize>(

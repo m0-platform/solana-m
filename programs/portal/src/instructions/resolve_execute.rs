@@ -47,8 +47,8 @@ pub struct ResolveExecuteVaaV1 {}
 #[account(discriminator = RESOLVER_RESULT_ACCOUNT)]
 pub struct ExecutorAccountResolverResult(Resolver<InstructionGroups>);
 
-pub fn resolve_execute_vaa_v1(
-    ctx: Context<ResolveExecuteVaaV1>,
+pub fn resolve_execute_vaa_v1<'a>(
+    ctx: Context<'_, '_, 'a, 'a, ResolveExecuteVaaV1>,
     vaa_body: Vec<u8>,
 ) -> Result<Resolver<InstructionGroups>> {
     if vaa_body.len() < 51 {
@@ -493,7 +493,7 @@ pub fn resolve_execute_vaa_v1(
         }]),
     )));
     ret.exit(ctx.program_id)?;
-    return Ok(Resolver::Account());
+    Ok(Resolver::Account())
 }
 
 fn deserialize_account<T: AccountDeserialize>(

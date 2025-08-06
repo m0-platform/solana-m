@@ -132,8 +132,8 @@ pub mod portal {
     }
 
     #[instruction(discriminator = &RESOLVER_EXECUTE_VAA_V1)]
-    pub fn resolve_execute_vaa_v1(
-        ctx: Context<ResolveExecuteVaaV1>,
+    pub fn resolve_execute_vaa_v1<'a>(
+        ctx: Context<'_, '_, 'a, 'a, ResolveExecuteVaaV1>,
         vaa_body: Vec<u8>,
     ) -> Result<Resolver<InstructionGroups>> {
         instructions::resolve_execute_vaa_v1(ctx, vaa_body)

@@ -43,7 +43,9 @@ pub mod earn {
         Initialize::handler(ctx, current_index)
     }
 
-    // TODO add admin instructions for updating global values
+    pub fn recover_m(ctx: Context<RecoverM>, amount: Option<u64>) -> Result<()> {
+        RecoverM::handler(ctx, amount)
+    }
 
     // Portal instrutions
 

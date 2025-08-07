@@ -58,6 +58,7 @@ pub struct ReleaseInboundMint<'info> {
     pub earn_program: Program<'info, Earn>,
 
     #[account(
+        mut,
         seeds = [GLOBAL_SEED],
         seeds::program = earn::ID,
         bump = m_global.bump,

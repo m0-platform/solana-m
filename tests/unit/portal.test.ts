@@ -1072,7 +1072,7 @@ describe('Portal unit tests', () => {
       expect(accountData).toBeDefined();
       const resolveResult = encoder.decode('ExecutorAccountResolverResult', Buffer.from(accountData!.data));
 
-      const { instructions, address_lookup_tables } = resolveResult[0].Resolved[0][0][0];
+      const { instructions } = resolveResult[0].Resolved[0][0][0];
 
       const resolveKey = (key: PublicKey) => {
         const vaaPlaceholder = new PublicKey(Buffer.from('posted_vaa_000000000000000000000'));
@@ -1082,7 +1082,7 @@ describe('Portal unit tests', () => {
       };
 
       const redeemTx = new Transaction().add(
-        ...[instructions[0]].map(
+        ...instructions.map(
           (ix: any) =>
             new TransactionInstruction({
               programId: ix.program_id,
@@ -1096,14 +1096,22 @@ describe('Portal unit tests', () => {
         ),
       );
 
+      // check ext balance
+      let extTokenAccountInfo = await connection.getAccountInfo(extAta);
+      let extParsedTokenAccount = spl.unpackAccount(extAta, extTokenAccountInfo, TOKEN_PROGRAM);
+      expect(extParsedTokenAccount.amount).toBe(9099n);
+
+      // send transactions
       redeemTx.feePayer = payer.publicKey;
       redeemTx.recentBlockhash = svm.latestBlockhash();
       redeemTx.sign(payer);
       const redeemResult = svm.sendTransaction!(redeemTx);
+      expect((redeemResult as any).logs?.()).toBeDefined();
 
-      console.log('Redeem tx', JSON.stringify(redeemTx, null, 2));
-
-      console.log('Redeem result:', redeemResult.toString());
+      // check updated ext balance
+      extTokenAccountInfo = await connection.getAccountInfo(extAta);
+      extParsedTokenAccount = spl.unpackAccount(extAta, extTokenAccountInfo, TOKEN_PROGRAM);
+      expect(extParsedTokenAccount.amount).toBe(9198n);
     });
 
     it('tokens with merkle roots', async () => {

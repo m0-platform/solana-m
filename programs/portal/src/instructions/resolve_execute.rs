@@ -30,6 +30,7 @@ use crate::{
     messages::ValidatedTransceiverMessage,
     ntt_messages::{ChainId, TransceiverMessage, TransceiverMessageData, WormholeTransceiver},
     payloads::Payload,
+    peer::NttManagerPeer,
     queue::{
         inbox::{InboxItem, InboxRateLimit},
         outbox::OutboxRateLimit,
@@ -190,7 +191,7 @@ pub fn resolve_execute_vaa_v1<'a>(
         .untrim(mint_data.decimals)
         .map_err(NTTError::from)?;
 
-    let peer = pda(&[TransceiverPeer::SEED_PREFIX, emitter_chain]);
+    let transceiver_peer = pda(&[TransceiverPeer::SEED_PREFIX, emitter_chain]);
     let transceiver_message = pda(&[
         ValidatedTransceiverMessage::<TransceiverMessageData<Payload>>::SEED_PREFIX,
         emitter_chain,
@@ -218,7 +219,7 @@ pub fn resolve_execute_vaa_v1<'a>(
                 is_signer: false,
             },
             SerializableAccountMeta {
-                pubkey: peer,
+                pubkey: transceiver_peer,
                 is_writable: false,
                 is_signer: false,
             },
@@ -241,6 +242,7 @@ pub fn resolve_execute_vaa_v1<'a>(
     };
 
     let redeem = {
+        let peer = pda(&[NttManagerPeer::SEED_PREFIX, emitter_chain]);
         let transceiver = pda(&[RegisteredTransceiver::SEED_PREFIX, &crate::ID.to_bytes()]);
         let inbox_rate_limit = pda(&[InboxRateLimit::SEED_PREFIX, emitter_chain]);
         let outbox_rate_limit = pda(&[OutboxRateLimit::SEED_PREFIX]);
@@ -373,7 +375,7 @@ pub fn resolve_execute_vaa_v1<'a>(
             },
             SerializableAccountMeta {
                 pubkey: m_global,
-                is_writable: false,
+                is_writable: true,
                 is_signer: false,
             },
         ]
@@ -437,7 +439,7 @@ pub fn resolve_execute_vaa_v1<'a>(
         token_program,
     );
     let ext_token_account = get_associated_token_address_with_program_id(
-        &recipient,
+        &ntt_recipient,
         &destination_mint,
         &ext_token_program,
     );
@@ -451,7 +453,7 @@ pub fn resolve_execute_vaa_v1<'a>(
         },
         SerializableAccountMeta {
             pubkey: swap_global,
-            is_writable: true,
+            is_writable: false,
             is_signer: false,
         },
         SerializableAccountMeta {
@@ -486,6 +488,11 @@ pub fn resolve_execute_vaa_v1<'a>(
         },
         SerializableAccountMeta {
             pubkey: ext_pid,
+            is_writable: false,
+            is_signer: false,
+        },
+        SerializableAccountMeta {
+            pubkey: ext_token_program,
             is_writable: false,
             is_signer: false,
         },

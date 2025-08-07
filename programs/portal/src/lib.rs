@@ -131,11 +131,11 @@ pub mod portal {
         instructions::resolve_execute_vaa_v1(ctx, vaa_body)
     }
 
-    pub fn initalize_resolver_accounts(
+    pub fn initialize_resolver_accounts(
         ctx: Context<InitializeResolverAccounts>,
         additional_lut: Option<Pubkey>,
     ) -> Result<()> {
-        instructions::initalize_resolver_accounts(ctx, additional_lut)
+        instructions::initialize_resolver_accounts(ctx, additional_lut)
     }
 
     pub fn transfer_ownership(ctx: Context<TransferOwnership>) -> Result<()> {

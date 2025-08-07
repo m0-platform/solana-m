@@ -150,7 +150,7 @@ pub struct InitializeResolverAccounts<'info> {
     system_program: Program<'info, System>,
 }
 
-pub fn initalize_resolver_accounts(
+pub fn initialize_resolver_accounts(
     ctx: Context<InitializeResolverAccounts>,
     additional_lut: Option<Pubkey>,
 ) -> Result<()> {

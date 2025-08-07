@@ -967,7 +967,7 @@ describe('Portal unit tests', () => {
           },
         ],
         data: Buffer.concat([
-          Buffer.from(sha256('global:initalize_resolver_accounts').subarray(0, 8)), // discriminator
+          Buffer.from(sha256('global:initialize_resolver_accounts').subarray(0, 8)), // discriminator
           new BN(0).toArrayLike(Buffer, 'le', 1), // optional flag for lut
         ]),
       });

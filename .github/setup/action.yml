@@ -9,7 +9,7 @@ inputs:
     description: 'Solana version'
     required: false
     default: 'v2.1.0'
-  anchor_version:
+  anchor-version:
     description: 'Anchor version'
     required: false
     default: '0.31.1'

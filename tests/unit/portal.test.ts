@@ -37,13 +37,14 @@ import {
 import { fromWorkspace } from 'anchor-litesvm';
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import NodeWallet from '@coral-xyz/anchor/dist/cjs/nodewallet';
-import { BN, Program } from '@coral-xyz/anchor';
+import { BN, Program, BorshAccountsCoder } from '@coral-xyz/anchor';
 import { Earn } from '../../target/types/earn';
 import { sha256 } from '@noble/hashes/sha2';
 import { SYSTEM_PROGRAM_ID } from '@coral-xyz/anchor/dist/cjs/native/system';
 import { ExtSwap } from '../programs/ext_swap';
 import { MExt } from '../programs/m_ext';
 import { FailedTransactionMetadata } from 'litesvm';
+import { Idl } from '@coral-xyz/anchor/dist/cjs/idl';
 const EARN_IDL = require('../../target/idl/earn.json');
 const SWAP_IDL = require('../programs/ext_swap.json');
 const M_EXT_IDL = require('../programs/m_ext.json');
@@ -252,6 +253,14 @@ describe('Portal unit tests', () => {
       ]);
 
       await provider.sendAndConfirm!(tx, [owner]);
+
+      // set LUT data
+      svm.setAccount(ntt.pdas.lutAccount(), {
+        executable: false,
+        owner: ntt.program.programId,
+        lamports: 1176240,
+        data: Buffer.from('cD4wIZhv5xX6D9zGCYOci8g264ES7/3ImbtjqbAdiABS6q01/EylHwE=', 'base64'),
+      });
 
       // register
       const registerTxs = ntt.registerWormholeTransceiver({
@@ -966,17 +975,19 @@ describe('Portal unit tests', () => {
       let data = result.meta().returnData().data();
 
       expect(data[0]).toBe(1); // MissingAccounts
-      expect(data.slice(1, 5).toString()).toBe('5,0,0,0'); // 5 missing accounts
+      expect(data.slice(1, 5).toString()).toBe('6,0,0,0'); // 6 missing accounts
 
       const account1 = new PublicKey(data.slice(5, 37));
       const account2 = new PublicKey(data.slice(37, 69));
       const account3 = new PublicKey(data.slice(69, 101));
       const account4 = new PublicKey(data.slice(101, 133));
+      const account5 = new PublicKey(data.slice(133, 165));
 
       // account5 is the payer, which is just a placeholder
-      let account5 = new PublicKey(data.slice(133, 165));
-      expect(account5.toBase58()).toBe(new PublicKey(Buffer.from('payer_00000000000000000000000000')).toBase58());
-      account5 = payer.publicKey;
+      const payerPlaceholder = new PublicKey(Buffer.from('payer_00000000000000000000000000'));
+      let account6 = new PublicKey(data.slice(165, 197));
+      expect(account6.toBase58()).toBe(payerPlaceholder.toBase58());
+      account6 = payer.publicKey;
 
       // expect config account
       expect(account2.toBase58()).toBe(ntt.pdas.configAccount().toBase58());
@@ -1005,6 +1016,11 @@ describe('Portal unit tests', () => {
         },
         {
           pubkey: account5,
+          isSigner: false,
+          isWritable: false,
+        },
+        {
+          pubkey: account6,
           isSigner: true,
           isWritable: true,
         },
@@ -1026,6 +1042,36 @@ describe('Portal unit tests', () => {
 
       // send transaction to load in account data
       svm.sendTransaction!(tx);
+
+      // decode account data
+      const encoder = new BorshAccountsCoder(resolverTypes());
+      const accountData = svm.getAccount!(account1);
+      expect(accountData).toBeDefined();
+      const resolveResult = encoder.decode('ExecutorAccountResolverResult', Buffer.from(accountData!.data));
+
+      const { instructions, address_lookup_tables } = resolveResult[0].Resolved[0][0][0];
+
+      const redeemTx = new Transaction().add(
+        ...[instructions[0]].map(
+          (ix: any) =>
+            new TransactionInstruction({
+              programId: ix.program_id,
+              keys: ix.accounts.map((acc: any) => ({
+                pubkey: acc.pubkey.equals(payerPlaceholder) ? payer.publicKey : acc.pubkey,
+                isSigner: acc.is_signer,
+                isWritable: acc.is_writable,
+              })),
+              data: ix.data,
+            }),
+        ),
+      );
+
+      redeemTx.feePayer = payer.publicKey;
+      redeemTx.recentBlockhash = svm.latestBlockhash();
+      redeemTx.sign(payer);
+      const redeemResult = svm.sendTransaction!(redeemTx);
+
+      console.log('Redeem result:', redeemResult.toString());
     });
 
     it('tokens with merkle roots', async () => {
@@ -1322,4 +1368,188 @@ function additionalRedeemAccounts(mMint: PublicKey, extMint: PublicKey, extAta: 
       isWritable: false,
     },
   ];
+}
+
+function resolverTypes(): Idl {
+  return {
+    address: '',
+    instructions: [],
+    metadata: {
+      name: '',
+      version: '',
+      spec: '',
+    },
+    accounts: [
+      {
+        name: 'ExecutorAccountResolverResult',
+        discriminator: [34, 185, 243, 199, 181, 255, 28, 227],
+      },
+    ],
+    types: [
+      {
+        name: 'ExecutorAccountResolverResult',
+        type: {
+          kind: 'struct',
+          fields: [
+            {
+              defined: {
+                name: 'Resolver',
+                generics: [
+                  {
+                    kind: 'type',
+                    type: {
+                      defined: {
+                        name: 'InstructionGroups',
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+      {
+        name: 'InstructionGroup',
+        type: {
+          kind: 'struct',
+          fields: [
+            {
+              name: 'instructions',
+              type: {
+                vec: {
+                  defined: {
+                    name: 'SerializableInstruction',
+                  },
+                },
+              },
+            },
+            {
+              name: 'address_lookup_tables',
+              type: {
+                vec: 'pubkey',
+              },
+            },
+          ],
+        },
+      },
+      {
+        name: 'InstructionGroups',
+        type: {
+          kind: 'struct',
+          fields: [
+            {
+              vec: {
+                defined: {
+                  name: 'InstructionGroup',
+                },
+              },
+            },
+          ],
+        },
+      },
+      {
+        name: 'MissingAccounts',
+        type: {
+          kind: 'struct',
+          fields: [
+            {
+              name: 'accounts',
+              type: {
+                vec: 'pubkey',
+              },
+            },
+            {
+              name: 'address_lookup_tables',
+              type: {
+                vec: 'pubkey',
+              },
+            },
+          ],
+        },
+      },
+      {
+        name: 'Resolver',
+        generics: [
+          {
+            kind: 'type',
+            name: 'T',
+          },
+        ],
+        type: {
+          kind: 'enum',
+          variants: [
+            {
+              name: 'Resolved',
+              fields: [
+                {
+                  generic: 'T',
+                },
+              ],
+            },
+            {
+              name: 'Missing',
+              fields: [
+                {
+                  defined: {
+                    name: 'MissingAccounts',
+                  },
+                },
+              ],
+            },
+            {
+              name: 'Account',
+              fields: [],
+            },
+          ],
+        },
+      },
+      {
+        name: 'SerializableAccountMeta',
+        type: {
+          kind: 'struct',
+          fields: [
+            {
+              name: 'pubkey',
+              type: 'pubkey',
+            },
+            {
+              name: 'is_signer',
+              type: 'bool',
+            },
+            {
+              name: 'is_writable',
+              type: 'bool',
+            },
+          ],
+        },
+      },
+      {
+        name: 'SerializableInstruction',
+        type: {
+          kind: 'struct',
+          fields: [
+            {
+              name: 'program_id',
+              type: 'pubkey',
+            },
+            {
+              name: 'accounts',
+              type: {
+                vec: {
+                  defined: {
+                    name: 'SerializableAccountMeta',
+                  },
+                },
+              },
+            },
+            {
+              name: 'data',
+              type: 'bytes',
+            },
+          ],
+        },
+      },
+    ],
+  };
 }

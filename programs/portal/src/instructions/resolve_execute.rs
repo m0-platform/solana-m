@@ -25,7 +25,7 @@ use crate::{
     },
     instructions::{
         ext_swap::{accounts::SwapGlobal, types::WhitelistedExtension},
-        get_inbox_recipient_token_account, RedeemArgs, ReleaseInboundArgs,
+        get_inbox_recipient_token_account, RedeemArgs, ReleaseInboundArgs, LUT,
     },
     messages::ValidatedTransceiverMessage,
     ntt_messages::{ChainId, TransceiverMessage, TransceiverMessageData, WormholeTransceiver},
@@ -78,6 +78,7 @@ pub fn resolve_execute_vaa_v1<'a>(
     let inbox_item = pda(&[InboxItem::SEED_PREFIX, message_hash.as_ref()]);
     let swap_global = Pubkey::find_program_address(&[GLOBAL_SEED], &ext_swap::ID).0;
     let result_account = pda(&[RESOLVER_RESULT_ACCOUNT_SEED]);
+    let lut_account = pda(&[b"lut"]);
 
     // Check for missing accounts
     {
@@ -108,6 +109,11 @@ pub fn resolve_execute_vaa_v1<'a>(
         // Need system program for creating result account
         if find_account(ctx.remaining_accounts, System::id()).is_none() {
             missing.push(System::id());
+        }
+
+        // Contains the address of the portal lut
+        if find_account(ctx.remaining_accounts, lut_account).is_none() {
+            missing.push(lut_account);
         }
 
         if !missing.is_empty() {
@@ -167,6 +173,7 @@ pub fn resolve_execute_vaa_v1<'a>(
     let config_data = deserialize_account::<Config>(ctx.remaining_accounts, config)?;
     let swap_global_data = deserialize_account::<SwapGlobal>(ctx.remaining_accounts, swap_global)?;
     let mint_data = deserialize_account::<Mint>(ctx.remaining_accounts, config_data.mint)?;
+    let lut_data = deserialize_account::<LUT>(ctx.remaining_accounts, lut_account)?;
 
     let token_program = find_account(ctx.remaining_accounts, config_data.mint)
         .unwrap()
@@ -189,6 +196,12 @@ pub fn resolve_execute_vaa_v1<'a>(
         emitter_chain,
         message.ntt_manager_payload.id.as_ref(),
     ]);
+
+    // Get LUTs for instructions
+    let mut address_lookup_tables = vec![lut_data.address];
+    if !config_data.resolve_lut.eq(&Pubkey::default()) {
+        address_lookup_tables.push(config_data.resolve_lut);
+    }
 
     let receive_message = SerializableInstruction {
         program_id: crate::ID,
@@ -384,7 +397,7 @@ pub fn resolve_execute_vaa_v1<'a>(
         ret.set_inner(ExecutorAccountResolverResult(Resolver::Resolved(
             InstructionGroups(vec![InstructionGroup {
                 instructions: vec![receive_message, redeem, release_inbound_mint],
-                address_lookup_tables: Vec::new(),
+                address_lookup_tables,
             }]),
         )));
         ret.exit(ctx.program_id)?;
@@ -495,7 +508,7 @@ pub fn resolve_execute_vaa_v1<'a>(
     ret.set_inner(ExecutorAccountResolverResult(Resolver::Resolved(
         InstructionGroups(vec![InstructionGroup {
             instructions: vec![receive_message, redeem, release_inbound_mint],
-            address_lookup_tables: Vec::new(),
+            address_lookup_tables,
         }]),
     )));
     ret.exit(ctx.program_id)?;

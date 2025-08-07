@@ -4,7 +4,7 @@ inputs:
   node-version:
     description: 'Node.js version'
     required: false
-    default: '20'
+    default: '22'
   solana-version:
     description: 'Solana version'
     required: false
@@ -38,7 +38,6 @@ runs:
           ~/.cache/solana/
           ~/.local/share/solana/
           ~/.config/solana
-          ~/.cargo/bin/anchor
         key: solana-cli-${{ inputs.solana-version }}
 
     - name: Install Solana CLI
@@ -55,7 +54,7 @@ runs:
         anchor --version
 
     - name: Cache node_modules
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ./node_modules/
         key: node-modules-${{ inputs.node-version }}

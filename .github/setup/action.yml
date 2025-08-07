@@ -41,18 +41,17 @@ runs:
           ~/.cargo/bin/anchor
         key: solana-cli-${{ inputs.solana-version }}
 
-    - name: Install Anchor CLI
+    - name: Install Solana CLI
       run: |
         mkdir -p ~/.local/share/solana
-        curl --proto '=https' --tlsv1.2 -sSfL https://solana-install.solana.workers.dev | bash
+        sh -c "$(curl -sSfL https://release.anza.xyz/${{ inputs.solana-version }}/install)"
         echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
       shell: bash
 
     - name: Install Anchor CLI
       shell: bash
-      if: steps.cache-anchor-cli.outputs.cache-hit != 'true' && inputs.anchor_version != ''
       run: |
-        cargo install --git https://github.com/coral-xyz/anchor --tag "v${{ inputs.anchor_version  }}" anchor-cli --force
+        cargo install anchor-cli@${{ inputs.anchor-version }} --locked --force
         anchor --version
 
     - name: Cache node_modules
@@ -68,12 +67,10 @@ runs:
     - name: Build test programs
       run: |
         make build-test-earn-programs
-        make build-test-swap-program
       shell: bash
 
     - name: Build programs
       run: |
         anchor build -p earn
-        anchor build -p ext_earn
         anchor build -p portal --no-idl
       shell: bash

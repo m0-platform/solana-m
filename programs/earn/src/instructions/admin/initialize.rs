@@ -55,7 +55,10 @@ pub struct Initialize<'info> {
     )]
     pub old_global_account: Account<'info, OldGlobal>,
 
-    #[account(mint::token_program = token_program)]
+    #[account(
+        mut,
+        mint::token_program = token_program
+    )]
     pub m_mint: InterfaceAccount<'info, Mint>,
 
     /// CHECK: This account is validated by its seeds

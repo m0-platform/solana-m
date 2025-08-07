@@ -587,6 +587,7 @@ describe('Portal unit tests', () => {
     let inboxItem: PublicKey;
     let payload: any;
     let vaaBytes: Uint8Array;
+    let vaaKey: PublicKey;
 
     const redeem = (
       additionalAccounts: AccountMeta[],
@@ -616,6 +617,12 @@ describe('Portal unit tests', () => {
       return async function* redeemTxns() {
         let i = 0;
         for await (const tx of redeemTxs) {
+          // grab the calculated VAA key
+          if (i === 2) {
+            const t = tx.transaction.transaction as Transaction;
+            vaaKey = t.instructions[0].keys[3].pubkey;
+          }
+
           if (++i === 4) {
             if (skipRelease) {
               continue;
@@ -907,14 +914,30 @@ describe('Portal unit tests', () => {
       );
 
       // publish message and load in vaa body bytes
-      redeem(additionalRedeemAccounts(mint.publicKey, extMint.publicKey, extAta), undefined, true);
+      const getRedeemTxns = redeem(
+        additionalRedeemAccounts(mint.publicKey, extMint.publicKey, extAta),
+        undefined,
+        true,
+      );
+
+      // execute first two then skip the rest
+      let i = 0;
+      for await (const tx of getRedeemTxns()) {
+        if (i++ < 2) {
+          async function* yieldTx(tx: SolanaUnsignedTransaction<'Mainnet', 'Solana'>) {
+            yield tx;
+          }
+          await ssw(ctx, yieldTx(tx), signer);
+        }
+      }
 
       // check that first 64 bytes is the source and recipient manager
       const dest_manager = new PublicKey(vaaBytes.slice(36, 68)).toBase58();
       expect(dest_manager).toBe(config.PORTAL_PROGRAM_ID.toBase58());
 
-      // add VAA header
+      // add VAA header with eth header
       const vaaBody = Buffer.concat([Buffer.alloc(51), vaaBytes]);
+      vaaBody.writeUInt8(2, 9);
 
       const initIx = new TransactionInstruction({
         programId: ntt.program.programId,
@@ -1041,7 +1064,7 @@ describe('Portal unit tests', () => {
       expect(data[0]).toBe(2); // Resolved Account
 
       // send transaction to load in account data
-      svm.sendTransaction!(tx);
+      svm.sendTransaction!(tx).toString();
 
       // decode account data
       const encoder = new BorshAccountsCoder(resolverTypes());
@@ -1051,13 +1074,20 @@ describe('Portal unit tests', () => {
 
       const { instructions, address_lookup_tables } = resolveResult[0].Resolved[0][0][0];
 
+      const resolveKey = (key: PublicKey) => {
+        const vaaPlaceholder = new PublicKey(Buffer.from('posted_vaa_000000000000000000000'));
+        if (key.equals(payerPlaceholder)) return payer.publicKey;
+        if (key.equals(vaaPlaceholder)) return vaaKey;
+        return key;
+      };
+
       const redeemTx = new Transaction().add(
         ...[instructions[0]].map(
           (ix: any) =>
             new TransactionInstruction({
               programId: ix.program_id,
               keys: ix.accounts.map((acc: any) => ({
-                pubkey: acc.pubkey.equals(payerPlaceholder) ? payer.publicKey : acc.pubkey,
+                pubkey: resolveKey(acc.pubkey),
                 isSigner: acc.is_signer,
                 isWritable: acc.is_writable,
               })),
@@ -1070,6 +1100,8 @@ describe('Portal unit tests', () => {
       redeemTx.recentBlockhash = svm.latestBlockhash();
       redeemTx.sign(payer);
       const redeemResult = svm.sendTransaction!(redeemTx);
+
+      console.log('Redeem tx', JSON.stringify(redeemTx, null, 2));
 
       console.log('Redeem result:', redeemResult.toString());
     });

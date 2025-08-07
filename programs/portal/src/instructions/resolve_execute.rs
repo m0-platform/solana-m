@@ -94,7 +94,7 @@ pub fn resolve_execute_vaa_v1<'a>(
         if let Some(acc_info) = find_account(ctx.remaining_accounts, config) {
             let config = Config::try_deserialize(&mut &acc_info.try_borrow_mut_data()?[..])?;
 
-            // Get mint for correct token account
+            // Get mint for correct token program
             if find_account(ctx.remaining_accounts, config.mint).is_none() {
                 missing.push(config.mint);
             }
@@ -325,7 +325,7 @@ pub fn resolve_execute_vaa_v1<'a>(
 
     // release_inbound_mint and release_inbound_mint_extension share accounts
     let mut release_accounts = {
-        let m_global = earn_pda(&[GLOBAL_SEED]);
+        let m_global = Pubkey::find_program_address(&[GLOBAL_SEED], &earn::ID).0;
 
         vec![
             SerializableAccountMeta {
@@ -541,10 +541,6 @@ fn pda(seeds: &[&[u8]]) -> Pubkey {
     Pubkey::find_program_address(seeds, &crate::ID).0
 }
 
-fn earn_pda(seeds: &[&[u8]]) -> Pubkey {
-    Pubkey::find_program_address(seeds, &earn::ID).0
-}
-
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -579,11 +575,13 @@ mod tests {
         // Assert the result
         assert!(result.is_ok());
         let config = Pubkey::from_str("3WEmFf1y7MYgNgEKHjY6p7cRDR2HGtBgxzfABb91eqHv").unwrap();
+        let mint = Pubkey::from_str("mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo").unwrap();
 
         match result.unwrap() {
             Resolver::Missing(missing) => {
-                assert_eq!(missing.accounts.len(), 3);
+                assert_eq!(missing.accounts.len(), 6);
                 assert!(missing.accounts.contains(&config));
+                assert!(!missing.accounts.contains(&mint));
             }
             _ => panic!("Expected missing accounts"),
         }
@@ -615,10 +613,13 @@ mod tests {
 
         match result.unwrap() {
             Resolver::Missing(missing) => {
-                assert_eq!(missing.accounts.len(), 3);
+                assert_eq!(missing.accounts.len(), 6);
 
                 // config no longer missing
                 assert!(!missing.accounts.contains(&config));
+
+                // mint now missing (pulled from config)
+                assert!(missing.accounts.contains(&mint));
             }
             _ => panic!("Expected missing accounts"),
         }

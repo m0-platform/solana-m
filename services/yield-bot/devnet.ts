@@ -1,4 +1,4 @@
-import { EarnAuthority, EXT_PROGRAM_ID, Logger, PROGRAM_ID } from '@m0-foundation/solana-m-sdk';
+import { EarnAuthority, Logger } from '@m0-foundation/solana-m-sdk';
 import { MongoClient } from 'mongodb';
 import { ParsedOptions } from './main';
 import { PublicKey } from '@solana/web3.js';
@@ -7,11 +7,11 @@ export async function persistDevnetIndex(opt: ParsedOptions, logger: Logger, pid
   if (!opt.isDevnet) {
     throw new Error('This function should only be called on devnet');
   }
-  if (!pid.equals(PROGRAM_ID) && !pid.equals(EXT_PROGRAM_ID)) {
+  if (pid.toBase58() !== 'wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko') {
     return;
   }
 
-  const auth = await EarnAuthority.load(opt.connection, opt.evmClient, pid, logger);
+  const auth = await EarnAuthority.load(opt.connection, pid, logger);
   const earner = (await auth.getAllEarners())[0];
 
   const indexUpdates = [];
@@ -19,7 +19,7 @@ export async function persistDevnetIndex(opt: ParsedOptions, logger: Logger, pid
 
   for (const [index, ts] of [
     [earner.data.lastClaimIndex, earner.data.lastClaimTimestamp],
-    [auth['earnGlobal'].index, auth['earnGlobal'].timestamp],
+    [auth['global'].index, auth['global'].timestamp],
   ]) {
     // dummy signature
     const sig = Array.from(crypto.getRandomValues(new Uint8Array(16)))
@@ -33,7 +33,7 @@ export async function persistDevnetIndex(opt: ParsedOptions, logger: Logger, pid
       index: index.toNumber(),
       instruction: 'PropagateIndex',
       max_yield: '1000',
-      program_id: PROGRAM_ID.toBase58(),
+      program_id: 'mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z',
       signature: sig,
       token_supply: 1000000,
       ts: date,

@@ -53,6 +53,11 @@ export class EarnAuthority {
     return new PublicKey(this.global.admin);
   }
 
+  async getAllEarners(): Promise<Earner[]> {
+    const accounts = await this.program.account.earner.all();
+    return accounts.map((a) => new Earner(this.connection, a.publicKey, a.account, this.program.programId));
+  }
+
   async buildClaimInstruction(earner: Earner): Promise<TransactionInstruction | null> {
     if (earner.data.lastClaimIndex.gte(this.global.index!)) {
       this.logger.warn('Earner already claimed', {

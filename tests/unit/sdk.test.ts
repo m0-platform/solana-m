@@ -99,214 +99,219 @@ describe('SDK unit tests', () => {
   };
 
   beforeAll(async () => {
-    const mintATAs = [];
+    try {
+      const mintATAs = [];
 
-    // create mints
-    for (const mint of mints) {
-      const mintLen = spl.getMintLen([]);
-      const lamports = await provider.connection.getMinimumBalanceForRentExemption(mintLen);
+      // create mints
+      for (const mint of mints) {
+        const mintLen = spl.getMintLen([]);
+        const lamports = await provider.connection.getMinimumBalanceForRentExemption(mintLen);
 
-      const tx = new Transaction().add(
-        SystemProgram.createAccount({
-          fromPubkey: signer.publicKey,
-          newAccountPubkey: mint.publicKey,
-          space: mintLen,
-          lamports,
-          programId: spl.TOKEN_2022_PROGRAM_ID,
+        const tx = new Transaction().add(
+          SystemProgram.createAccount({
+            fromPubkey: signer.publicKey,
+            newAccountPubkey: mint.publicKey,
+            space: mintLen,
+            lamports,
+            programId: spl.TOKEN_2022_PROGRAM_ID,
+          }),
+          spl.createInitializeMintInstruction(mint.publicKey, 6, signer.publicKey, null, spl.TOKEN_2022_PROGRAM_ID),
+        );
+
+        await provider.sendAndConfirm(tx, [signer, mint]);
+      }
+
+      // mint M to ATAs and create wM ATAs
+      const ataTransaction = new Transaction();
+
+      mintATAs.push(
+        [earnerA, earnerB, earnerC].map((earner) => {
+          const earnerATA = spl.getAssociatedTokenAddressSync(
+            mints[0].publicKey,
+            earner.publicKey,
+            true,
+            spl.TOKEN_2022_PROGRAM_ID,
+          );
+          ataTransaction.add(
+            spl.createAssociatedTokenAccountInstruction(
+              signer.publicKey,
+              earnerATA,
+              earner.publicKey,
+              mints[0].publicKey,
+              spl.TOKEN_2022_PROGRAM_ID,
+            ),
+          );
+          // mint some tokens to the account
+          ataTransaction.add(
+            spl.createMintToInstruction(
+              mints[0].publicKey,
+              earnerATA,
+              signer.publicKey,
+              earnerA === earner ? 5000e9 : earner === earnerB ? 3000e9 : 0,
+              [],
+              spl.TOKEN_2022_PROGRAM_ID,
+            ),
+          );
+          return earnerATA;
         }),
-        spl.createInitializeMintInstruction(mint.publicKey, 6, signer.publicKey, null, spl.TOKEN_2022_PROGRAM_ID),
       );
 
-      await provider.sendAndConfirm(tx, [signer, mint]);
-    }
-
-    // mint M to ATAs and create wM ATAs
-    const ataTransaction = new Transaction();
-
-    mintATAs.push(
-      [earnerA, earnerB, earnerC].map((earner) => {
-        const earnerATA = spl.getAssociatedTokenAddressSync(
-          mints[0].publicKey,
-          earner.publicKey,
-          true,
-          spl.TOKEN_2022_PROGRAM_ID,
-        );
-        ataTransaction.add(
-          spl.createAssociatedTokenAccountInstruction(
-            signer.publicKey,
-            earnerATA,
-            earner.publicKey,
-            mints[0].publicKey,
-            spl.TOKEN_2022_PROGRAM_ID,
-          ),
-        );
-        // mint some tokens to the account
-        ataTransaction.add(
-          spl.createMintToInstruction(
-            mints[0].publicKey,
-            earnerATA,
-            signer.publicKey,
-            earnerA === earner ? 5000e9 : earner === earnerB ? 3000e9 : 0,
-            [],
-            spl.TOKEN_2022_PROGRAM_ID,
-          ),
-        );
-        return earnerATA;
-      }),
-    );
-
-    mintATAs.push(
-      [earnerA, earnerB, earnerC].map((earner) => {
-        const earnerATA = spl.getAssociatedTokenAddressSync(
-          mints[1].publicKey,
-          earner.publicKey,
-          true,
-          spl.TOKEN_2022_PROGRAM_ID,
-        );
-        ataTransaction.add(
-          spl.createAssociatedTokenAccountInstruction(
-            signer.publicKey,
-            earnerATA,
-            earner.publicKey,
+      mintATAs.push(
+        [earnerA, earnerB, earnerC].map((earner) => {
+          const earnerATA = spl.getAssociatedTokenAddressSync(
             mints[1].publicKey,
+            earner.publicKey,
+            true,
             spl.TOKEN_2022_PROGRAM_ID,
-          ),
-        );
+          );
+          ataTransaction.add(
+            spl.createAssociatedTokenAccountInstruction(
+              signer.publicKey,
+              earnerATA,
+              earner.publicKey,
+              mints[1].publicKey,
+              spl.TOKEN_2022_PROGRAM_ID,
+            ),
+          );
 
-        return earnerATA;
-      }),
-    );
+          return earnerATA;
+        }),
+      );
 
-    await provider.sendAndConfirm(ataTransaction, [signer]);
+      await provider.sendAndConfirm(ataTransaction, [signer]);
 
-    // mint multisig on earn program
-    const multiSigTx = new Transaction().add(
-      SystemProgram.createAccount({
-        fromPubkey: signer.publicKey,
-        newAccountPubkey: multisig.publicKey,
-        space: spl.MULTISIG_SIZE,
-        lamports: await spl.getMinimumBalanceForRentExemptMultisig(connection),
-        programId: spl.TOKEN_2022_PROGRAM_ID,
-      }),
-      spl.createInitializeMultisigInstruction(
-        multisig.publicKey,
-        [signer.publicKey, tokenAuth],
-        1,
-        spl.TOKEN_2022_PROGRAM_ID,
-      ),
-      spl.createSetAuthorityInstruction(
-        mints[0].publicKey,
-        signer.publicKey,
-        spl.AuthorityType.MintTokens,
-        multisig.publicKey,
-        [],
-        spl.TOKEN_2022_PROGRAM_ID,
-      ),
-    );
+      // mint multisig on earn program
+      const multiSigTx = new Transaction().add(
+        SystemProgram.createAccount({
+          fromPubkey: signer.publicKey,
+          newAccountPubkey: multisig.publicKey,
+          space: spl.MULTISIG_SIZE,
+          lamports: await spl.getMinimumBalanceForRentExemptMultisig(connection),
+          programId: spl.TOKEN_2022_PROGRAM_ID,
+        }),
+        spl.createInitializeMultisigInstruction(
+          multisig.publicKey,
+          [signer.publicKey, tokenAuth],
+          1,
+          spl.TOKEN_2022_PROGRAM_ID,
+        ),
+        spl.createSetAuthorityInstruction(
+          mints[0].publicKey,
+          signer.publicKey,
+          spl.AuthorityType.MintTokens,
+          multisig.publicKey,
+          [],
+          spl.TOKEN_2022_PROGRAM_ID,
+        ),
+      );
 
-    await provider.sendAndConfirm(multiSigTx, [signer, multisig]);
+      await provider.sendAndConfirm(multiSigTx, [signer, multisig]);
 
-    // make the ext earn program the mint authority of the wM mint
-    const extMintTx = new Transaction().add(
-      spl.createSetAuthorityInstruction(
-        mints[1].publicKey,
-        signer.publicKey,
-        spl.AuthorityType.MintTokens,
-        extMintAuth,
-        [],
-        spl.TOKEN_2022_PROGRAM_ID,
-      ),
-    );
+      // make the ext earn program the mint authority of the wM mint
+      const extMintTx = new Transaction().add(
+        spl.createSetAuthorityInstruction(
+          mints[1].publicKey,
+          signer.publicKey,
+          spl.AuthorityType.MintTokens,
+          extMintAuth,
+          [],
+          spl.TOKEN_2022_PROGRAM_ID,
+        ),
+      );
 
-    await provider.sendAndConfirm(extMintTx, [signer]);
+      await provider.sendAndConfirm(extMintTx, [signer]);
 
-    // intialize the programs
-    await earn.methods
-      .initialize(signer.publicKey, new BN(1_000_000_000_000), new BN(0))
-      .accounts({
-        mint: mints[0].publicKey,
-        admin: signer.publicKey,
-      })
-      .signers([signer])
-      .rpc();
+      // intialize the programs
+      await earn.methods
+        .initialize(signer.publicKey, new BN(1_000_000_000_000), new BN(0))
+        .accounts({
+          mint: mints[0].publicKey,
+          admin: signer.publicKey,
+        })
+        .signers([signer])
+        .rpc();
 
-    await extEarn.methods
-      .initialize(signer.publicKey)
-      .accounts({
-        admin: signer.publicKey,
-        mMint: mints[0].publicKey,
-        extMint: mints[1].publicKey,
-      })
-      .signers([signer])
-      .rpc();
+      await extEarn.methods
+        .initialize(signer.publicKey)
+        .accounts({
+          admin: signer.publicKey,
+          mMint: mints[0].publicKey,
+          extMint: mints[1].publicKey,
+        })
+        .signers([signer])
+        .rpc();
 
-    // populate the earner merkle tree with the initial earners
-    const earnerMerkleTree = new MerkleTree([earnerA.publicKey]);
+      // populate the earner merkle tree with the initial earners
+      const earnerMerkleTree = new MerkleTree([earnerA.publicKey]);
 
-    await earn.methods
-      .propagateIndex(new BN(1_000_000_000_000), earnerMerkleTree.getRoot())
-      .accounts({
-        signer: signer.publicKey,
-      })
-      .signers([signer])
-      .rpc();
+      await earn.methods
+        .propagateIndex(new BN(1_000_000_000_000), earnerMerkleTree.getRoot())
+        .accounts({
+          signer: signer.publicKey,
+        })
+        .signers([signer])
+        .rpc();
 
-    earnerAccountA = PublicKey.findProgramAddressSync(
-      [Buffer.from('earner'), mintATAs[0][0].toBytes()],
-      earn.programId,
-    )[0];
-    earnerAccountB = PublicKey.findProgramAddressSync(
-      [Buffer.from('earner'), mintATAs[1][1].toBytes()],
-      extEarn.programId,
-    )[0];
+      earnerAccountA = PublicKey.findProgramAddressSync(
+        [Buffer.from('earner'), mintATAs[0][0].toBytes()],
+        earn.programId,
+      )[0];
+      earnerAccountB = PublicKey.findProgramAddressSync(
+        [Buffer.from('earner'), mintATAs[1][1].toBytes()],
+        extEarn.programId,
+      )[0];
 
-    // add earner from root
-    await earn.methods
-      .addRegistrarEarner(earnerA.publicKey, earnerMerkleTree.getInclusionProof(earnerA.publicKey).proof)
-      .accounts({
-        signer: signer.publicKey,
-        userTokenAccount: mintATAs[0][0],
-      })
-      .rpc();
+      // add earner from root
+      await earn.methods
+        .addRegistrarEarner(earnerA.publicKey, earnerMerkleTree.getInclusionProof(earnerA.publicKey).proof)
+        .accounts({
+          signer: signer.publicKey,
+          userTokenAccount: mintATAs[0][0],
+        })
+        .rpc();
 
-    // add manager
-    const [earnManagerAccount] = PublicKey.findProgramAddressSync(
-      [Buffer.from('earn_manager'), signer.publicKey.toBytes()],
-      extEarn.programId,
-    );
+      // add manager
+      const [earnManagerAccount] = PublicKey.findProgramAddressSync(
+        [Buffer.from('earn_manager'), signer.publicKey.toBytes()],
+        extEarn.programId,
+      );
 
-    await extEarn.methods
-      .addEarnManager(signer.publicKey, new BN(10))
-      .accounts({
-        feeTokenAccount: mintATAs[1][0],
-      })
-      .rpc();
+      await extEarn.methods
+        .addEarnManager(signer.publicKey, new BN(10))
+        .accounts({
+          feeTokenAccount: mintATAs[1][0],
+        })
+        .rpc();
 
-    await extEarn.methods
-      .addEarner(earnerB.publicKey)
-      .accounts({
-        signer: signer.publicKey,
-        userTokenAccount: mintATAs[1][1],
-      })
-      .rpc();
+      await extEarn.methods
+        .addEarner(earnerB.publicKey)
+        .accounts({
+          signer: signer.publicKey,
+          userTokenAccount: mintATAs[1][1],
+        })
+        .rpc();
 
-    await earn.methods
-      .propagateIndex(new BN(1_010_000_000_000), earnerMerkleTree.getRoot())
-      .accounts({
-        signer: signer.publicKey,
-      })
-      .signers([signer])
-      .rpc();
+      await earn.methods
+        .propagateIndex(new BN(1_010_000_000_000), earnerMerkleTree.getRoot())
+        .accounts({
+          signer: signer.publicKey,
+        })
+        .signers([signer])
+        .rpc();
 
-    await extEarn.methods
-      .sync()
-      .accounts({
-        globalAccount: extGlobalAccount,
-        mEarnGlobalAccount: globalAccount,
-        earnAuthority: signer.publicKey,
-      })
-      .signers([signer])
-      .rpc();
+      await extEarn.methods
+        .sync()
+        .accounts({
+          globalAccount: extGlobalAccount,
+          mEarnGlobalAccount: globalAccount,
+          earnAuthority: signer.publicKey,
+        })
+        .signers([signer])
+        .rpc();
+    } catch (error) {
+      console.error('Error during setup:', error);
+      throw error;
+    }
   }, 15_000);
 
   describe('rpc', () => {

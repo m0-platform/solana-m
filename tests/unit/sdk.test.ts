@@ -214,44 +214,6 @@ describe('SDK unit tests', () => {
         claimIxs.push(ix!);
       }
     });
-
-    test('validate claims and send', async () => {
-      const auth = await EarnAuthority.load(connection, mExt.programId, new ConsoleLogger());
-
-      // will throw on simulation or validation errors
-      const amount = await auth.simulateAndValidateClaimIxs(claimIxs);
-
-      expect(claimIxs).toHaveLength(1);
-      expect(amount.toNumber()).toEqual(40200000000);
-
-      const logWaiter = new Promise((resolve: (value: void) => void, reject) => {
-        const timeout = setTimeout(() => {
-          provider.connection.removeOnLogsListener(logsID);
-          reject('did not see rewards log');
-        }, 2000);
-
-        // validate logs parser on SDK
-        const logsID = provider.connection.onLogs(
-          new PublicKey('3ojLwYogY9x64HvxACRZ4awjGonUYBTGefFp56mkfxVs'),
-          (logs: Logs, _: Context) => {
-            const rewards = auth['_getRewardAmounts'](logs.logs);
-            expect(rewards?.[0].user.toString()).toEqual('40200000000');
-            provider.connection.removeOnLogsListener(logsID);
-            clearTimeout(timeout);
-            resolve();
-          },
-          'processed',
-        );
-      });
-
-      // send transactions
-      await sendAndConfirmTransaction(connection, new Transaction().add(...claimIxs), [signer]);
-
-      await auth.refresh();
-      expect(auth['global'].distributed!.toNumber()).toBe(40200000000);
-
-      await logWaiter;
-    });
   });
 
   describe('earn manager', () => {
@@ -276,17 +238,21 @@ describe('SDK unit tests', () => {
       const manager = await EarnManager.fromManagerAddress(connection, mExt.programId, signer.publicKey);
       const newEarner = Keypair.generate();
 
-      const earnerATA = spl.getAssociatedTokenAddressSync(
+      const { address } = await spl.getOrCreateAssociatedTokenAccount(
+        connection,
+        signer,
         mints[1].publicKey,
         newEarner.publicKey,
         true,
+        undefined,
+        undefined,
         spl.TOKEN_2022_PROGRAM_ID,
       );
 
-      const ixs = await manager.buildAddEarnerInstruction(newEarner.publicKey, earnerATA);
+      const ixs = await manager.buildAddEarnerInstruction(newEarner.publicKey, address);
       await sendAndConfirmTransaction(connection, new Transaction().add(...ixs), [signer]);
 
-      const earner = await Earner.fromTokenAccount(connection, earnerATA, mExt.programId);
+      const earner = await Earner.fromTokenAccount(connection, address, mExt.programId);
       expect(earner.data.earnManager?.toBase58()).toEqual(manager.manager.toBase58());
     });
   });

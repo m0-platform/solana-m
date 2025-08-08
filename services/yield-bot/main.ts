@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { Registrar, EarnAuthority, WinstonLogger, PROGRAM_ID, TransactionBuilder } from '@m0-foundation/solana-m-sdk';
+import { EarnAuthority, WinstonLogger, TransactionBuilder } from '@m0-foundation/solana-m-sdk';
 import {
   ComputeBudgetProgram,
   PublicKey,
@@ -46,13 +46,11 @@ export interface ParsedOptions extends EnvOptions {
 
 // all programs and extensions that require yield distribution
 const programsMainnet = [
-  PROGRAM_ID,
   new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'), // wM
   new PublicKey('extMahs9bUFMYcviKCvnSRaXgs5PcqmMzcnHRtTqE85'), // USDKY
 ];
 
 const programsDevnet = [
-  PROGRAM_ID,
   new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'), // wM
   new PublicKey('3PskKTHgboCbUSQPMcCAZdZNFHbNvSoZ8zEFYANCdob7'), // USDKY
   new PublicKey('extUkDFf3HLekkxbcZ3XRUizMjbxMJgKBay3p9xGVmg'), // Fuse USD
@@ -81,9 +79,6 @@ export async function yieldCLI() {
 
         if (!options.isDevnet) await validation(options);
 
-        // pre-yield actions
-        await removeEarners(options);
-
         // distribute yield for each program
         for (const pid of env.isDevnet ? programsDevnet : programsMainnet) {
           logger.addMetaField('programId', pid.toBase58());
@@ -97,9 +92,6 @@ export async function yieldCLI() {
           // wait interval to ensure transactions from previous steps have landed
           await new Promise((resolve) => setTimeout(resolve, 5000));
         }
-
-        // post-yield actions
-        await addEarners(options);
       } catch (error: any) {
         logger.error(error);
         slackMessage.level = 'error';
@@ -111,12 +103,12 @@ export async function yieldCLI() {
 }
 
 async function validation(opt: ParsedOptions) {
-  const auth = await EarnAuthority.load(opt.connection, opt.evmClient, PROGRAM_ID, logger);
+  const auth = await EarnAuthority.load(opt.connection, programsMainnet[0], logger);
   await validateDatabaseData(auth, opt.apiEnvornment);
 }
 
 async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promise<void> {
-  const auth = await EarnAuthority.load(opt.connection, opt.evmClient, programID, logger);
+  const auth = await EarnAuthority.load(opt.connection, programID, logger);
 
   if (auth['global'].claimComplete) {
     logger.info('claim cycle already complete');
@@ -156,55 +148,14 @@ async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promis
     });
   }
 
-  // complete cycle after distribution if applicable
-  const completeClaimIx = await auth.buildCompleteClaimCycleInstruction();
-  if (completeClaimIx) ixs.push(completeClaimIx);
-
   logger.info('distribution instructions', {
     claimIxs,
     hasSync: !!syncIndexIx,
-    hasComplete: !!completeClaimIx,
   });
 
   // send transaction
   const signature = await buildAndSendTransaction(opt, ixs);
   slackMessage.messages.push(`Yield updates complete: ${signature[0]}\n`);
-
-  return;
-}
-
-async function addEarners(opt: ParsedOptions) {
-  logger.info('adding earners');
-  const registrar = new Registrar(opt.connection, opt.evmClient, logger);
-
-  const signer = opt.squads ? opt.squads.squadsVault : opt.signerPubkey;
-  const instructions = await registrar.buildMissingEarnersInstructions(signer, opt.merkleTreeAddress);
-
-  if (instructions.length === 0) {
-    logger.info('no earners to add');
-    return;
-  }
-
-  const signature = await buildAndSendTransaction(opt, instructions, 10, 'adding earners');
-  logger.info('added earners', { signature, earners: instructions.length });
-  slackMessage.messages.push(`Added ${instructions.length} earners`);
-}
-
-async function removeEarners(opt: ParsedOptions) {
-  logger.info('removing earners');
-  const registrar = new Registrar(opt.connection, opt.evmClient, logger);
-
-  const signer = opt.squads ? opt.squads.squadsVault : opt.signerPubkey;
-  const instructions = await registrar.buildRemovedEarnersInstructions(signer, opt.merkleTreeAddress);
-
-  if (instructions.length === 0) {
-    logger.info('no earners to remove');
-    return;
-  }
-
-  const signature = await buildAndSendTransaction(opt, instructions, 10, 'removing earners');
-  logger.info('removed earners', { signature, earners: instructions.length });
-  slackMessage.messages.push(`Removed ${instructions.length} earners`);
 
   return;
 }

@@ -1,12 +1,17 @@
 import path from 'path';
 import {
+  AddressLookupTableAccount,
   Commitment,
   Connection,
   GetAccountInfoConfig,
   Keypair,
+  Message,
   PublicKey,
+  RpcResponseAndContext,
   SendOptions,
   Signer,
+  SimulatedTransactionResponse,
+  SimulateTransactionConfig,
   SystemProgram,
   Transaction,
   TransactionConfirmationStrategy,
@@ -99,6 +104,14 @@ export class LiteSVMProviderExt extends LiteSVMProvider {
       }
 
       return signature;
+    };
+
+    // so the SDK can build transactions without throwing an error
+    this.connection.getAddressLookupTable = async (
+      accountKey: PublicKey,
+      _?: GetAccountInfoConfig | undefined,
+    ): Promise<RpcResponseAndContext<AddressLookupTableAccount | null>> => {
+      return { context: { slot: 0 }, value: null };
     };
 
     // these are expected to return null and not throw an error if uninitialized

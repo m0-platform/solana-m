@@ -1,19 +1,15 @@
 import { Connection, PublicKey, TransactionInstruction } from '@solana/web3.js';
 import BN from 'bn.js';
 import * as spl from '@solana/spl-token';
-import { PublicClient } from 'viem';
-
-import { EXT_MINT, EXT_PROGRAM_ID } from '.';
 import { Earner } from './earner';
 import { Program } from '@coral-xyz/anchor';
-import { getExtProgram } from './idl';
-import { EarnManagerData } from './accounts';
-import { ExtEarn } from './idl/ext_earn';
+import { EarnManagerData, loadGlobal } from './accounts';
+import { getProgram } from './idl';
+import { MExt } from './idl/m_ext';
 
 export class EarnManager {
   private connection: Connection;
-  private evmClient: PublicClient;
-  private program: Program<ExtEarn>;
+  private program: Program<MExt>;
 
   manager: PublicKey;
   pubkey: PublicKey;
@@ -21,14 +17,13 @@ export class EarnManager {
 
   constructor(
     connection: Connection,
-    evmClient: PublicClient,
+    programID: PublicKey,
     manager: PublicKey,
     pubkey: PublicKey,
     data: EarnManagerData,
   ) {
     this.connection = connection;
-    this.program = getExtProgram(connection);
-    this.evmClient = evmClient;
+    this.program = getProgram(connection, programID);
     this.manager = manager;
     this.pubkey = pubkey;
     this.data = data;
@@ -36,21 +31,21 @@ export class EarnManager {
 
   static async fromManagerAddress(
     connection: Connection,
-    evmClient: PublicClient,
+    programID: PublicKey,
     manager: PublicKey,
   ): Promise<EarnManager> {
     const [earnManagerAccount] = PublicKey.findProgramAddressSync(
       [Buffer.from('earn_manager'), manager.toBytes()],
-      EXT_PROGRAM_ID,
+      programID,
     );
 
-    const data = await getExtProgram(connection).account.earnManager.fetch(earnManagerAccount);
+    const data = await getProgram(connection, programID).account.earnManager.fetch(earnManagerAccount);
 
-    return new EarnManager(connection, evmClient, manager, earnManagerAccount, data);
+    return new EarnManager(connection, programID, manager, earnManagerAccount, data);
   }
 
   async refresh() {
-    const updated = await EarnManager.fromManagerAddress(this.connection, this.evmClient, this.manager);
+    const updated = await EarnManager.fromManagerAddress(this.connection, this.program.programId, this.manager);
     Object.assign(this, updated);
   }
 
@@ -66,10 +61,11 @@ export class EarnManager {
 
   async buildAddEarnerInstruction(user: PublicKey, userTokenAccount?: PublicKey): Promise<TransactionInstruction[]> {
     const ixs: TransactionInstruction[] = [];
+    const global = await loadGlobal(this.connection, this.program.programId);
 
     // derive ata if token account not provided
     if (!userTokenAccount) {
-      userTokenAccount = spl.getAssociatedTokenAddressSync(EXT_MINT, user, true, spl.TOKEN_2022_PROGRAM_ID);
+      userTokenAccount = spl.getAssociatedTokenAddressSync(global.extMint, user, true, spl.TOKEN_2022_PROGRAM_ID);
 
       // check if ata exists
       try {
@@ -80,7 +76,7 @@ export class EarnManager {
             this.manager,
             userTokenAccount,
             user,
-            EXT_MINT,
+            global.extMint,
             spl.TOKEN_2022_PROGRAM_ID,
           ),
         );
@@ -113,7 +109,7 @@ export class EarnManager {
   }
 
   async getEarners(): Promise<Earner[]> {
-    const accounts = await getExtProgram(this.connection).account.earner.all();
-    return accounts.map((a) => new Earner(this.connection, this.evmClient, a.publicKey, a.account, EXT_MINT));
+    const accounts = await this.program.account.earner.all();
+    return accounts.map((a) => new Earner(this.connection, a.publicKey, a.account, this.program.programId));
   }
 }

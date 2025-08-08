@@ -893,6 +893,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
+name = "executor-account-resolver-svm"
+version = "0.0.1"
+source = "git+https://github.com/wormholelabs-xyz/executor-account-resolver-svm?rev=a39fe39cece715b3e1d1afef1f6e47740595a562#a39fe39cece715b3e1d1afef1f6e47740595a562"
+dependencies = [
+ "anchor-lang",
+]
+
+[[package]]
 name = "feature-probe"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1354,9 +1362,11 @@ version = "0.2.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
+ "base64 0.22.1",
  "bitmaps",
  "cfg-if",
  "earn",
+ "executor-account-resolver-svm",
  "solana-security-txt",
  "spl-token-2022 7.0.0",
  "wormhole-anchor-sdk",

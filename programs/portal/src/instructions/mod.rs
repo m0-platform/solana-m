@@ -6,6 +6,7 @@ pub mod luts;
 pub mod redeem;
 pub mod release_inbound;
 pub mod release_inbound_extension;
+pub mod resolve_execute;
 pub mod transfer;
 pub mod transfer_extension;
 
@@ -16,6 +17,7 @@ pub use luts::*;
 pub use redeem::*;
 pub use release_inbound::*;
 pub use release_inbound_extension::*;
+pub use resolve_execute::*;
 pub use transfer::*;
 pub use transfer_extension::*;
 

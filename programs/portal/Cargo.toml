@@ -23,8 +23,12 @@ anchor-lang = { workspace = true, features = ["init-if-needed"] }
 anchor-spl.workspace = true
 spl-token-2022.workspace = true
 wormhole-anchor-sdk = { git = "https://github.com/wormhole-foundation/wormhole-scaffolding", default-features = false, rev = "3be80a9"}
+executor-account-resolver-svm = { version = "0.0.1", git = "https://github.com/wormholelabs-xyz/executor-account-resolver-svm", rev = "a39fe39cece715b3e1d1afef1f6e47740595a562" }
 wormhole-io = "0.1.3"
 bitmaps = "3.2.1"
 cfg-if.workspace = true
 solana-security-txt.workspace = true
 earn = { path = "../earn", features = ["cpi"] }
+
+[dev-dependencies]
+base64 = "0.22.1"

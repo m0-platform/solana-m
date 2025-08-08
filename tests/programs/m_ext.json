@@ -997,11 +997,11 @@
             "type": "pubkey"
           },
           {
-            "name": "wm_mint",
+            "name": "portal_authority",
             "type": "pubkey"
           },
           {
-            "name": "portal_authority",
+            "name": "ext_swap_global_account",
             "type": "pubkey"
           },
           {

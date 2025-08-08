@@ -881,6 +881,33 @@
         },
         {
           "name": "ext_program"
+        },
+        {
+          "name": "ext_global",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108
+                ]
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "ext_program"
+            }
+          }
+        },
+        {
+          "name": "ext_mint",
+          "writable": true
         }
       ],
       "args": []
@@ -1273,8 +1300,32 @@
           {
             "name": "whitelisted_extensions",
             "type": {
-              "vec": "pubkey"
+              "vec": {
+                "defined": {
+                  "name": "WhitelistedExtension"
+                }
+              }
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "WhitelistedExtension",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "program_id",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "token_program",
+            "type": "pubkey"
           }
         ]
       }

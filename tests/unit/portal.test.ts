@@ -5,6 +5,7 @@ import {
   Keypair,
   LAMPORTS_PER_SOL,
   PublicKey,
+  SystemProgram,
   Transaction,
   TransactionInstruction,
   VersionedTransaction,
@@ -36,14 +37,14 @@ import {
 import { fromWorkspace } from 'anchor-litesvm';
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import NodeWallet from '@coral-xyz/anchor/dist/cjs/nodewallet';
-import { utils } from 'web3';
-import { BN, Program } from '@coral-xyz/anchor';
+import { BN, Program, BorshAccountsCoder } from '@coral-xyz/anchor';
 import { Earn } from '../../target/types/earn';
 import { sha256 } from '@noble/hashes/sha2';
 import { SYSTEM_PROGRAM_ID } from '@coral-xyz/anchor/dist/cjs/native/system';
 import { ExtSwap } from '../programs/ext_swap';
 import { MExt } from '../programs/m_ext';
 import { FailedTransactionMetadata } from 'litesvm';
+import { Idl } from '@coral-xyz/anchor/dist/cjs/idl';
 const EARN_IDL = require('../../target/idl/earn.json');
 const SWAP_IDL = require('../programs/ext_swap.json');
 const M_EXT_IDL = require('../programs/m_ext.json');
@@ -87,29 +88,6 @@ export function getWormholeContext(connection: Connection) {
     coreBridge: WORMHOLE_SOLANA.toBase58(),
   });
   return { ctx, coreBridge, remoteXcvr, remoteMgr };
-}
-
-export function createSetEvmAddresses(pid: PublicKey, admin: PublicKey, M: string, wM: string) {
-  return new TransactionInstruction({
-    programId: pid,
-    keys: [
-      {
-        pubkey: admin,
-        isSigner: true,
-        isWritable: true,
-      },
-      {
-        pubkey: NTT.pdas(pid).configAccount(),
-        isSigner: false,
-        isWritable: true,
-      },
-    ],
-    data: Buffer.concat([
-      sha256('global:set_destination_addresses').slice(0, 8),
-      Buffer.from(M.slice(2).padStart(64, '0'), 'hex'),
-      Buffer.from(wM.slice(2).padStart(64, '0'), 'hex'),
-    ]),
-  });
 }
 
 describe('Portal unit tests', () => {
@@ -264,17 +242,25 @@ describe('Portal unit tests', () => {
         outboundLimit: 1000000n,
         mode: 'burning',
       });
-      // TODO: creating the LUT throws an error due to recent slot checks
-      async function* onlyInit() {
-        yield (await initTxs.next()).value as SolanaUnsignedTransaction<'Mainnet', 'Solana'>;
-      }
-      await ssw(ctx, onlyInit(), signer);
 
-      // set evm destination addresses
-      const tx = new Transaction().add(
-        createSetEvmAddresses(config.PORTAL_PROGRAM_ID, owner.publicKey, config.EVM_M, config.EVM_WRAPPED_M),
-      );
+      const initTx = (await initTxs.next()).value as SolanaUnsignedTransaction<'Mainnet', 'Solana'>;
+      const tx = initTx.transaction.transaction as Transaction;
+
+      // include evm address instruction arg
+      tx.instructions[0].data = Buffer.concat([
+        tx.instructions[0].data,
+        Buffer.from(config.EVM_M.slice(2).padStart(64, '0'), 'hex'),
+      ]);
+
       await provider.sendAndConfirm!(tx, [owner]);
+
+      // set LUT data
+      svm.setAccount(ntt.pdas.lutAccount(), {
+        executable: false,
+        owner: ntt.program.programId,
+        lamports: 1176240,
+        data: Buffer.from('cD4wIZhv5xX6D9zGCYOci8g264ES7/3ImbtjqbAdiABS6q01/EylHwE=', 'base64'),
+      });
 
       // register
       const registerTxs = ntt.registerWormholeTransceiver({
@@ -293,7 +279,7 @@ describe('Portal unit tests', () => {
     });
     test('initialize earn', async () => {
       await earn.methods
-        .initialize()
+        .initialize(new BN(100_000_000))
         .accounts({
           admin: admin.publicKey,
           mMint: mint.publicKey,
@@ -315,15 +301,6 @@ describe('Portal unit tests', () => {
         spl.TOKEN_2022_PROGRAM_ID,
       );
 
-      await swapProgram.methods
-        .whitelistExtension()
-        .accountsPartial({
-          admin: admin.publicKey,
-          extProgram: config.EXT_PROGRAM,
-        })
-        .signers([admin])
-        .rpc();
-
       await mExt.methods
         .initialize([])
         .accounts({
@@ -339,6 +316,16 @@ describe('Portal unit tests', () => {
         [Buffer.from('token_authority')],
         config.PORTAL_PROGRAM_ID,
       )[0];
+
+      await swapProgram.methods
+        .whitelistExtension()
+        .accountsPartial({
+          admin: admin.publicKey,
+          extProgram: config.EXT_PROGRAM,
+          extMint: extMint.publicKey,
+        })
+        .signers([admin])
+        .rpc();
 
       // Add wrap authorities to extension
       await mExt.methods.addWrapAuthority(portalAuth).accounts({ admin: admin.publicKey }).signers([admin]).rpc();
@@ -575,7 +562,7 @@ describe('Portal unit tests', () => {
 
     // transfer payload builder with custom additional data
     let sequenceCount = 0;
-    const transferPayload = (additionalPayload: string, recipient?: PublicKey) => {
+    const transferPayload = (additionalPayload: Buffer<ArrayBuffer>, recipient?: PublicKey) => {
       return {
         sourceNttManager: wc.remoteMgr.address as UniversalAddress,
         recipientNttManager: new UniversalAddress(ntt.program.programId.toBytes()),
@@ -590,7 +577,7 @@ describe('Portal unit tests', () => {
             sourceToken: new UniversalAddress('FAFA'.padStart(64, '0')),
             recipientAddress: new UniversalAddress(recipient?.toBytes() ?? payer.publicKey.toBytes()),
             recipientChain: 'Solana',
-            additionalPayload: Buffer.from(additionalPayload.slice(2), 'hex'),
+            additionalPayload: additionalPayload,
           },
         },
         transceiverPayload: new Uint8Array(),
@@ -599,23 +586,26 @@ describe('Portal unit tests', () => {
 
     let inboxItem: PublicKey;
     let payload: any;
+    let vaaBytes: Uint8Array;
+    let vaaKey: PublicKey;
 
     const redeem = (
       additionalAccounts: AccountMeta[],
-      additionalPayload?: string,
+      additionalPayload?: Buffer<ArrayBuffer>,
       extension?: boolean,
       recipient?: PublicKey,
       skipRelease = false,
     ) => {
-      additionalPayload ??= utils.encodePacked(
-        { type: 'uint64', value: 1_000_000_000_001n }, // index
-        { type: 'bytes32', value: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b' }, // destination
-      );
+      additionalPayload ??= Buffer.concat([
+        new BN(1_000_000_000_001).toArrayLike(Buffer, 'be', 8), // index
+        (extension ? extMint : mint).publicKey.toBuffer(), // destination
+      ]);
 
       const serialized = serializePayload('Ntt:WormholeTransfer', transferPayload(additionalPayload, recipient));
 
       const published = emitter.publishMessage(0, serialized, 200);
       const rawVaa = guardians.addSignatures(published, [0]);
+      vaaBytes = rawVaa.payload as Uint8Array;
       const vaa = deserialize('Ntt:WormholeTransfer', serialize(rawVaa));
       const redeemTxs = ntt.redeem({ wormhole: vaa }, sender);
 
@@ -627,6 +617,12 @@ describe('Portal unit tests', () => {
       return async function* redeemTxns() {
         let i = 0;
         for await (const tx of redeemTxs) {
+          // grab the calculated VAA key
+          if (i === 2) {
+            const t = tx.transaction.transaction as Transaction;
+            vaaKey = t.instructions[0].keys[3].pubkey;
+          }
+
           if (++i === 4) {
             if (skipRelease) {
               continue;
@@ -761,7 +757,7 @@ describe('Portal unit tests', () => {
       tx.sign(randomUser);
 
       const result = svm.sendTransaction!(tx) as FailedTransactionMetadata;
-      expect(result.meta().logs()).toContain('Program log: expected recipient to match inbox item');
+      expect(result.meta().logs().join('. ')).toContain('Error Message: InvalidRecipientAddress');
     });
 
     it('$M tokens - calling redeem with portal auth', async () => {
@@ -818,7 +814,7 @@ describe('Portal unit tests', () => {
       tx.sign(randomUser);
 
       const result = svm.sendTransaction!(tx) as FailedTransactionMetadata;
-      expect(result.meta().logs()).toContain('Program log: expected recipient to match inbox item');
+      expect(result.meta().logs().join('. ')).toContain('Error Message: InvalidRecipientAddress');
     });
 
     it('$M tokens - frozen', async () => {
@@ -899,27 +895,231 @@ describe('Portal unit tests', () => {
       const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
       expect(parsedTokenAccount.amount).toBe(9880099n); // should be unchanged
 
-      // check balance
+      // check ext balance
       const extTokenAccountInfo = await connection.getAccountInfo(extAta);
       const extParsedTokenAccount = spl.unpackAccount(extAta, extTokenAccountInfo, TOKEN_PROGRAM);
       expect(extParsedTokenAccount.amount).toBe(9099n);
     });
 
-    it('tokens with merkle roots', async () => {
-      const additionalPayload = utils.encodePacked(
-        // index
-        { type: 'uint64', value: 123456 },
+    it('extension tokens - use resolver', async () => {
+      const { address: extAta } = await spl.getOrCreateAssociatedTokenAccount(
+        connection,
+        payer,
+        extMint.publicKey,
+        payer.publicKey,
+        true,
+        undefined,
+        undefined,
+        TOKEN_PROGRAM,
+      );
+
+      // publish message and load in vaa body bytes
+      const getRedeemTxns = redeem(
+        additionalRedeemAccounts(mint.publicKey, extMint.publicKey, extAta),
+        undefined,
+        true,
+      );
+
+      // execute first two then skip the rest
+      let i = 0;
+      for await (const tx of getRedeemTxns()) {
+        if (i++ < 2) {
+          async function* yieldTx(tx: SolanaUnsignedTransaction<'Mainnet', 'Solana'>) {
+            yield tx;
+          }
+          await ssw(ctx, yieldTx(tx), signer);
+        }
+      }
+
+      // check that first 64 bytes is the source and recipient manager
+      const dest_manager = new PublicKey(vaaBytes.slice(36, 68)).toBase58();
+      expect(dest_manager).toBe(config.PORTAL_PROGRAM_ID.toBase58());
+
+      // add VAA header with eth header
+      const vaaBody = Buffer.concat([Buffer.alloc(51), vaaBytes]);
+      vaaBody.writeUInt8(2, 9);
+
+      const initIx = new TransactionInstruction({
+        programId: ntt.program.programId,
+        keys: [
+          {
+            pubkey: payer.publicKey,
+            isSigner: true,
+            isWritable: true,
+          },
+          {
+            pubkey: ntt.pdas.configAccount(),
+            isSigner: false,
+            isWritable: true,
+          },
+          {
+            pubkey: PublicKey.findProgramAddressSync(
+              [Buffer.from('executor-account-resolver:result')],
+              config.PORTAL_PROGRAM_ID,
+            )[0],
+            isSigner: false,
+            isWritable: true,
+          },
+          {
+            pubkey: SystemProgram.programId,
+            isSigner: false,
+            isWritable: false,
+          },
+        ],
+        data: Buffer.concat([
+          Buffer.from(sha256('global:initialize_resolver_accounts').subarray(0, 8)), // discriminator
+          new BN(0).toArrayLike(Buffer, 'le', 1), // optional flag for lut
+        ]),
+      });
+
+      // send init so simulations below work
+      let tx = new Transaction().add(initIx);
+      tx.feePayer = payer.publicKey;
+      tx.recentBlockhash = svm.latestBlockhash();
+      tx.sign(payer);
+      svm.sendTransaction!(tx);
+
+      const resolveIx = new TransactionInstruction({
+        programId: ntt.program.programId,
+        keys: [],
+        data: Buffer.concat([
+          Buffer.from([148, 184, 169, 222, 207, 8, 154, 127]), // discriminator
+          new BN(vaaBody.length).toArrayLike(Buffer, 'le', 4), // vec length
+          Buffer.from(vaaBody), // vec
+        ]),
+      });
+
+      // simulate and get return data
+      tx = new Transaction().add(resolveIx);
+      tx.feePayer = payer.publicKey;
+      tx.recentBlockhash = svm.latestBlockhash();
+      tx.sign(payer);
+      let result = svm.simulateTransaction!(tx);
+      let data = result.meta().returnData().data();
+
+      expect(data[0]).toBe(1); // MissingAccounts
+      expect(data.slice(1, 5).toString()).toBe('6,0,0,0'); // 6 missing accounts
+
+      const account1 = new PublicKey(data.slice(5, 37));
+      const account2 = new PublicKey(data.slice(37, 69));
+      const account3 = new PublicKey(data.slice(69, 101));
+      const account4 = new PublicKey(data.slice(101, 133));
+      const account5 = new PublicKey(data.slice(133, 165));
+
+      // account5 is the payer, which is just a placeholder
+      const payerPlaceholder = new PublicKey(Buffer.from('payer_00000000000000000000000000'));
+      let account6 = new PublicKey(data.slice(165, 197));
+      expect(account6.toBase58()).toBe(payerPlaceholder.toBase58());
+      account6 = payer.publicKey;
+
+      // expect config account
+      expect(account2.toBase58()).toBe(ntt.pdas.configAccount().toBase58());
+
+      // remaining accounts
+      resolveIx.keys.push(
         {
-          // destination
-          type: 'bytes32',
-          value: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b',
+          pubkey: account1,
+          isSigner: false,
+          isWritable: true,
         },
         {
-          // earner root
-          type: 'bytes32',
-          value: '0x1111111111111111111111111111111111111111',
+          pubkey: account2,
+          isSigner: false,
+          isWritable: false,
+        },
+        {
+          pubkey: account3,
+          isSigner: false,
+          isWritable: false,
+        },
+        {
+          pubkey: account4,
+          isSigner: false,
+          isWritable: false,
+        },
+        {
+          pubkey: account5,
+          isSigner: false,
+          isWritable: false,
+        },
+        {
+          pubkey: account6,
+          isSigner: true,
+          isWritable: true,
+        },
+        {
+          pubkey: mint.publicKey,
+          isSigner: false,
+          isWritable: false,
         },
       );
+
+      tx = new Transaction().add(resolveIx);
+      tx.feePayer = payer.publicKey;
+      tx.recentBlockhash = svm.latestBlockhash();
+      tx.sign(payer);
+      result = svm.simulateTransaction!(tx);
+      data = result.meta().returnData().data();
+
+      expect(data[0]).toBe(2); // Resolved Account
+
+      // send transaction to load in account data
+      svm.sendTransaction!(tx).toString();
+
+      // decode account data
+      const encoder = new BorshAccountsCoder(resolverTypes());
+      const accountData = svm.getAccount!(account1);
+      expect(accountData).toBeDefined();
+      const resolveResult = encoder.decode('ExecutorAccountResolverResult', Buffer.from(accountData!.data));
+
+      const { instructions } = resolveResult[0].Resolved[0][0][0];
+
+      const resolveKey = (key: PublicKey) => {
+        const vaaPlaceholder = new PublicKey(Buffer.from('posted_vaa_000000000000000000000'));
+        if (key.equals(payerPlaceholder)) return payer.publicKey;
+        if (key.equals(vaaPlaceholder)) return vaaKey;
+        return key;
+      };
+
+      const redeemTx = new Transaction().add(
+        ...instructions.map(
+          (ix: any) =>
+            new TransactionInstruction({
+              programId: ix.program_id,
+              keys: ix.accounts.map((acc: any) => ({
+                pubkey: resolveKey(acc.pubkey),
+                isSigner: acc.is_signer,
+                isWritable: acc.is_writable,
+              })),
+              data: ix.data,
+            }),
+        ),
+      );
+
+      // check ext balance
+      let extTokenAccountInfo = await connection.getAccountInfo(extAta);
+      let extParsedTokenAccount = spl.unpackAccount(extAta, extTokenAccountInfo, TOKEN_PROGRAM);
+      expect(extParsedTokenAccount.amount).toBe(9099n);
+
+      // send transactions
+      redeemTx.feePayer = payer.publicKey;
+      redeemTx.recentBlockhash = svm.latestBlockhash();
+      redeemTx.sign(payer);
+      const redeemResult = svm.sendTransaction!(redeemTx);
+      expect((redeemResult as any).logs?.()).toBeDefined();
+
+      // check updated ext balance
+      extTokenAccountInfo = await connection.getAccountInfo(extAta);
+      extParsedTokenAccount = spl.unpackAccount(extAta, extTokenAccountInfo, TOKEN_PROGRAM);
+      expect(extParsedTokenAccount.amount).toBe(9198n);
+    });
+
+    it('tokens with merkle roots', async () => {
+      const additionalPayload = Buffer.concat([
+        new BN(123456).toArrayLike(Buffer, 'be', 8), // index
+        mint.publicKey.toBuffer(), // destination
+        new Keypair().publicKey.toBuffer(), // random earner root
+      ]);
 
       const getRedeemTxns = redeem(
         [
@@ -1208,4 +1408,188 @@ function additionalRedeemAccounts(mMint: PublicKey, extMint: PublicKey, extAta: 
       isWritable: false,
     },
   ];
+}
+
+function resolverTypes(): Idl {
+  return {
+    address: '',
+    instructions: [],
+    metadata: {
+      name: '',
+      version: '',
+      spec: '',
+    },
+    accounts: [
+      {
+        name: 'ExecutorAccountResolverResult',
+        discriminator: [34, 185, 243, 199, 181, 255, 28, 227],
+      },
+    ],
+    types: [
+      {
+        name: 'ExecutorAccountResolverResult',
+        type: {
+          kind: 'struct',
+          fields: [
+            {
+              defined: {
+                name: 'Resolver',
+                generics: [
+                  {
+                    kind: 'type',
+                    type: {
+                      defined: {
+                        name: 'InstructionGroups',
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+      {
+        name: 'InstructionGroup',
+        type: {
+          kind: 'struct',
+          fields: [
+            {
+              name: 'instructions',
+              type: {
+                vec: {
+                  defined: {
+                    name: 'SerializableInstruction',
+                  },
+                },
+              },
+            },
+            {
+              name: 'address_lookup_tables',
+              type: {
+                vec: 'pubkey',
+              },
+            },
+          ],
+        },
+      },
+      {
+        name: 'InstructionGroups',
+        type: {
+          kind: 'struct',
+          fields: [
+            {
+              vec: {
+                defined: {
+                  name: 'InstructionGroup',
+                },
+              },
+            },
+          ],
+        },
+      },
+      {
+        name: 'MissingAccounts',
+        type: {
+          kind: 'struct',
+          fields: [
+            {
+              name: 'accounts',
+              type: {
+                vec: 'pubkey',
+              },
+            },
+            {
+              name: 'address_lookup_tables',
+              type: {
+                vec: 'pubkey',
+              },
+            },
+          ],
+        },
+      },
+      {
+        name: 'Resolver',
+        generics: [
+          {
+            kind: 'type',
+            name: 'T',
+          },
+        ],
+        type: {
+          kind: 'enum',
+          variants: [
+            {
+              name: 'Resolved',
+              fields: [
+                {
+                  generic: 'T',
+                },
+              ],
+            },
+            {
+              name: 'Missing',
+              fields: [
+                {
+                  defined: {
+                    name: 'MissingAccounts',
+                  },
+                },
+              ],
+            },
+            {
+              name: 'Account',
+              fields: [],
+            },
+          ],
+        },
+      },
+      {
+        name: 'SerializableAccountMeta',
+        type: {
+          kind: 'struct',
+          fields: [
+            {
+              name: 'pubkey',
+              type: 'pubkey',
+            },
+            {
+              name: 'is_signer',
+              type: 'bool',
+            },
+            {
+              name: 'is_writable',
+              type: 'bool',
+            },
+          ],
+        },
+      },
+      {
+        name: 'SerializableInstruction',
+        type: {
+          kind: 'struct',
+          fields: [
+            {
+              name: 'program_id',
+              type: 'pubkey',
+            },
+            {
+              name: 'accounts',
+              type: {
+                vec: {
+                  defined: {
+                    name: 'SerializableAccountMeta',
+                  },
+                },
+              },
+            },
+            {
+              name: 'data',
+              type: 'bytes',
+            },
+          ],
+        },
+      },
+    ],
+  };
 }

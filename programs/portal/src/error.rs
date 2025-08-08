@@ -63,6 +63,12 @@ pub enum NTTError {
     ThresholdTooHigh,
     #[msg("InvalidTransceiverProgram")]
     InvalidTransceiverProgram,
+    #[msg("InvalidVAA")]
+    InvalidVAA,
+    #[msg("RESOLVER_RESULT_ACCOUNT needs to be writable")]
+    InvalidReturnAccount,
+    #[msg("Missing payer account")]
+    MissingPayerAccount,
 }
 
 impl From<ScalingError> for NTTError {

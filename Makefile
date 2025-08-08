@@ -17,13 +17,7 @@ test-yield:
 
 test-sdk:
 	@cd sdk && pnpm build
-	@anchor localnet --skip-build > /dev/null 2>&1 & \
-	anvil -f https://gateway.tenderly.co/public/sepolia > /dev/null 2>&1 & \
-	sleep 2 && \
-	cd tests && pnpm jest --preset ts-jest tests/unit/sdk.test.ts; \
-	e=$$?; \
-	kill -9 $$(lsof -ti:8899) & kill -9 $$(lsof -ti:8545); \
-	exit $$e
+	cd tests && pnpm jest --preset ts-jest tests/unit/sdk.test.ts; exit $$?
 
 test-merkle:
 	pnpm jest --preset ts-jest tests/unit/merkle.test.ts; exit $$?

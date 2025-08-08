@@ -3,12 +3,6 @@ import BN from 'bn.js';
 import { BorshAccountsCoder, Idl } from '@coral-xyz/anchor';
 import { IdlDefinedFields } from '@coral-xyz/anchor/dist/cjs/idl';
 
-enum YieldVariant {
-  NoYield = 0,
-  ScaledUi = 1,
-  Crank = 2,
-}
-
 export interface EarnManagerData {
   isActive: boolean;
   feeBps: BN;
@@ -21,7 +15,7 @@ export interface GlobalAccountData {
   admin: PublicKey;
   extMint: PublicKey;
   mMint: PublicKey;
-  variant: YieldVariant;
+  variant: 'Crank' | 'ScaledUi' | 'NoYield';
   wrapAuthorities: PublicKey[];
 
   // crank fields
@@ -52,13 +46,13 @@ export async function loadGlobal(connection: Connection, program: PublicKey): Pr
 
   return {
     admin: global.admin,
-    extMint: global.extMint,
-    mMint: global.mMint,
-    variant: global.yieldConfig.yieldVariant,
-    wrapAuthorities: global.wrapAuthorities,
-    index: global.yieldConfig.index,
-    timestamp: global.yieldConfig.ts,
-    earnAuthority: global.yieldConfig.earnAuthority,
+    extMint: global.ext_mint,
+    mMint: global.m_mint,
+    variant: Object.keys(global.yield_config.yield_variant)[0] as 'Crank' | 'ScaledUi' | 'NoYield',
+    wrapAuthorities: global.wrap_authorities,
+    index: global.yield_config.index,
+    timestamp: global.yield_config.ts,
+    earnAuthority: global.yield_config.earn_authority,
   };
 }
 
@@ -93,27 +87,15 @@ function extensionIDL(variant: number): Idl {
       },
       {
         name: 'fee_bps',
-        type: {
-          defined: {
-            name: 'u64',
-          },
-        },
+        type: 'u64',
       },
       {
         name: 'last_m_index',
-        type: {
-          defined: {
-            name: 'u64',
-          },
-        },
+        type: 'u64',
       },
       {
         name: 'last_ext_index',
-        type: {
-          defined: {
-            name: 'u64',
-          },
-        },
+        type: 'u64',
       },
     ],
     [
@@ -127,27 +109,15 @@ function extensionIDL(variant: number): Idl {
       },
       {
         name: 'earn_authority',
-        type: {
-          defined: {
-            name: 'pubkey',
-          },
-        },
+        type: 'pubkey',
       },
       {
         name: 'index',
-        type: {
-          defined: {
-            name: 'u64',
-          },
-        },
+        type: 'u64',
       },
       {
         name: 'ts',
-        type: {
-          defined: {
-            name: 'u64',
-          },
-        },
+        type: 'u64',
       },
     ],
   ];

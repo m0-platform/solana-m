@@ -634,6 +634,7 @@ pub struct SetMint<'info> {
     #[account(
         mut,
         has_one = owner,
+        constraint = config.paused @ NTTError::NotPaused,
     )]
     pub config: Account<'info, Config>,
 

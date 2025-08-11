@@ -625,3 +625,22 @@ pub fn set_threshold(ctx: Context<SetThreshold>, threshold: u8) -> Result<()> {
     ctx.accounts.config.threshold = threshold;
     Ok(())
 }
+
+// * Set Mint
+#[derive(Accounts)]
+pub struct SetMint<'info> {
+    pub owner: Signer<'info>,
+
+    #[account(
+        mut,
+        has_one = owner,
+    )]
+    pub config: Account<'info, Config>,
+
+    pub mint: InterfaceAccount<'info, token_interface::Mint>,
+}
+
+pub fn set_mint(ctx: Context<SetMint>) -> Result<()> {
+    ctx.accounts.config.mint = ctx.accounts.mint.key();
+    Ok(())
+}

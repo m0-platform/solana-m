@@ -45,7 +45,7 @@ import {
 } from '../../sdk/src';
 import { createInitializeConfidentialTransferMintInstruction } from './confidential-transfers';
 import { Program, BN } from '@coral-xyz/anchor';
-import { anchorProvider, keysFromEnv, NttManager } from './utils';
+import { anchorProvider, keysFromEnv, NttManager, updatePortalMint } from './utils';
 import { MerkleTree } from '../../sdk/src/merkle';
 import { bs58 } from '@coral-xyz/anchor/dist/cjs/utils/bytes';
 import { SolanaUnsignedTransaction } from '@wormhole-foundation/sdk-solana/dist/cjs';
@@ -78,7 +78,7 @@ async function main() {
     .command('print-addresses')
     .description('Print the addresses of all the relevant programs and accounts')
     .action(() => {
-      const [mMint, wmMint, multisig] = keysFromEnv(['M_MINT_KEYPAIR', 'WM_MINT_KEYPAIR', 'M_MINT_MULTISIG_KEYPAIR']);
+      const [mMint, wmMint] = keysFromEnv(['M_MINT_KEYPAIR', 'WM_MINT_KEYPAIR']);
       const [portalTokenAuthPda] = PublicKey.findProgramAddressSync([Buffer.from('token_authority')], PROGRAMS.portal);
       const [earnTokenAuthPda] = PublicKey.findProgramAddressSync([Buffer.from('token_authority')], PROGRAMS.earn);
       const [portalEmitter] = PublicKey.findProgramAddressSync([Buffer.from('emitter')], PROGRAMS.portal);
@@ -94,7 +94,6 @@ async function main() {
         'Earn Program': PROGRAMS.earn,
         'Swap Program': PROGRAMS.swap,
         'M Mint': mMint.publicKey,
-        'M Mint Multisig': multisig.publicKey,
         'Portal Token Authority': portalTokenAuthPda,
         'Earn Token Authority': earnTokenAuthPda,
         'wM Mint': wmMint.publicKey,
@@ -246,7 +245,26 @@ async function main() {
     });
 
   program.command('update-portal-mint').action(async () => {
-    const [owner] = keysFromEnv(['PAYER_KEYPAIR']);
+    const [payer, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
+    const { ntt } = NttManager(connection, payer, mint.publicKey);
+
+    let owner = payer.publicKey;
+    if (process.env.SQUADS_VAULT) {
+      owner = new PublicKey(process.env.SQUADS_VAULT);
+    }
+
+    const tx = new Transaction().add(updatePortalMint(owner, ntt.pdas.configAccount(), mint.publicKey));
+
+    if (process.env.SQUADS_VAULT) {
+      const b = tx.serialize({ verifySignatures: false });
+      console.log('Transaction:', {
+        b64: b.toString('base64'),
+        b58: bs58.encode(b),
+      });
+    } else {
+      const sig = await connection.sendTransaction(tx, [payer]);
+      console.log(`Paused: ${sig}`);
+    }
   });
 
   program
@@ -366,7 +384,7 @@ async function main() {
     const pauseTxn = (await ntt.pause(sender).next()).value as SolanaUnsignedTransaction<'Mainnet', 'Solana'>;
     const tx = pauseTxn.transaction.transaction as Transaction;
 
-    if (process.env.SQUADS_MULTISIG) {
+    if (process.env.SQUADS_VAULT) {
       const b = tx.serialize({ verifySignatures: false });
       console.log('Transaction:', {
         b64: b.toString('base64'),
@@ -390,7 +408,7 @@ async function main() {
       const pauseTxn = (await cmd(sender).next()).value as SolanaUnsignedTransaction<'Mainnet', 'Solana'>;
       const tx = pauseTxn.transaction.transaction as Transaction;
 
-      if (process.env.SQUADS_MULTISIG) {
+      if (process.env.SQUADS_VAULT) {
         const b = tx.serialize({ verifySignatures: false });
         console.log('Transaction:', {
           b64: b.toString('base64'),

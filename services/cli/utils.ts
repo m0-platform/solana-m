@@ -1,7 +1,7 @@
-import { Keypair, Connection, PublicKey } from '@solana/web3.js';
+import { Keypair, Connection, PublicKey, TransactionInstruction } from '@solana/web3.js';
 import { SolanaNtt } from '@wormhole-foundation/sdk-solana-ntt';
 import { SolanaPlatform, SolanaSendSigner } from '@wormhole-foundation/sdk-solana';
-import { AccountAddress, Wormhole } from '@wormhole-foundation/sdk';
+import { AccountAddress, sha256, Wormhole } from '@wormhole-foundation/sdk';
 import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
 
 const PORTAL = new PublicKey('mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY');
@@ -43,5 +43,29 @@ export function anchorProvider(connection: Connection, owner: Keypair) {
   return new AnchorProvider(connection, new Wallet(owner), {
     commitment: 'confirmed',
     skipPreflight: false,
+  });
+}
+
+export function updatePortalMint(owner: PublicKey, config: PublicKey, mMint: PublicKey): TransactionInstruction {
+  return new TransactionInstruction({
+    programId: PORTAL,
+    keys: [
+      {
+        pubkey: owner,
+        isSigner: true,
+        isWritable: false,
+      },
+      {
+        pubkey: config,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        pubkey: mMint,
+        isSigner: false,
+        isWritable: false,
+      },
+    ],
+    data: Buffer.concat([Buffer.from(sha256('global:set_mint').subarray(0, 8))]),
   });
 }

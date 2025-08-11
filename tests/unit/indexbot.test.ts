@@ -17,7 +17,7 @@ describe('Index bot tests', () => {
 
     // mock command-line arguments
     process.argv = ['node', 'main.ts', 'push'];
-    process.argv.push('-t', '86400');
+    process.argv.push('-t', '0');
     process.argv.push('--dryRun');
 
     await indexCLI();
@@ -83,19 +83,19 @@ function mockRequestData() {
     ],
     [
       (body: any) =>
-        body.method === 'getAccountInfo' && body.params?.[0] === 'GNc6kVU8B4ZdDk6wpzUyNUo7Zs42MBLKVRz64Zojfpje', // global account
+        body.method === 'getAccountInfo' && body.params?.[0] === 'mzerojk9tg56ebsrEAhfkyc9VgKjTW2zDqp6C5mhjzH', // mint
       {
         context,
         value: {
           data: [
-            'p+joschscn+z3HtcE1xihhozJWJpdvNsPnG5FAKFUFeJ7wZJIrxP9rPce1wTXGKGGjMlYml282w+cbkUAoVQV4nvBkkivE/2C4a+Zr/OtMHX6Se8xNAUvg8oY6ud+F/aYQhRtk29CuXNorbu6QAAAAC05mcAAAAALAEAAAAAAAAmiRsAAAAAANIBAAAAAAAAAAAAAAAAAAAA4s+HOzdKtcdPgH3ruU3IQEvLtAydCoj5j1nDukIsog0TG0E5aKgG7NsJGiMoiB8VGXMnMISc8luMk8M87uB6Vf4=',
+            'AQAAAM7LJggs8WNKDMmFP7DBFPphSWp4JDBwKKBLtkP3ApJeIgZdAAAAAAAGAQEAAABbolZZdTxWvaCrBvYg2Ia8fm7mX4mV5m8BUNaoQbjiaQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARIAQAB890XGpUEUSnn/t/R/PsDdmSrTBEBeq/cFh0gz/mB43w2LdC9iqciletEDaOnbu+uj0xQn4eqEpDhdp+ovDjZ4GQA4AM7LJggs8WNKDMmFP7DBFPphSWp4JDBwKKBLtkP3ApJeV64nw2UQ8D8A75loAAAAAFeuJ8NlEPA/BABBAHz3RcalQRRKef+39H8+wN2ZKtMEQF6r9wWHSDP+YHjfAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADgBAAHz3RcalQRRKef+39H8+wN2ZKtMEQF6r9wWHSDP+YHjfAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAATAAIBfPdFxqVBFEp5/7f0fz7A3Zkq0wRAXqv3BYdIM/5geN8Ni3QvYqnIpXrRA2jp27vro9MUJ+HqhKQ4XafqLw42eBEAAABLQVNUIFlpZWxkIERvbGxhcgUAAABVU0RLWXQAAABodHRwczovL2dyZWVuLW9iZWRpZW50LWFsYmF0cm9zcy0xNTUubXlwaW5hdGEuY2xvdWQvaXBmcy9iYWZrcmVpaG1icnVpanVvMmJpYm5yYWJwMzczYTd2ZWl3czd3M3c3eDRlY3ZnNjVnNDJzeGYydTVyNAEAAAAMAAAAZXh0ZXJuYWxfdXJsFAAAAGh0dHBzOi8vd3d3Lmthc3QueHl6',
             'base64',
           ],
           executable: false,
-          lamports: 2408160,
-          owner: 'MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c',
+          lamports: 5714160,
+          owner: 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb',
           rentEpoch: 18446744073709551615,
-          space: 218,
+          space: 693,
         },
       },
     ],

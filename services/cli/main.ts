@@ -39,7 +39,6 @@ import { Chain, ChainAddress, UniversalAddress, assertChain, signSendWait } from
 import {
   createPublicClient,
   http,
-  EarnAuthority,
   ETH_MERKLE_TREE_BUILDER,
   ETH_MERKLE_TREE_BUILDER_DEVNET,
   EvmCaller,
@@ -48,15 +47,10 @@ import { createInitializeConfidentialTransferMintInstruction } from './confident
 import { Program, BN } from '@coral-xyz/anchor';
 import { anchorProvider, keysFromEnv, NttManager } from './utils';
 import { MerkleTree } from '../../sdk/src/merkle';
-import { EarnManager } from '../../sdk/src/earn_manager';
-import { getProgram } from '../../sdk/src/idl';
 import { bs58 } from '@coral-xyz/anchor/dist/cjs/utils/bytes';
-import { ExtSwap } from '../../tests/programs/ext_swap';
 import { SolanaUnsignedTransaction } from '@wormhole-foundation/sdk-solana/dist/cjs';
 import { Earn } from '../../target/types/earn';
 const EARN_IDL = require('../../sdk/src/idl/earn.json');
-const EXT_EARN_IDL = require('../../sdk/src/idl/ext_earn.json');
-const SWAP_IDL = require('../../tests/programs/ext_swap.json');
 
 const PROGRAMS = {
   // program id the same for devnet and mainnet
@@ -224,7 +218,7 @@ async function main() {
     .command('initialize-portal')
     .description('Initialize the portal program')
     .action(async () => {
-      const [owner, mint, multisig] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR', 'MULTISIG_KEYPAIR']);
+      const [owner, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
 
       const { ctx, ntt, sender, signer } = NttManager(connection, owner, mint.publicKey);
 
@@ -232,7 +226,6 @@ async function main() {
         mint: mint.publicKey,
         outboundLimit: RATE_LIMITS_24.outbound,
         mode: 'burning',
-        multisig: multisig.publicKey,
       });
 
       const initTx = (await initTxs.next()).value as SolanaUnsignedTransaction<'Mainnet', 'Solana'>;
@@ -251,6 +244,10 @@ async function main() {
       await signSendWait(ctx, initLUT, signer);
       console.log(`LUT initialized: ${ntt.pdas.lutAccount().toBase58()}`);
     });
+
+  program.command('update-portal-mint').action(async () => {
+    const [owner] = keysFromEnv(['PAYER_KEYPAIR']);
+  });
 
   program
     .command('initialize-earn')
@@ -359,6 +356,49 @@ async function main() {
         const updateTxns = ntt.setInboundLimit(chain, RATE_LIMITS_24.inbound, sender);
         const sigs = await signSendWait(ctx, updateTxns, signer);
         console.log(`Updated inbound limit for ${chain}: ${sigs[0].txid}`);
+      }
+    });
+
+  program.command('pause-bridging').action(async () => {
+    const [payer, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
+    const { ntt, sender } = NttManager(connection, payer, mint.publicKey);
+
+    const pauseTxn = (await ntt.pause(sender).next()).value as SolanaUnsignedTransaction<'Mainnet', 'Solana'>;
+    const tx = pauseTxn.transaction.transaction as Transaction;
+
+    if (process.env.SQUADS_MULTISIG) {
+      const b = tx.serialize({ verifySignatures: false });
+      console.log('Transaction:', {
+        b64: b.toString('base64'),
+        b58: bs58.encode(b),
+      });
+    } else {
+      const sig = await connection.sendTransaction(tx, [payer]);
+      console.log(`Paused: ${sig}`);
+    }
+  });
+
+  program
+    .command('pause-bridging')
+    .option('-u, --unpause', 'Unpause if already paused')
+    .action(async ({ unpause }) => {
+      const [payer, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
+      const { ntt, sender } = NttManager(connection, payer, mint.publicKey);
+
+      const cmd = unpause ? ntt.unpause : ntt.pause;
+
+      const pauseTxn = (await cmd(sender).next()).value as SolanaUnsignedTransaction<'Mainnet', 'Solana'>;
+      const tx = pauseTxn.transaction.transaction as Transaction;
+
+      if (process.env.SQUADS_MULTISIG) {
+        const b = tx.serialize({ verifySignatures: false });
+        console.log('Transaction:', {
+          b64: b.toString('base64'),
+          b58: bs58.encode(b),
+        });
+      } else {
+        const sig = await connection.sendTransaction(tx, [payer]);
+        console.log(`Paused ${!unpause}: ${sig}`);
       }
     });
 

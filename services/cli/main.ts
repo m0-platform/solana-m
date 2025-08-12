@@ -50,7 +50,7 @@ import { MerkleTree } from '../../sdk/src/merkle';
 import { bs58 } from '@coral-xyz/anchor/dist/cjs/utils/bytes';
 import { SolanaUnsignedTransaction } from '@wormhole-foundation/sdk-solana/dist/cjs';
 import { Earn } from '../../target/types/earn';
-const EARN_IDL = require('../../sdk/src/idl/earn.json');
+const EARN_IDL = require('../../target/idl/earn.json');
 
 const PROGRAMS = {
   // program id the same for devnet and mainnet
@@ -374,25 +374,6 @@ async function main() {
         console.log(`Updated inbound limit for ${chain}: ${sigs[0].txid}`);
       }
     });
-
-  program.command('pause-bridging').action(async () => {
-    const [payer, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
-    const { ntt, sender } = NttManager(connection, payer, mint.publicKey);
-
-    const pauseTxn = (await ntt.pause(sender).next()).value as SolanaUnsignedTransaction<'Mainnet', 'Solana'>;
-    const tx = pauseTxn.transaction.transaction as Transaction;
-
-    if (process.env.SQUADS_MULTISIG) {
-      const b = tx.serialize({ verifySignatures: false });
-      console.log('Transaction:', {
-        b64: b.toString('base64'),
-        b58: bs58.encode(b),
-      });
-    } else {
-      const sig = await connection.sendTransaction(tx, [payer]);
-      console.log(`Paused: ${sig}`);
-    }
-  });
 
   program
     .command('pause-bridging')

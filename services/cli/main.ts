@@ -157,6 +157,53 @@ async function main() {
       console.log(`M mint created: ${mint.publicKey.toBase58()}`);
     });
 
+  program
+    .command('compare-mint-balances')
+    .argument('[oldMint]', 'The mint to compare balances to', 'mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo')
+    .action(async (oldMint) => {
+      const [mint] = keysFromEnv(['M_MINT_KEYPAIR']);
+
+      const createRequest = (mint: string) => ({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'getTokenAccounts',
+          id: '1',
+          params: { mint },
+        }),
+      });
+
+      const responseOld = await fetch(process.env.RPC_URL!, createRequest(oldMint));
+      const responseNew = await fetch(process.env.RPC_URL!, createRequest(mint.publicKey.toBase58()));
+
+      const dataOld = await responseOld.json();
+      const dataNew = await responseNew.json();
+
+      const newByOwner = new Map<string, number>();
+      for (let { owner, amount } of dataNew.result.token_accounts) {
+        newByOwner.set(owner, amount);
+      }
+
+      const tableData = [];
+      for (let { owner, amount } of dataOld.result.token_accounts) {
+        if (amount < 1e6) continue;
+
+        const newBalance = newByOwner.get(owner) || 0;
+
+        tableData.push({
+          owner,
+          'old balance': amount,
+          'new balance': newBalance,
+          equal: amount === newBalance,
+        });
+      }
+
+      console.table(tableData);
+    });
+
   program.command('transfer-mint-authorities').action(async () => {
     const [payer, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
     let globalAuth = PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAMS.earn)[0];
@@ -281,9 +328,7 @@ async function main() {
       const currentIndex = await evmCaller.getCurrentIndex();
 
       await earn.methods
-        .initialize(
-          new BN(currentIndex.toString()), // initial index
-        )
+        .initialize()
         .accounts({
           admin,
           mMint: mint.publicKey,
@@ -382,9 +427,10 @@ async function main() {
       const [payer, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
       const { ntt, sender } = NttManager(connection, payer, mint.publicKey);
 
-      const cmd = unpause ? ntt.unpause : ntt.pause;
+      const pauseTxn = (
+        unpause ? (await ntt.unpause(sender).next()).value : (await ntt.pause(sender).next()).value
+      ) as SolanaUnsignedTransaction<'Mainnet', 'Solana'>;
 
-      const pauseTxn = (await cmd(sender).next()).value as SolanaUnsignedTransaction<'Mainnet', 'Solana'>;
       const tx = pauseTxn.transaction.transaction as Transaction;
 
       if (process.env.SQUADS_MULTISIG) {

@@ -125,9 +125,9 @@ async function main() {
         mintAuth = new PublicKey(owner);
       }
 
-      let freezeAuth = PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAMS.earn)[0];
+      let globalAuth = PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAMS.earn)[0];
       if (owner) {
-        freezeAuth = new PublicKey(owner);
+        globalAuth = new PublicKey(owner);
       }
 
       let extAuth = payer.publicKey;
@@ -147,7 +147,7 @@ async function main() {
           ExtensionType.PermanentDelegate,
         ],
         mintAuth,
-        freezeAuth,
+        globalAuth,
         extAuth,
         'M by M0',
         'M',
@@ -159,7 +159,7 @@ async function main() {
 
   program.command('transfer-mint-authorities').action(async () => {
     const [payer, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
-    let freezeAuth = PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAMS.earn)[0];
+    let globalAuth = PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAMS.earn)[0];
     let mintAuth = PublicKey.findProgramAddressSync([Buffer.from('token_authority')], PROGRAMS.portal)[0];
 
     const tx = new Transaction().add(
@@ -167,7 +167,23 @@ async function main() {
         mint.publicKey,
         payer.publicKey,
         AuthorityType.FreezeAccount,
-        freezeAuth,
+        globalAuth,
+        undefined,
+        TOKEN_2022_PROGRAM_ID,
+      ),
+      createSetAuthorityInstruction(
+        mint.publicKey,
+        payer.publicKey,
+        AuthorityType.ScaledUiAmountConfig,
+        globalAuth,
+        undefined,
+        TOKEN_2022_PROGRAM_ID,
+      ),
+      createSetAuthorityInstruction(
+        mint.publicKey,
+        payer.publicKey,
+        AuthorityType.PermanentDelegate,
+        globalAuth,
         undefined,
         TOKEN_2022_PROGRAM_ID,
       ),
@@ -460,7 +476,7 @@ async function createToken2022Mint(
   mint: Keypair,
   extensions: ExtensionType[],
   mintAuthority: PublicKey,
-  freezeAuthority: PublicKey | null,
+  globalAuth: PublicKey,
   extensionsAuthority: PublicKey,
   tokenName: string,
   tokenSymbol: string,
@@ -515,7 +531,7 @@ async function createToken2022Mint(
 
   if (extensions.includes(ExtensionType.ScaledUiAmountConfig)) {
     instructions.push(
-      createInitializeScaledUiAmountConfigInstruction(mint.publicKey, extensionsAuthority, 1.0, TOKEN_2022_PROGRAM_ID),
+      createInitializeScaledUiAmountConfigInstruction(mint.publicKey, globalAuth, 1.0, TOKEN_2022_PROGRAM_ID),
     );
   }
 
@@ -526,9 +542,7 @@ async function createToken2022Mint(
   }
 
   if (extensions.includes(ExtensionType.PermanentDelegate)) {
-    instructions.push(
-      createInitializePermanentDelegateInstruction(mint.publicKey, extensionsAuthority, TOKEN_2022_PROGRAM_ID),
-    );
+    instructions.push(createInitializePermanentDelegateInstruction(mint.publicKey, globalAuth, TOKEN_2022_PROGRAM_ID));
   }
 
   instructions.push(
@@ -536,7 +550,7 @@ async function createToken2022Mint(
       mint.publicKey,
       6,
       payer.publicKey, // will transfer on last instruction
-      freezeAuthority, // if null, there is no freeze authority
+      globalAuth, // freeze authority
       TOKEN_2022_PROGRAM_ID,
     ),
     createInitializeInstruction({

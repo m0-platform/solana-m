@@ -413,6 +413,7 @@ async function main() {
     const [payer, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
     const admin = process.env.SQUADS_VAULT ? new PublicKey(process.env.SQUADS_VAULT) : payer.publicKey;
     const { ntt } = NttManager(connection, payer, mint.publicKey);
+    const swapLUT = new PublicKey('9JLRqBqkznKiSoNfotA4ywSRdnWb2fE76SiFrAfkaRCD');
 
     const tx = new Transaction().add(
       new TransactionInstruction({
@@ -442,7 +443,11 @@ async function main() {
             isWritable: false,
           },
         ],
-        data: Buffer.concat([Buffer.from(sha256('global:initialize_resolver_accounts').subarray(0, 8))]),
+        data: Buffer.concat([
+          Buffer.from(sha256('global:initialize_resolver_accounts').subarray(0, 8)),
+          Buffer.from([1]),
+          swapLUT.toBuffer(),
+        ]),
       }),
     );
 
@@ -457,7 +462,7 @@ async function main() {
       });
     } else {
       const sig = await connection.sendTransaction(tx, [payer]);
-      console.log(`Updated mint: ${sig}`);
+      console.log(`Initialized resolver: ${sig}`);
     }
   });
 

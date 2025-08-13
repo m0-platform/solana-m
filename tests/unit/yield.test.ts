@@ -6,17 +6,19 @@ import {
   Transaction,
 } from '@solana/web3.js';
 import { fromWorkspace, LiteSVMProvider } from 'anchor-litesvm';
-import { createPublicClient, http, MINT, PROGRAM_ID, TOKEN_2022_ID, EarnAuthority } from '@m0-foundation/solana-m-sdk';
+import { EarnAuthority, ConsoleLogger } from '@m0-foundation/solana-m-sdk';
 import { M0SolanaApi } from '@m0-foundation/solana-m-api-sdk';
 import nock from 'nock';
 import { TransactionMetadata } from 'litesvm';
 import BN from 'bn.js';
 
 const API_URL = 'http://localhost:5500';
+const PROGRAM_ID = new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko');
+const TOKEN_2022_ID = new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
+const MINT = new PublicKey('mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp');
 
 describe('Yield calculation tests', () => {
   const svm = fromWorkspace('../').withSplPrograms();
-  const evmClient = createPublicClient({ transport: http('http://localhost:8545') });
   const provider = new LiteSVMProvider(svm);
   const connection = provider.connection;
 
@@ -83,17 +85,6 @@ describe('Yield calculation tests', () => {
     ),
   });
 
-  // Mint Mulitsig
-  svm.setAccount(new PublicKey('ms2SCrTYioPuumF6oBvReXoVRizEW5qYkiVuUEak7Th'), {
-    executable: false,
-    owner: TOKEN_2022_ID,
-    lamports: 4851120,
-    data: Buffer.from(
-      'AQIBhI3MukCLt9bNZReoZG9yHU+BVceFnS9LIH0+7+c54FqaouLGPcvnsHbwterjiAcIu1l2R99H2pIkxuBTYyQP/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
-      'base64',
-    ),
-  });
-
   // User Token Account
   svm.setAccount(new PublicKey('BXr9Y8RarW8GhZ43Ma1vfUgm5haJVy9x2XSea9aCFSya'), {
     executable: false,
@@ -104,23 +95,6 @@ describe('Yield calculation tests', () => {
       'base64',
     ),
   });
-
-  const setTokenAccountBalance = (balance: bigint) => {
-    // encode the balance as a big-endian hex string
-    const balanceHex = balance.toString(16).padStart(16, '0').match(/../g)?.reverse().join('') ?? '000000000000000';
-
-    const data = Buffer.from(
-      `0b86be66d32bc5a4b5ab1febdf48e33b06c3b5a163b19c1730ed78705f7ef68c54592e90a3d0812d2ba6712e2c42888a30d3266e63608461091432d850ef8379${balanceHex}00000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002070000000f00010000`,
-      'hex',
-    );
-
-    svm.setAccount(new PublicKey('BXr9Y8RarW8GhZ43Ma1vfUgm5haJVy9x2XSea9aCFSya'), {
-      executable: false,
-      owner: TOKEN_2022_ID,
-      lamports: 2108880,
-      data,
-    });
-  };
 
   describe('calculations', () => {
     // create index updates
@@ -205,9 +179,10 @@ describe('Yield calculation tests', () => {
           mockSubgraphIndexUpdates(testConfig.indexUpdates.slice(lastClaim, j + 2));
 
           // build claim for earner
-          const auth = await EarnAuthority.load(connection, evmClient);
+          const auth = await EarnAuthority.load(connection, PROGRAM_ID, new ConsoleLogger());
           const earner = (await auth.getAllEarners())[0];
           const ix = await auth.buildClaimInstruction(earner);
+
           // build transaction
           const tx = new Transaction().add(ix!);
           tx.feePayer = provider.wallet.publicKey;

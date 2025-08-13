@@ -5,6 +5,7 @@
   "license": "MIT",
   "dependencies": {
     "@m0-foundation/solana-m-sdk": "workspace:",
+    "@solana/spl-token": "catalog:",
     "@solana/web3.js": "catalog:",
     "commander": "catalog:",
     "shared": "workspace:",

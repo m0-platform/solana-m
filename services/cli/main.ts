@@ -13,13 +13,17 @@ import {
 import {
   AccountState,
   AuthorityType,
+  createAssociatedTokenAccountInstruction,
+  createFreezeAccountInstruction,
   createInitializeDefaultAccountStateInstruction,
   createInitializeMetadataPointerInstruction,
   createInitializeMintInstruction,
   createInitializePermanentDelegateInstruction,
   createInitializeScaledUiAmountConfigInstruction,
   createInitializeTransferHookInstruction,
+  createMintToInstruction,
   createSetAuthorityInstruction,
+  createThawAccountInstruction,
   ExtensionType,
   getAssociatedTokenAddressSync,
   getMintLen,
@@ -202,6 +206,57 @@ async function main() {
       }
 
       console.table(tableData);
+
+      const supplyOld = await connection.getTokenSupply(new PublicKey(oldMint));
+      const supplyNew = await connection.getTokenSupply(mint.publicKey);
+      console.log(`Old Mint Supply: ${supplyOld.value.uiAmount}`);
+      console.log(`New Mint Supply: ${supplyNew.value.uiAmount}`);
+    });
+
+  program
+    .command('mint-tokens')
+    .argument('[owner]', 'Owner of the ATA')
+    .argument('[amount]', 'Amount of tokens to mint')
+    .action(async (owner, amount) => {
+      const [payer, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
+      const ataOwner = new PublicKey(owner);
+
+      const associatedToken = getAssociatedTokenAddressSync(mint.publicKey, ataOwner, true, TOKEN_2022_PROGRAM_ID);
+
+      const transaction = new Transaction().add(
+        createAssociatedTokenAccountInstruction(
+          payer.publicKey,
+          associatedToken,
+          ataOwner,
+          mint.publicKey,
+          TOKEN_2022_PROGRAM_ID,
+        ),
+        createThawAccountInstruction(
+          associatedToken,
+          mint.publicKey,
+          payer.publicKey,
+          undefined,
+          TOKEN_2022_PROGRAM_ID,
+        ),
+        createMintToInstruction(
+          mint.publicKey,
+          associatedToken,
+          payer.publicKey,
+          amount,
+          undefined,
+          TOKEN_2022_PROGRAM_ID,
+        ),
+        createFreezeAccountInstruction(
+          associatedToken,
+          mint.publicKey,
+          payer.publicKey,
+          undefined,
+          TOKEN_2022_PROGRAM_ID,
+        ),
+      );
+
+      const sig = await sendAndConfirmTransaction(connection, transaction, [payer]);
+      console.log(`Minted ${amount} tokens to ${owner} (${sig})`);
     });
 
   program.command('transfer-mint-authorities').action(async () => {

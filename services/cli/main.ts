@@ -7,6 +7,7 @@ import {
   sendAndConfirmTransaction,
   SystemProgram,
   Transaction,
+  TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
 } from '@solana/web3.js';
@@ -52,6 +53,7 @@ import { Program, BN } from '@coral-xyz/anchor';
 import { anchorProvider, keysFromEnv, NttManager } from './utils';
 import { MerkleTree } from '../../sdk/src/merkle';
 import { bs58 } from '@coral-xyz/anchor/dist/cjs/utils/bytes';
+import { sha256 } from '@noble/hashes/sha2';
 import { SolanaUnsignedTransaction } from '@wormhole-foundation/sdk-solana/dist/cjs';
 import { Earn } from '../../target/types/earn';
 const EARN_IDL = require('../../target/idl/earn.json');
@@ -364,7 +366,99 @@ async function main() {
     });
 
   program.command('update-portal-mint').action(async () => {
-    const [owner] = keysFromEnv(['PAYER_KEYPAIR']);
+    const [payer, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
+    const admin = process.env.SQUADS_VAULT ? new PublicKey(process.env.SQUADS_VAULT) : payer.publicKey;
+    const { ntt } = NttManager(connection, payer, mint.publicKey);
+
+    const tx = new Transaction().add(
+      new TransactionInstruction({
+        programId: PROGRAMS.portal,
+        keys: [
+          {
+            pubkey: admin,
+            isSigner: true,
+            isWritable: false,
+          },
+          {
+            pubkey: ntt.pdas.configAccount(),
+            isSigner: false,
+            isWritable: true,
+          },
+          {
+            pubkey: mint.publicKey,
+            isSigner: false,
+            isWritable: false,
+          },
+        ],
+        data: Buffer.concat([Buffer.from(sha256('global:set_mint').subarray(0, 8))]),
+      }),
+    );
+
+    tx.feePayer = admin;
+    tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+    if (process.env.SQUADS_VAULT) {
+      const b = tx.serialize({ verifySignatures: false });
+      console.log('Transaction:', {
+        b64: b.toString('base64'),
+        b58: bs58.encode(b),
+      });
+    } else {
+      const sig = await connection.sendTransaction(tx, [payer]);
+      console.log(`Updated mint: ${sig}`);
+    }
+  });
+
+  program.command('initialize-portal-resolver').action(async () => {
+    const [payer, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
+    const admin = process.env.SQUADS_VAULT ? new PublicKey(process.env.SQUADS_VAULT) : payer.publicKey;
+    const { ntt } = NttManager(connection, payer, mint.publicKey);
+
+    const tx = new Transaction().add(
+      new TransactionInstruction({
+        programId: PROGRAMS.portal,
+        keys: [
+          {
+            pubkey: admin,
+            isSigner: true,
+            isWritable: true,
+          },
+          {
+            pubkey: ntt.pdas.configAccount(),
+            isSigner: false,
+            isWritable: true,
+          },
+          {
+            pubkey: PublicKey.findProgramAddressSync(
+              [Buffer.from('executor-account-resolver:result')],
+              PROGRAMS.portal,
+            )[0],
+            isSigner: false,
+            isWritable: true,
+          },
+          {
+            pubkey: SystemProgram.programId,
+            isSigner: false,
+            isWritable: false,
+          },
+        ],
+        data: Buffer.concat([Buffer.from(sha256('global:initialize_resolver_accounts').subarray(0, 8))]),
+      }),
+    );
+
+    tx.feePayer = admin;
+    tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+    if (process.env.SQUADS_VAULT) {
+      const b = tx.serialize({ verifySignatures: false });
+      console.log('Transaction:', {
+        b64: b.toString('base64'),
+        b58: bs58.encode(b),
+      });
+    } else {
+      const sig = await connection.sendTransaction(tx, [payer]);
+      console.log(`Updated mint: ${sig}`);
+    }
   });
 
   program
@@ -382,14 +476,28 @@ async function main() {
       const evmCaller = new EvmCaller(evmClient);
       const currentIndex = await evmCaller.getCurrentIndex();
 
-      await earn.methods
+      const tx = await earn.methods
         .initialize()
         .accounts({
           admin,
           mMint: mint.publicKey,
         })
         .signers([owner])
-        .rpc();
+        .transaction();
+
+      tx.feePayer = admin;
+      tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+      if (process.env.SQUADS_VAULT) {
+        const b = tx.serialize({ verifySignatures: false });
+        console.log('Transaction:', {
+          b64: b.toString('base64'),
+          b58: bs58.encode(b),
+        });
+      } else {
+        const sig = await connection.sendTransaction(tx, [owner]);
+        console.log(`Earn initialized: ${sig}`);
+      }
     });
 
   program
@@ -488,7 +596,7 @@ async function main() {
 
       const tx = pauseTxn.transaction.transaction as Transaction;
 
-      if (process.env.SQUADS_MULTISIG) {
+      if (process.env.SQUADS_VAULT) {
         const b = tx.serialize({ verifySignatures: false });
         console.log('Transaction:', {
           b64: b.toString('base64'),
@@ -504,9 +612,15 @@ async function main() {
     .command('add-registrar-earner')
     .description('Add earner that is in the earner merkle tree')
     .argument('<earner>', 'The earner to add')
-    .action(async (earnerAddress: string) => {
+    .option('-e, --extension', 'If the earner is an extension', false)
+    .action(async (earnerAddress: string, { extension }) => {
       const [owner, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
-      const earner = new PublicKey(earnerAddress);
+
+      let earner = new PublicKey(earnerAddress);
+      if (extension) {
+        // if the earner is an extension, derive vault PDA
+        earner = PublicKey.findProgramAddressSync([Buffer.from('m_vault')], earner)[0];
+      }
 
       // assumes ata is being used as the token account
       const earnerATA = getAssociatedTokenAddressSync(mint.publicKey, earner, true, TOKEN_2022_PROGRAM_ID);

@@ -12,7 +12,7 @@ import { Mint, TOKEN_2022_PROGRAM_ID, unpackMint } from '@solana/spl-token';
 import { MINTS, PORTAL } from './consts';
 import { type Provider } from '@reown/appkit-adapter-solana/react';
 import Decimal from 'decimal.js';
-import { UniversalAddress, Wormhole } from '@wormhole-foundation/sdk';
+import { signAndSendWait, UniversalAddress, Wormhole } from '@wormhole-foundation/sdk';
 import { SolanaNtt } from '@wormhole-foundation/sdk-solana-ntt';
 import { EvmNtt } from '@wormhole-foundation/sdk-evm-ntt';
 import { SolanaPlatform } from '@wormhole-foundation/sdk-solana';
@@ -51,7 +51,6 @@ export const bridgeFromSolana = async (
   recipient: string,
   toChain: string,
   toToken: string,
-  noncePubkey?: PublicKey,
 ) => {
   const ntt = NttManager(connection, MINTS.M);
 
@@ -77,63 +76,11 @@ export const bridgeFromSolana = async (
 
   let sig = '';
   for await (const tx of xferTxs) {
-    const t = tx.transaction.transaction as VersionedTransaction;
+    let txn = tx.transaction.transaction as VersionedTransaction;
+    txn = await walletProvider.signTransaction(txn);
+    txn.sign([outboxItem]);
 
-    // decompile to add compute budget ix
-    // also handle adding nonce account, if needed
-    const ixs = TransactionMessage.decompile(t.message, {
-      addressLookupTableAccounts: [ntt.addressLookupTable!],
-    }).instructions;
-
-    ixs.unshift(
-      ComputeBudgetProgram.setComputeUnitPrice({
-        microLamports: 500_000,
-      }),
-    );
-
-    // if using nonce account, then we need to add an advance nonce ix to the front of the transaction
-    let recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-    if (noncePubkey) {
-      const nonceAccountInfo = await connection.getAccountInfo(noncePubkey);
-      if (!nonceAccountInfo) {
-        throw new Error('Nonce account not found');
-      }
-
-      const nonceAccount = NonceAccount.fromAccountData(nonceAccountInfo.data);
-
-      // Signer needs to be the nonce authority
-      // and the nonce account needs to be owned by the system program
-      if (!nonceAccount.authorizedPubkey.equals(walletProvider.publicKey)) {
-        throw new Error('Nonce account is not owned by the wallet provider');
-      }
-      if (!nonceAccountInfo.owner.equals(SystemProgram.programId)) {
-        throw new Error('Nonce account is not owned by System Program');
-      }
-
-      // Create the advance nonce ix
-      const advanceNonceIx = SystemProgram.nonceAdvance({
-        noncePubkey: noncePubkey,
-        authorizedPubkey: walletProvider.publicKey,
-      });
-      ixs.unshift(advanceNonceIx);
-
-      // Set the recent blockhash to the nonce account's blockhash
-      recentBlockhash = nonceAccount.nonce;
-    }
-
-    let newTx = new VersionedTransaction(
-      new TransactionMessage({
-        payerKey: walletProvider.publicKey,
-        recentBlockhash: recentBlockhash,
-        instructions: [...ixs],
-      }).compileToV0Message([await ntt.getAddressLookupTable()]),
-    );
-
-    // sign
-    newTx = await walletProvider.signTransaction(newTx);
-    newTx.sign([outboxItem]);
-
-    sig = await connection.sendTransaction(newTx);
+    sig = await connection.sendTransaction(txn);
 
     try {
       const { lastValidBlockHeight, blockhash } = await connection.getLatestBlockhash();

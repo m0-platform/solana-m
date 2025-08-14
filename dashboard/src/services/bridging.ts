@@ -9,11 +9,22 @@ import {
   Transaction,
   TransactionInstruction,
   SystemProgram,
+  Connection,
 } from '@solana/web3.js';
-import { AccountAddress, ChainAddress, chainToChainId, Network, sha256, toUniversal } from '@wormhole-foundation/sdk';
+import {
+  AccountAddress,
+  ChainAddress,
+  chainToChainId,
+  encoding,
+  keccak256,
+  Network,
+  sha256,
+  toChainId,
+  toUniversal,
+} from '@wormhole-foundation/sdk';
 import { SolanaChains, SolanaUnsignedTransaction, SolanaAddress } from '@wormhole-foundation/sdk-solana';
 import { SolanaNtt, WEI_PER_GWEI } from '@wormhole-foundation/sdk-solana-ntt';
-import { MINTS } from './consts';
+import { EARN_PROGRAM_ID, MINTS, SWAP_LUT } from './consts';
 import BN from 'bn.js';
 
 export async function* transferSolanaExtension<N extends Network, C extends SolanaChains>(
@@ -84,7 +95,7 @@ export async function* transferSolanaExtension<N extends Network, C extends Sola
   const luts: AddressLookupTableAccount[] = [];
   try {
     luts.push(await ntt.getAddressLookupTable());
-    // luts.push(await router.getAddressLookupTableAccounts(ntt.connection));
+    luts.push(await getAddressLookupTableAccounts(ntt.connection, SWAP_LUT));
   } catch {}
 
   const messageV0 = new TransactionMessage({
@@ -213,14 +224,29 @@ function getTransferExtensionBurnIx<N extends Network, C extends SolanaChains>(
       },
       {
         // session auth
-        pubkey: ntt.pdas.sessionAuthority(payer, {
-          amount: new BN(amount.toString()),
-          recipientChain: {
-            id: 2, // Ethereum
-          },
-          recipientAddress: [...Array(32)],
-          shouldQueue: false,
-        }),
+        // pubkey: ntt.pdas.sessionAuthority(payer, {
+        //   amount: new BN(amount.toString()),
+        //   recipientChain: {
+        //     id: chainToChainId(recipient.chain),
+        //   },
+        //   recipientAddress: Array.from(recipientAddress),
+        //   shouldQueue: shouldQueue,
+        // }),
+        pubkey: PublicKey.findProgramAddressSync(
+          [
+            Buffer.from('session_authority'),
+            payer.toBytes(),
+            keccak256(
+              encoding.bytes.concat(
+                encoding.bytes.zpad(new Uint8Array(new BN(amount.toString()).toArray()), 8),
+                encoding.bignum.toBytes(toChainId(recipient.chain), 2),
+                new Uint8Array(recipientAddress),
+                new Uint8Array([shouldQueue ? 1 : 0]),
+              ),
+            ),
+          ],
+          ntt.program.programId,
+        )[0],
         isSigner: false,
         isWritable: false,
       },
@@ -244,6 +270,12 @@ function getTransferExtensionBurnIx<N extends Network, C extends SolanaChains>(
         )[0],
         isSigner: false,
         isWritable: false,
+      },
+      {
+        // m global
+        pubkey: PublicKey.findProgramAddressSync([Buffer.from('global')], EARN_PROGRAM_ID)[0],
+        isSigner: false,
+        isWritable: true,
       },
       {
         // ext global
@@ -307,5 +339,17 @@ function getTransferExtensionBurnIx<N extends Network, C extends SolanaChains>(
       destinationToken, // destination_token
       Buffer.from([Number(shouldQueue)]), // should_queue
     ]),
+  });
+}
+
+async function getAddressLookupTableAccounts(
+  connection: Connection,
+  lut: PublicKey,
+): Promise<AddressLookupTableAccount> {
+  const info = await connection.getAccountInfo(lut);
+
+  return new AddressLookupTableAccount({
+    key: lut,
+    state: AddressLookupTableAccount.deserialize(info!.data),
   });
 }

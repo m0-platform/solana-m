@@ -1,13 +1,10 @@
 import { PublicKey } from '@solana/web3.js';
 
-export const EARN_PROGRAM_ID = new PublicKey('MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c');
+export const EARN_PROGRAM_ID = new PublicKey('mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z');
 export const EXT_EARN_PROGRAM_ID = new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko');
 export const PORTAL = new PublicKey('mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY');
 
-export const MINTS =
-  import.meta.env.VITE_NETWORK === 'devnet'
-    ? { M: new PublicKey('mzeroZRGCah3j5xEWp2Nih3GDejSBbH1rbHoxDg8By6') }
-    : { M: new PublicKey('mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo') };
+export const MINTS = { M: new PublicKey('mzerojk9tg56ebsrEAhfkyc9VgKjTW2zDqp6C5mhjzH') };
 
 export const M_EVM = '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b';
 
@@ -23,3 +20,8 @@ export const EVM_TOKENS = [
     icon: 'https://gistcdn.githack.com/SC4RECOIN/d383d31baee720e8481edae4620eb047/raw/00cd11302f663bf5fe086d5b71b81d1fb0fb31ac/wM_Symbol_512.svg',
   },
 ];
+
+export const SWAP_LUT =
+  import.meta.env.VITE_NETWORK === 'devnet'
+    ? new PublicKey('6GhuWPuAmiJeeSVsr58KjqHcAejJRndCx9BVtHkaYHUR')
+    : new PublicKey('9JLRqBqkznKiSoNfotA4ywSRdnWb2fE76SiFrAfkaRCD');

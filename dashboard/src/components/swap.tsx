@@ -120,14 +120,22 @@ export const Swap = ({ mode }: { mode: SwapMode }) => {
     }
   }, [fromAsset, toAsset, debouncedAmount]);
 
+  const convertScaledAmount = (mint?: PublicKey, amount?: Decimal | string, from = true): Decimal => {
+    if (!mint || !amount) return new Decimal(0);
+    amount = new Decimal(amount);
+    const ext = extensionData?.extensions.find((ext) => ext.mint === mint?.toBase58());
+    if (ext) return from ? amount.div(ext.uiMultiplier) : amount.mul(ext.uiMultiplier);
+    return amount;
+  };
+
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
 
     // allow empty string, digits, and at most one decimal point
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
       if (value.split('.').length > 2) return;
-      setAmount(value);
-      debounced(value);
+      setAmount(convertScaledAmount(fromAsset!.mint, value, false).toString());
+      debounced(convertScaledAmount(fromAsset!.mint, value, false).toString());
       setQuote(undefined);
     }
   };
@@ -147,7 +155,9 @@ export const Swap = ({ mode }: { mode: SwapMode }) => {
       const quote = await ApiClient.swap.quote({
         inputMint: fromAsset.mint.toBase58(),
         outputMint: toAsset.mint.toBase58(),
-        amount: new Decimal(debouncedAmount).mul(10 ** fromAsset.decimals).toString(),
+        amount: convertScaledAmount(fromAsset.mint, debouncedAmount)
+          .mul(10 ** fromAsset.decimals)
+          .toString(),
       });
 
       setQuote(quote);
@@ -283,7 +293,12 @@ export const Swap = ({ mode }: { mode: SwapMode }) => {
           <div className="flex justify-between items-center mb-2 text-gray-400 text-xs">
             <label>Amount</label>
             <div>
-              Balance: {solanaBalances[fromAsset?.mint.toBase58() ?? '']?.balance.toFixed(4) ?? '0.00'}
+              Balance:{' '}
+              {convertScaledAmount(
+                fromAsset?.mint,
+                solanaBalances[fromAsset?.mint.toBase58() ?? '']?.balance,
+                false,
+              )?.toFixed(4)}
               <button
                 onClick={handleMaxClick}
                 disabled={isLoading}
@@ -357,7 +372,7 @@ export const Swap = ({ mode }: { mode: SwapMode }) => {
                     <span>{data.ticker}</span>
                   </div>
                   <div className="text-right">
-                    <div>{data.balance.toFixed(4)}</div>
+                    <div>{convertScaledAmount(data.mint, data.balance, false).toFixed(4)}</div>
                   </div>
                 </div>
               ))}

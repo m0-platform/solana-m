@@ -158,8 +158,8 @@ export const swap = new SwapService({
       routePlan.push(getM0Route(inputMint, outputMint, amount));
     }
 
-    // extensions are 1:1
-    let outAmount = amount;
+    // extensions are 1:1 (accounting for scaled-ui)
+    let outAmount = Math.floor(parseFloat(amount) * (await getScaledMultiplier(inputMint))).toString();
 
     if (quoteResponse.preQuote) {
       outAmount = quoteResponse.preQuote.outAmount;
@@ -206,6 +206,21 @@ export const swap = new SwapService({
     const luts = [SWAP_LUT];
     const ixs: TransactionInstruction[] = [];
 
+    const getTokenAccount = async (mint?: string) => {
+      if (mint) {
+        const account = await findAssociatedTokenPda({
+          mint: mint as Address,
+          owner: userPublicKey as Address,
+          tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
+        });
+        return account[0];
+      }
+    };
+
+    const mTokenAccount = await getTokenAccount(mMint);
+    const fromAssociatedTokenAddress = await getTokenAccount(quote.extensionFrom!.mint);
+    const toAssociatedTokenAddress = await getTokenAccount(quote.extensionTo!.mint);
+
     // wrapping
     if (isWrap) {
       ixs.push(
@@ -219,6 +234,8 @@ export const swap = new SwapService({
             mMint: mMint,
             toTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
             mTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
+            toTokenAccount: toAssociatedTokenAddress!,
+            mTokenAccount: mTokenAccount!,
           })
           .instruction(),
       );
@@ -237,6 +254,8 @@ export const swap = new SwapService({
             mMint: mMint,
             fromTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
             mTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
+            fromTokenAccount: toAssociatedTokenAddress!,
+            mTokenAccount: mTokenAccount!,
           })
           .instruction(),
       );
@@ -261,12 +280,6 @@ export const swap = new SwapService({
 
     // swap if we are not wrapping or unwrapping
     if (!isWrap && !isUnwrap) {
-      const [associatedTokenAddress] = await findAssociatedTokenPda({
-        mint: quote.extensionFrom!.mint as Address,
-        owner: userPublicKey as Address,
-        tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
-      });
-
       // swap facility
       ixs.push(
         await swapProgram.methods
@@ -280,10 +293,11 @@ export const swap = new SwapService({
             fromMint: quote.extensionFrom!.mint,
             toMint: quote.extensionTo!.mint,
             mMint: mMint,
-            fromTokenAccount: associatedTokenAddress,
+            fromTokenAccount: fromAssociatedTokenAddress!,
             toTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
             mTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
             fromTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
+            toTokenAccount: toAssociatedTokenAddress!,
           })
           .instruction(),
       );

@@ -15,17 +15,19 @@ import {
   AccountAddress,
   ChainAddress,
   chainToChainId,
-  encoding,
-  keccak256,
   Network,
   sha256,
   toChainId,
   toUniversal,
+  universalAddress,
 } from '@wormhole-foundation/sdk';
 import { SolanaChains, SolanaUnsignedTransaction, SolanaAddress } from '@wormhole-foundation/sdk-solana';
 import { SolanaNtt, WEI_PER_GWEI } from '@wormhole-foundation/sdk-solana-ntt';
 import { EARN_PROGRAM_ID, MINTS, SWAP_LUT } from './consts';
 import BN from 'bn.js';
+import { EvmNtt } from '@wormhole-foundation/sdk-evm-ntt';
+import { addFrom, EvmAddress, EvmPlatform } from '@wormhole-foundation/sdk-evm';
+import { Contract } from 'ethers';
 
 export async function* transferSolanaExtension<N extends Network, C extends SolanaChains>(
   ntt: SolanaNtt<N, C>,
@@ -224,29 +226,14 @@ function getTransferExtensionBurnIx<N extends Network, C extends SolanaChains>(
       },
       {
         // session auth
-        // pubkey: ntt.pdas.sessionAuthority(payer, {
-        //   amount: new BN(amount.toString()),
-        //   recipientChain: {
-        //     id: chainToChainId(recipient.chain),
-        //   },
-        //   recipientAddress: Array.from(recipientAddress),
-        //   shouldQueue: shouldQueue,
-        // }),
-        pubkey: PublicKey.findProgramAddressSync(
-          [
-            Buffer.from('session_authority'),
-            payer.toBytes(),
-            keccak256(
-              encoding.bytes.concat(
-                encoding.bytes.zpad(new Uint8Array(new BN(amount.toString()).toArray()), 8),
-                encoding.bignum.toBytes(toChainId(recipient.chain), 2),
-                new Uint8Array(recipientAddress),
-                new Uint8Array([shouldQueue ? 1 : 0]),
-              ),
-            ),
-          ],
-          ntt.program.programId,
-        )[0],
+        pubkey: ntt.pdas.sessionAuthority(payer, {
+          amount: new BN(amount.toString()),
+          recipientChain: {
+            id: chainToChainId(recipient.chain),
+          },
+          recipientAddress: Array.from(recipientAddress),
+          shouldQueue: shouldQueue,
+        }),
         isSigner: false,
         isWritable: false,
       },
@@ -352,4 +339,47 @@ async function getAddressLookupTableAccounts(
     key: lut,
     state: AddressLookupTableAccount.deserialize(info!.data),
   });
+}
+
+export async function* transferMLike(
+  ntt: EvmNtt<'Mainnet' | 'Testnet', any>,
+  sender: string,
+  amount: bigint,
+  destination: ChainAddress,
+  sourceToken: string,
+  destinationToken: string,
+) {
+  const senderAddress = new EvmAddress(sender).toString();
+
+  const totalPrice = await ntt.quoteDeliveryPrice(destination.chain, {
+    queue: false,
+    automatic: true,
+  });
+
+  const tokenContract = EvmPlatform.getTokenImplementation(ntt.provider, sourceToken);
+
+  const allowance = await tokenContract.allowance(senderAddress, ntt.managerAddress);
+
+  if (allowance < amount) {
+    const txReq = await tokenContract.approve.populateTransaction(ntt.managerAddress, amount);
+    yield ntt.createUnsignedTx(addFrom(txReq, senderAddress), 'Ntt.Approve');
+  }
+
+  const receiver = universalAddress(destination);
+  const contract = new Contract(ntt.managerAddress, [
+    'function transferMLikeToken(uint256 amount, address sourceToken, uint16 destinationChainId, bytes32 destinationToken, bytes32 recipient, bytes32 refundAddress) external payable returns (uint64 sequence)',
+  ]);
+  const txReq = await contract
+    .getFunction('transferMLikeToken')
+    .populateTransaction(
+      amount,
+      sourceToken,
+      toChainId(destination.chain),
+      toUniversal(destination.chain, destinationToken).toString(),
+      receiver,
+      receiver,
+      { value: totalPrice },
+    );
+
+  yield ntt.createUnsignedTx(addFrom(txReq, senderAddress), 'Ntt.transfer');
 }

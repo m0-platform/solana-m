@@ -21,7 +21,7 @@ import { Config } from 'wagmi';
 import { JsonRpcProvider } from 'ethers';
 import evm from '@wormhole-foundation/sdk/evm';
 import { wormhole } from '@wormhole-foundation/sdk';
-import { transferSolanaExtension } from './bridging';
+import { transferMLike, transferSolanaExtension } from './bridging';
 
 export const NETWORK: 'devnet' | 'mainnet' = import.meta.env.VITE_NETWORK;
 export const connection = new Connection(import.meta.env.VITE_RPC_URL);
@@ -118,19 +118,17 @@ export const bridgeFromEvm = async (
   }
 
   const ntt = await EvmNttManager(fromChain);
-  const sender = Wormhole.parseAddress(fromChain as any, address);
 
-  const xferTxs = ntt.transfer(
-    sender.address,
+  const xferTxs = transferMLike(
+    ntt,
+    address,
     BigInt(amount.toString()),
     {
       address: new UniversalAddress(recipient, recipient.startsWith('0x') ? 'hex' : 'base58'),
       chain: toChain as any,
     },
-    {
-      queue: false,
-      automatic: true,
-    },
+    fromToken,
+    toToken,
   );
 
   let sig: string = '';

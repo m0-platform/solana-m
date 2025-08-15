@@ -3,6 +3,7 @@ import { SolanaNtt } from '@wormhole-foundation/sdk-solana-ntt';
 import { SolanaPlatform, SolanaSendSigner } from '@wormhole-foundation/sdk-solana';
 import { AccountAddress, sha256, Wormhole } from '@wormhole-foundation/sdk';
 import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
+import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
 
 const PORTAL = new PublicKey('mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY');
 
@@ -62,6 +63,21 @@ export function updatePortalMint(owner: PublicKey, config: PublicKey, mMint: Pub
       },
       {
         pubkey: mMint,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: PublicKey.findProgramAddressSync([Buffer.from('token_authority')], PORTAL)[0],
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: getAssociatedTokenAddressSync(
+          mMint,
+          PublicKey.findProgramAddressSync([Buffer.from('token_authority')], PORTAL)[0],
+          true,
+          TOKEN_2022_PROGRAM_ID,
+        ),
         isSigner: false,
         isWritable: false,
       },

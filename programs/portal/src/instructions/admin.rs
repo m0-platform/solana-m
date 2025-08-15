@@ -1,5 +1,8 @@
 use anchor_lang::prelude::*;
-use anchor_spl::{token_2022::spl_token_2022::instruction::AuthorityType, token_interface};
+use anchor_spl::{
+    token_2022::{spl_token_2022::instruction::AuthorityType, Token2022},
+    token_interface,
+};
 
 use crate::{
     config::Config,
@@ -9,6 +12,7 @@ use crate::{
     pending_token_authority::PendingTokenAuthority,
     queue::{inbox::InboxRateLimit, outbox::OutboxRateLimit, rate_limit::RateLimitState},
     registered_transceiver::RegisteredTransceiver,
+    TOKEN_AUTHORITY_SEED,
 };
 
 // * Transfer ownership
@@ -639,9 +643,24 @@ pub struct SetMint<'info> {
     pub config: Account<'info, Config>,
 
     pub mint: InterfaceAccount<'info, token_interface::Mint>,
+
+    /// CHECK: This account is validated by its seeds
+    #[account(
+        seeds = [TOKEN_AUTHORITY_SEED],
+        bump,
+    )]
+    pub token_authority: UncheckedAccount<'info>,
+
+    #[account(
+        associated_token::mint = mint,
+        associated_token::authority = token_authority,
+        associated_token::token_program = Token2022::id(),
+    )]
+    pub custody: InterfaceAccount<'info, token_interface::TokenAccount>,
 }
 
 pub fn set_mint(ctx: Context<SetMint>) -> Result<()> {
     ctx.accounts.config.mint = ctx.accounts.mint.key();
+    ctx.accounts.config.custody = ctx.accounts.custody.key();
     Ok(())
 }

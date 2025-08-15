@@ -333,18 +333,11 @@ function getTransferExtensionBurnIx<N extends Network, C extends SolanaChains>(
     ],
     data: Buffer.concat([
       Buffer.from(sha256('global:transfer_extension_burn').subarray(0, 8)),
-      encoding.bytes.zpad(new Uint8Array(new BN(amount.toString()).toArray()), 8),
-      encoding.bignum.toBytes(toChainId(recipient.chain), 2),
-      recipientAddress,
+      new BN(amount.toString()).toArrayLike(Buffer, 'le', 8), // amount
+      new BN(chainToChainId(recipient.chain)).toArrayLike(Buffer, 'le', 2), // chain_id
+      recipientAddress, // recipient_address
       destinationToken, // destination_token
-      new Uint8Array([shouldQueue ? 1 : 0]),
-
-      // Buffer.from(sha256('global:transfer_extension_burn').subarray(0, 8)),
-      // new BN(amount.toString()).toArrayLike(Buffer, 'le', 8), // amount
-      // new BN(chainToChainId(recipient.chain)).toArrayLike(Buffer, 'le', 2), // chain_id
-      // recipientAddress, // recipient_address
-      // destinationToken, // destination_token
-      // Buffer.from([Number(shouldQueue)]), // should_queue
+      Buffer.from([Number(shouldQueue)]), // should_queue
     ]),
   });
 }

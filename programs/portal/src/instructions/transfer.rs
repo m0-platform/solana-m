@@ -161,17 +161,25 @@ impl<'info> TransferBurn<'info> {
             return err!(ErrorCode::ConstraintAddress);
         }
 
-        let session_authority_bump = get_session_authority(
-            self.common.payer.key,
-            args.amount,
-            args.recipient_chain,
-            args.recipient_address,
-            args.should_queue,
-            self.session_authority.key,
-            // We already validated the session in transfer_extension_burn.
-            // Also, the amount argument is different after converting to $M.
-            !self.common.from.owner.eq(self.token_authority.key),
-        )?;
+        // Owner of the $M token account depends on whether this function
+        // was called directly or by tranfer_extension_burn.
+        let session_owner_seed = if self.common.from.owner.eq(self.token_authority.key) {
+            self.common.payer.key()
+        } else {
+            self.common.from.owner.key()
+        };
+
+        let (session_authority, session_authority_bump) = Pubkey::find_program_address(
+            &[
+                crate::SESSION_AUTHORITY_SEED,
+                session_owner_seed.as_ref(),
+                args.keccak256().as_ref(),
+            ],
+            &crate::ID,
+        );
+        if !self.session_authority.key().eq(&session_authority) {
+            return err!(ErrorCode::ConstraintAddress);
+        }
 
         Ok(session_authority_bump)
     }
@@ -181,23 +189,33 @@ pub fn transfer_burn<'info>(
     ctx: Context<'_, '_, '_, 'info, TransferBurn<'info>>,
     args: TransferArgs,
 ) -> Result<()> {
+    let amount = args.amount;
+    transfer_burn_common(ctx, args, amount)
+}
+
+pub fn transfer_burn_common<'info>(
+    ctx: Context<'_, '_, '_, 'info, TransferBurn<'info>>,
+    args: TransferArgs,
+    principal_amount_m: u64,
+) -> Result<()> {
     let session_authority_bump = ctx.accounts.validate_accounts(&args)?;
 
     let accs = ctx.accounts;
 
     let TransferArgs {
-        amount: principal,
         recipient_chain,
         recipient_address,
         should_queue,
+        ..
     } = args;
 
     // The provided "amount" is the principal amount of M to bridge.
     // We scale this up to M units using the scaled UI config multiplier.
     let scaled_ui_config = earn::utils::conversion::get_scaled_ui_config(&accs.common.mint)?;
+
     // Get the amount of M tokens to transfer using the multiplier
     let mut m_amount = earn::utils::conversion::principal_to_amount_down(
-        principal,
+        principal_amount_m,
         scaled_ui_config.new_multiplier.into(),
     )?;
 
@@ -233,7 +251,7 @@ pub fn transfer_burn<'info>(
         accs.common.custody.to_account_info(),
         accs.session_authority.to_account_info(),
         ctx.remaining_accounts,
-        principal,
+        principal_amount_m,
         accs.common.mint.decimals,
         &[&[
             crate::SESSION_AUTHORITY_SEED,
@@ -254,7 +272,7 @@ pub fn transfer_burn<'info>(
             },
             &[&[crate::TOKEN_AUTHORITY_SEED, &[ctx.bumps.token_authority]]],
         ),
-        principal,
+        principal_amount_m,
     )?;
 
     accs.common.custody.reload()?;
@@ -338,36 +356,4 @@ fn insert_into_outbox(
     });
 
     Ok(())
-}
-
-pub fn get_session_authority(
-    payer: &Pubkey,
-    amount: u64,
-    recipient_chain: ChainId,
-    recipient_address: [u8; 32],
-    should_queue: bool,
-    expected: &Pubkey,
-    validate: bool,
-) -> Result<u8> {
-    let (session_authority, bump) = Pubkey::find_program_address(
-        &[
-            crate::SESSION_AUTHORITY_SEED,
-            payer.as_ref(),
-            TransferArgs {
-                amount,
-                recipient_chain,
-                recipient_address,
-                should_queue,
-            }
-            .keccak256()
-            .as_ref(),
-        ],
-        &crate::ID,
-    );
-
-    if validate && !session_authority.eq(expected) {
-        return err!(ErrorCode::ConstraintAddress);
-    }
-
-    Ok(bump)
 }

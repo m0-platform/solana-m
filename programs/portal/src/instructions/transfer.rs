@@ -135,7 +135,7 @@ pub struct TransferBurn<'info> {
 impl<'info> TransferBurn<'info> {
     // Manually validate accounts instead of using anchor constraints
     // so that the context can be shared (nested contexts do not support instruction args)
-    pub fn validate_accounts(&self, args: &TransferArgs) -> Result<(Pubkey, u8)> {
+    pub fn validate_accounts(&self, args: &TransferArgs) -> Result<u8> {
         let inbox_rate_limit = Pubkey::create_program_address(
             &[
                 InboxRateLimit::SEED_PREFIX,
@@ -161,27 +161,19 @@ impl<'info> TransferBurn<'info> {
             return err!(ErrorCode::ConstraintAddress);
         }
 
-        // Owner of the $M token account depends on whether this function
-        // was called directly or by tranfer_extension_burn.
-        let session_owner_seed = if self.common.from.owner.eq(self.token_authority.key) {
-            self.common.payer.key()
-        } else {
-            self.common.from.owner.key()
-        };
+        let session_authority_bump = get_session_authority(
+            self.common.payer.key,
+            args.amount,
+            args.recipient_chain,
+            args.recipient_address,
+            args.should_queue,
+            self.session_authority.key,
+            // We already validated the session in transfer_extension_burn.
+            // Also, the amount argument is different after converting to $M.
+            !self.common.from.owner.eq(self.token_authority.key),
+        )?;
 
-        let (session_authority, session_authority_bump) = Pubkey::find_program_address(
-            &[
-                crate::SESSION_AUTHORITY_SEED,
-                session_owner_seed.as_ref(),
-                args.keccak256().as_ref(),
-            ],
-            &crate::ID,
-        );
-        if !self.session_authority.key().eq(&session_authority) {
-            return err!(ErrorCode::ConstraintAddress);
-        }
-
-        Ok((session_owner_seed, session_authority_bump))
+        Ok(session_authority_bump)
     }
 }
 
@@ -189,7 +181,7 @@ pub fn transfer_burn<'info>(
     ctx: Context<'_, '_, '_, 'info, TransferBurn<'info>>,
     args: TransferArgs,
 ) -> Result<()> {
-    let (session_owner_seed, session_authority_bump) = ctx.accounts.validate_accounts(&args)?;
+    let session_authority_bump = ctx.accounts.validate_accounts(&args)?;
 
     let accs = ctx.accounts;
 
@@ -245,7 +237,7 @@ pub fn transfer_burn<'info>(
         accs.common.mint.decimals,
         &[&[
             crate::SESSION_AUTHORITY_SEED,
-            session_owner_seed.as_ref(),
+            accs.common.payer.key.as_ref(),
             args.keccak256().as_ref(),
             &[session_authority_bump],
         ]],
@@ -346,4 +338,36 @@ fn insert_into_outbox(
     });
 
     Ok(())
+}
+
+pub fn get_session_authority(
+    payer: &Pubkey,
+    amount: u64,
+    recipient_chain: ChainId,
+    recipient_address: [u8; 32],
+    should_queue: bool,
+    expected: &Pubkey,
+    validate: bool,
+) -> Result<u8> {
+    let (session_authority, bump) = Pubkey::find_program_address(
+        &[
+            crate::SESSION_AUTHORITY_SEED,
+            payer.as_ref(),
+            TransferArgs {
+                amount,
+                recipient_chain,
+                recipient_address,
+                should_queue,
+            }
+            .keccak256()
+            .as_ref(),
+        ],
+        &crate::ID,
+    );
+
+    if validate && !session_authority.eq(expected) {
+        return err!(ErrorCode::ConstraintAddress);
+    }
+
+    Ok(bump)
 }

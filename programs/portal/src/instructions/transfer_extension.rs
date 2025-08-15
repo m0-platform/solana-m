@@ -5,7 +5,7 @@ use ext_swap::{accounts::SwapGlobal, program::ExtSwap};
 
 use crate::{
     TransferBurnBumps, __client_accounts_transfer_burn, __cpi_client_accounts_transfer_burn,
-    instructions::{ext_swap, transfer_burn, TransferArgs, TransferBurn},
+    instructions::{ext_swap, get_session_authority, transfer_burn, TransferArgs, TransferBurn},
     ntt_messages::ChainId,
 };
 
@@ -82,6 +82,29 @@ pub fn transfer_extension_burn<'info>(
     destination_token: [u8; 32],
     should_queue: bool,
 ) -> Result<()> {
+    // Derive and validate session authority
+    get_session_authority(
+        ctx.accounts.common.common.payer.key,
+        ext_principal,
+        recipient_chain,
+        recipient_address,
+        should_queue,
+        ctx.accounts.common.session_authority.key,
+        true,
+    )?;
+
+    // $M token account should be owned by token authority
+    if !ctx
+        .accounts
+        .common
+        .common
+        .from
+        .owner
+        .eq(ctx.accounts.common.token_authority.key)
+    {
+        return err!(ErrorCode::ConstraintTokenOwner);
+    }
+
     let m_pre_balance = ctx.accounts.common.common.from.amount;
     let token_auth_bump = ctx.bumps.common.token_authority;
 

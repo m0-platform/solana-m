@@ -336,8 +336,8 @@ function getTransferExtensionBurnIx<N extends Network, C extends SolanaChains>(
       new BN(amount.toString()).toArrayLike(Buffer, 'le', 8), // amount
       new BN(chainToChainId(recipient.chain)).toArrayLike(Buffer, 'le', 2), // chain_id
       recipientAddress, // recipient_address
-      destinationToken, // destination_token
       Buffer.from([Number(shouldQueue)]), // should_queue
+      destinationToken, // destination_token
     ]),
   });
 }

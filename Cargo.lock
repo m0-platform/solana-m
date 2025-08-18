@@ -1298,9 +1298,9 @@ dependencies = [
  "earn 0.1.0",
  "earn 0.2.0",
  "five8_const",
- "prost 0.11.9",
+ "prost 0.13.5",
  "regex",
- "substreams 0.5.22",
+ "substreams 0.6.1",
  "substreams-solana",
  "substreams-solana-utils",
 ]

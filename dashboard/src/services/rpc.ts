@@ -1,18 +1,9 @@
-import {
-  ComputeBudgetProgram,
-  Connection,
-  Keypair,
-  NonceAccount,
-  PublicKey,
-  TransactionMessage,
-  VersionedTransaction,
-  SystemProgram,
-} from '@solana/web3.js';
+import { Connection, Keypair, PublicKey, VersionedTransaction } from '@solana/web3.js';
 import { Mint, TOKEN_2022_PROGRAM_ID, unpackMint } from '@solana/spl-token';
 import { MINTS, PORTAL } from './consts';
 import { type Provider } from '@reown/appkit-adapter-solana/react';
 import Decimal from 'decimal.js';
-import { signAndSendWait, UniversalAddress, Wormhole } from '@wormhole-foundation/sdk';
+import { UniversalAddress, Wormhole } from '@wormhole-foundation/sdk';
 import { SolanaNtt } from '@wormhole-foundation/sdk-solana-ntt';
 import { EvmNtt } from '@wormhole-foundation/sdk-evm-ntt';
 import { SolanaPlatform } from '@wormhole-foundation/sdk-solana';

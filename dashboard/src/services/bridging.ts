@@ -353,7 +353,7 @@ export async function* transferMLike(
 
   const totalPrice = await ntt.quoteDeliveryPrice(destination.chain, {
     queue: false,
-    automatic: true,
+    automatic: false,
   });
 
   const tokenContract = EvmPlatform.getTokenImplementation(ntt.provider, sourceToken);
@@ -366,9 +366,12 @@ export async function* transferMLike(
   }
 
   const receiver = universalAddress(destination);
+
+  // TODO: replace with INttManagerWithExecutor method https://github.com/wormhole-foundation/native-token-transfers/blob/main/evm/ts/src/nttWithExecutor.ts#L158
   const contract = new Contract(ntt.managerAddress, [
     'function transferMLikeToken(uint256 amount, address sourceToken, uint16 destinationChainId, bytes32 destinationToken, bytes32 recipient, bytes32 refundAddress) external payable returns (uint64 sequence)',
   ]);
+
   const txReq = await contract
     .getFunction('transferMLikeToken')
     .populateTransaction(

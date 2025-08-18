@@ -53,6 +53,12 @@ func main() {
 						Name:     "latest-block-hash",
 						Required: true,
 					},
+					// Code changes may result in a different cursor hash, so allow overriding it
+					// (see loadConnection in mongo.go for hashing parameters)
+					&cli.StringFlag{
+						Name:     "override-cursor-hash",
+						Required: false,
+					},
 				},
 				Action: func(ctx context.Context, cmd *cli.Command) error {
 					hash, cursor, err := mongo.WriteCursor(
@@ -61,6 +67,7 @@ func main() {
 						cmd.String("mongo-dns"),
 						cmd.Uint64("latest-block-num"),
 						cmd.String("latest-block-hash"),
+						cmd.String("override-cursor-hash"),
 					)
 					if err != nil {
 						logger.Fatal("failed to write latest cursor", zap.Error(err))

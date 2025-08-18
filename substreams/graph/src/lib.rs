@@ -15,6 +15,7 @@ use substreams_solana_utils::{
 use utils::{parse_logs_for_events, parse_logs_for_instruction_name, token_accounts};
 
 mod consts;
+mod events;
 mod pb;
 mod utils;
 

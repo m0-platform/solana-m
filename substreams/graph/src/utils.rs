@@ -1,7 +1,8 @@
-use crate::pb::transfers::v1::{self, instruction::Update};
+use crate::{
+    events::{BridgeEvent, IndexUpdate, IndexUpdateV2, DISCRIMINATOR_SIZE},
+    pb::transfers::v1::{self, instruction::Update},
+};
 use anchor_lang::{prelude::*, Discriminator};
-use earn_v1::instructions::portal::IndexUpdate;
-use earn_v2::instructions::IndexUpdateV2;
 use regex::Regex;
 use std::collections::HashMap;
 use substreams_solana::pb::sf::solana::r#type::v1::ConfirmedTransaction;
@@ -10,17 +11,6 @@ use substreams_solana_utils::{
     pubkey::{Pubkey, PubkeyRef},
     spl_token::TokenAccount,
 };
-
-const DISCRIMINATOR_SIZE: usize = 8;
-
-#[event]
-pub struct BridgeEvent {
-    pub amount: i64,
-    pub token_supply: u64,
-    pub from: [u8; 32],
-    pub to: [u8; 32],
-    pub wormhole_chain_id: u16,
-}
 
 pub fn parse_logs_for_events(logs: Option<&Vec<Log>>) -> Option<Update> {
     if logs.is_none() {

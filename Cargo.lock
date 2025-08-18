@@ -859,18 +859,6 @@ dependencies = [
 
 [[package]]
 name = "earn"
-version = "0.1.0"
-source = "git+https://github.com/m0-foundation/solana-m?rev=70a8aa6#70a8aa6cc644d2e1a1f70742ad14a26ba48e0171"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "cfg-if",
- "solana-security-txt",
- "spl-token-2022 7.0.0",
-]
-
-[[package]]
-name = "earn"
 version = "0.2.0"
 dependencies = [
  "anchor-lang",
@@ -1295,8 +1283,6 @@ dependencies = [
  "anchor-lang",
  "base64 0.22.1",
  "bs58 0.5.1",
- "earn 0.1.0",
- "earn 0.2.0",
  "five8_const",
  "prost 0.13.5",
  "regex",
@@ -1587,7 +1573,7 @@ dependencies = [
  "base64 0.22.1",
  "bitmaps",
  "cfg-if",
- "earn 0.2.0",
+ "earn",
  "executor-account-resolver-svm",
  "solana-security-txt",
  "spl-token-2022 7.0.0",

@@ -1025,6 +1025,7 @@ const prepWrap = async (
   accounts.toExtTokenAccount = toExtTokenAccount ?? (await getATA(extMint.publicKey, signer.publicKey));
   accounts.vaultMTokenAccount = vaultMTokenAccount ?? (await getATA(mMint.publicKey, mVault));
   accounts.token2022 = TOKEN_2022_PROGRAM_ID;
+  accounts.mEarnerAccount = getMEarnerAccount(accounts.vaultMTokenAccount);
 
   return {
     vaultMTokenAccount: accounts.vaultMTokenAccount,
@@ -1070,6 +1071,7 @@ const prepUnwrap = async (
   accounts.fromExtTokenAccount = fromExtTokenAccount ?? (await getATA(extMint.publicKey, signer.publicKey));
   accounts.vaultMTokenAccount = vaultMTokenAccount ?? (await getATA(mMint.publicKey, mVault));
   accounts.token2022 = TOKEN_2022_PROGRAM_ID;
+  accounts.mEarnerAccount = getMEarnerAccount(accounts.vaultMTokenAccount);
 
   return {
     vaultMTokenAccount: accounts.vaultMTokenAccount,
@@ -4062,22 +4064,14 @@ describe('ExtEarn unit tests', () => {
     describe('test against swap program', () => {
       test('wrap and unwrap', async () => {
         // Initialize the swap program and add the extension
-        await swapProgram.methods
-          .initializeGlobal(mMint.publicKey)
-          .accounts({ admin: admin.publicKey })
-          .signers([admin])
-          .rpc();
+        await swapProgram.methods.initializeGlobal().accounts({ admin: admin.publicKey }).signers([admin]).rpc();
 
         await swapProgram.methods
-          .whitelistExtension(extEarn.programId)
-          .accounts({ admin: admin.publicKey })
-          .signers([admin])
-          .rpc();
-
-        // Add swap program as authority
-        await extEarn.methods
-          .addWrapAuthority(PublicKey.findProgramAddressSync([Buffer.from('global')], swapProgram.programId)[0])
-          .accounts({ admin: admin.publicKey })
+          .whitelistExtension()
+          .accountsPartial({
+            admin: admin.publicKey,
+            extProgram: extEarn.programId,
+          })
           .signers([admin])
           .rpc();
 
@@ -4093,6 +4087,7 @@ describe('ExtEarn unit tests', () => {
             toTokenProgram: TOKEN_2022_PROGRAM_ID,
             mTokenProgram: TOKEN_2022_PROGRAM_ID,
             toExtProgram: extEarn.programId,
+            toMEarnerAccount: PublicKey.default,
             mMint: mMint.publicKey,
           })
           .signers([earnerOne, admin])
@@ -4110,14 +4105,15 @@ describe('ExtEarn unit tests', () => {
           .unwrap(new BN(100))
           .accountsPartial({
             signer: earnerOne.publicKey,
-            unwrapAuthority: admin.publicKey,
+            unwrapAuthority: earnerOne.publicKey,
             fromMint: extMint.publicKey,
             fromTokenProgram: TOKEN_2022_PROGRAM_ID,
             mTokenProgram: TOKEN_2022_PROGRAM_ID,
             fromExtProgram: extEarn.programId,
+            fromMEarnerAccount: PublicKey.default,
             mMint: mMint.publicKey,
           })
-          .signers([earnerOne, admin])
+          .signers([earnerOne])
           .rpc();
       });
     });

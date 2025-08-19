@@ -4,7 +4,7 @@ use earn::state::GLOBAL_SEED;
 use ext_swap::accounts::SwapGlobal;
 use ext_swap::program::ExtSwap;
 
-use crate::instructions::{ext_swap, release_inbound_mint};
+use crate::instructions::{ext_swap, release_inbound_mint_common};
 use crate::instructions::{ReleaseInboundArgs, ReleaseInboundMint};
 use crate::ReleaseInboundMintBumps;
 use crate::__client_accounts_release_inbound_mint;
@@ -94,7 +94,7 @@ pub fn release_inbound_mint_extension<'info>(
     let token_auth_bump = ctx.bumps.common.token_authority;
 
     // Release bridged $M
-    release_inbound_mint(
+    release_inbound_mint_common(
         Context::new(
             ctx.program_id,
             &mut ctx.accounts.common,
@@ -108,6 +108,7 @@ pub fn release_inbound_mint_extension<'info>(
             // always revert on delay or wrap will fail
             revert_when_not_ready: true,
         },
+        true,
     )?;
 
     ctx.accounts.common.recipient.reload()?;

@@ -312,7 +312,7 @@ pub fn resolve_execute_vaa_v1<'a>(
 
     let recipient = get_inbox_recipient_token_account(
         &ntt_recipient,
-        &destination_mint,
+        !destination_mint.eq(&config_data.mint),
         amount,
         &token_auth,
         &config_data.mint,

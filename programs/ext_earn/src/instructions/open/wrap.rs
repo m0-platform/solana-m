@@ -70,6 +70,9 @@ pub struct Wrap<'info> {
     )]
     pub to_ext_token_account: InterfaceAccount<'info, TokenAccount>,
 
+    /// CHECK: this account is not used in the instruction, but is required by the interface
+    pub _m_earner_account: UncheckedAccount<'info>,
+
     pub m_token_program: Program<'info, Token2022>,
 
     pub token_2022: Program<'info, Token2022>,

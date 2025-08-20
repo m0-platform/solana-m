@@ -19,6 +19,7 @@ service:
           outputMint: string
           amount: string
           slippageBps: optional<integer>
+          maxAccounts: optional<integer>
       examples:
         - query-parameters:
             inputMint: So11111111111111111111111111111111111111112

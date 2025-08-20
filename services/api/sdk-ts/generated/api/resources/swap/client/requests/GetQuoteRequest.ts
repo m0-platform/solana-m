@@ -15,4 +15,5 @@ export interface GetQuoteRequest {
     outputMint: string;
     amount: string;
     slippageBps?: number;
+    maxAccounts?: number;
 }

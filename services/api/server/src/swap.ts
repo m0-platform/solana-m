@@ -49,7 +49,7 @@ type Quote = {
 
 export const swap = new SwapService({
   quote: async (req, res, next) => {
-    const { inputMint, outputMint, amount, slippageBps } = req.query;
+    const { inputMint, outputMint, amount, slippageBps, maxAccounts } = req.query;
     const slippage = slippageBps ?? 50;
 
     // generate random id and save quote for swap endpoint
@@ -125,7 +125,7 @@ export const swap = new SwapService({
           outputMint,
           amount: parseInt(amount),
           slippageBps: slippage,
-          maxAccounts: MAX_ACCOUNTS,
+          maxAccounts: maxAccounts ?? MAX_ACCOUNTS,
         });
 
         quoteResponse.preQuote = quote;

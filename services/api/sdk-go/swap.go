@@ -13,6 +13,7 @@ type GetQuoteRequest struct {
 	OutputMint  string `json:"-" url:"outputMint"`
 	Amount      string `json:"-" url:"amount"`
 	SlippageBps *int   `json:"-" url:"slippageBps,omitempty"`
+	MaxAccounts *int   `json:"-" url:"maxAccounts,omitempty"`
 }
 
 type GetSwapRequest struct {

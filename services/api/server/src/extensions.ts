@@ -51,9 +51,10 @@ export const extensionData = [
   },
 ];
 
-export let mMint = 'mzerojk9tg56ebsrEAhfkyc9VgKjTW2zDqp6C5mhjzH' as Address;
+export let mMint = 'mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo' as Address;
 
 if (isDevnet) {
+  mMint = 'mzerojk9tg56ebsrEAhfkyc9VgKjTW2zDqp6C5mhjzH' as Address;
   extensionData[1].programId = 'Fb2AsCKmPd4gKhabT6KsremSHMrJ8G2Mopnc6rDQZX9e';
   extensionData[2].programId = '3PskKTHgboCbUSQPMcCAZdZNFHbNvSoZ8zEFYANCdob7';
   extensionData[1].mVault = '3jjzuwuYxzHRn39D26KWDtGQCWMc12uXK41jBB3njEqi';

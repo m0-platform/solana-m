@@ -58,13 +58,17 @@ export class Swap {
         request: M0SolanaApi.GetQuoteRequest,
         requestOptions?: Swap.RequestOptions,
     ): Promise<core.WithRawResponse<M0SolanaApi.Quote>> {
-        const { inputMint, outputMint, amount, slippageBps } = request;
+        const { inputMint, outputMint, amount, slippageBps, maxAccounts } = request;
         const _queryParams: Record<string, string | string[] | object | object[] | null> = {};
         _queryParams["inputMint"] = inputMint;
         _queryParams["outputMint"] = outputMint;
         _queryParams["amount"] = amount;
         if (slippageBps != null) {
             _queryParams["slippageBps"] = slippageBps.toString();
+        }
+
+        if (maxAccounts != null) {
+            _queryParams["maxAccounts"] = maxAccounts.toString();
         }
 
         const _response = await core.fetcher({

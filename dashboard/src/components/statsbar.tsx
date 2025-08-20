@@ -6,18 +6,12 @@ import { ApiClient } from '../services/sdk';
 
 export const StatsBar = () => {
   const { data: mintData, isLoading: mintLoading } = useQuery({ queryKey: ['mints'], queryFn: getMintsRPC });
-  const {
-    data: extensionData,
-    isLoading: extLoading,
-    ...rest
-  } = useQuery({
+  const { data: extensionData, isLoading: extLoading } = useQuery({
     queryKey: ['extensions'],
     queryFn: () => ApiClient.extensions.extensions(),
   });
 
   const totalYield = extensionData?.extensions.reduce((acc, extension) => acc + extension.mEarned, 0) || 0;
-
-  console.log('EXT', extensionData, extLoading, rest);
 
   return (
     <div className="bg-off-blue px-4 py-5">

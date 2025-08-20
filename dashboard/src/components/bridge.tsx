@@ -358,7 +358,7 @@ export const Bridge = () => {
   };
 
   const handleBridge = async () => {
-    const amountValue = new Decimal(amount).mul(1e6).floor();
+    let amountValue = new Decimal(amount).mul(1e6).floor();
 
     try {
       setIsLoading(true);
@@ -395,6 +395,7 @@ export const Bridge = () => {
           );
 
           fromToken = MINTS.wM.toBase58();
+          amountValue = new Decimal(quote.outAmount);
         }
 
         sig = await bridgeFromSolana(

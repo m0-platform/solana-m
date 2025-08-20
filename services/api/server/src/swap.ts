@@ -94,7 +94,7 @@ export const swap = new SwapService({
 
         quoteResponse.preQuote = quote;
         routePlan.push(...quote.routePlan.map(convertRoutePlan));
-        routePlan.push(getM0Route(wM.toBase58(), outputMint, quote.outAmount));
+        if (outputMint !== wM.toBase58()) routePlan.push(getM0Route(wM.toBase58(), outputMint, quote.outAmount));
 
         // minimum output amount after accounting for `slippageBps` and `platformFeeBps`
         quoteResponse.swapFacilityAmount = quote.otherAmountThreshold;

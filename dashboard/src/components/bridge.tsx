@@ -12,6 +12,8 @@ import { wagmiAdapter } from '../main';
 import { EVM_TOKENS, MINTS } from '../services/consts';
 import { useQuery } from '@tanstack/react-query';
 import { ApiClient } from '../services/sdk';
+import { useDebouncedCallback } from 'use-debounce';
+import { M0SolanaApi } from '@m0-foundation/solana-m-api-sdk';
 
 type Chain = {
   name: string;
@@ -39,6 +41,11 @@ const chains: Chain[] = [
         address: MINTS.M.toBase58(),
         symbol: 'M',
         icon: 'https://gistcdn.githack.com/SC4RECOIN/a729afb77aa15a4aa6b1b46c3afa1b52/raw/209da531ed46c1aaef0b1d3d7b67b3a5cec257f3/M_Symbol_512.svg',
+      },
+      {
+        address: MINTS.USDC.toBase58(),
+        symbol: 'USDC',
+        icon: 'https://statics.solscan.io/cdn/imgs/s60?ref=68747470733a2f2f7261772e67697468756275736572636f6e74656e742e636f6d2f736f6c616e612d6c6162732f746f6b656e2d6c6973742f6d61696e2f6173736574732f6d61696e6e65742f45506a465764643541756671535371654d32714e31787a7962617043384734774547476b5a777954447431762f6c6f676f2e706e67',
       },
     ],
   },
@@ -187,6 +194,13 @@ export const Bridge = () => {
   const [inputToken, setInputToken] = useState<Token>(chains[0].tokens[0]);
   const [outputToken, setOutputToken] = useState<Token>(chains[1].tokens[0]);
 
+  // quoting state if input token is USDC
+  const [quote, setQuote] = useState<M0SolanaApi.Quote>();
+  const [debouncedAmount, setDebouncedAmount] = useState<string>('');
+  const debounced = useDebouncedCallback((value: string) => {
+    setDebouncedAmount(value);
+  }, 1000);
+
   const { data: extensionData } = useQuery({
     queryKey: ['extensions'],
     queryFn: () => ApiClient.extensions.extensions(),
@@ -196,6 +210,7 @@ export const Bridge = () => {
   if (extensionData) {
     chains[0].tokens = [
       chains[0].tokens[0],
+      chains[0].tokens[1],
       ...extensionData.extensions.map((ext) => ({ address: ext.mint, symbol: ext.symbol, icon: ext.icon })),
     ];
   }
@@ -292,8 +307,39 @@ export const Bridge = () => {
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
       if (value.split('.').length > 2) return;
       setAmount(value);
+      debounced(value);
     }
   };
+
+  const getQuote = async () => {
+    if (!inputToken || !amount) return;
+
+    try {
+      setIsLoading(true);
+
+      const quote = await ApiClient.swap.quote({
+        inputMint: inputToken.address,
+        outputMint: MINTS.wM.toBase58(),
+        amount: new Decimal(amount).mul(10 ** 6).toString(),
+      });
+
+      setQuote(quote);
+    } catch (error: any) {
+      console.error('Quote error:', JSON.stringify(error, null, 2));
+      toast.error(<div>{error?.body?.message ?? error?.message ?? 'Unknown error'}</div>);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // fetch quote when fromAsset is USDC and amount changes
+  useEffect(() => {
+    if (inputToken.address === MINTS.USDC.toBase58() && debouncedAmount) {
+      getQuote();
+    } else {
+      setQuote(undefined);
+    }
+  }, [inputToken, debouncedAmount]);
 
   const handleRecipientChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setRecipientAddress(e.target.value.trim());
@@ -307,6 +353,7 @@ export const Bridge = () => {
 
   const handleMaxClick = () => {
     setAmount(getTokenBalance().toString());
+    debounced(getTokenBalance().toString());
   };
 
   const handleBridge = async () => {
@@ -317,6 +364,18 @@ export const Bridge = () => {
 
       let sig: string;
       if (inputChain.namespace === 'svm') {
+        if (!walletProvider?.publicKey) {
+          throw new Error('No wallet connected');
+        }
+
+        // add in swap if input token is USDC
+        if (inputToken.address === MINTS.USDC.toBase58() && quote) {
+          const swap = await ApiClient.swap.swap({
+            quoteId: quote.quoteId,
+            userPublicKey: walletProvider.publicKey.toBase58(),
+          });
+        }
+
         sig = await bridgeFromSolana(
           walletProvider,
           amountValue,
@@ -488,6 +547,20 @@ export const Bridge = () => {
             />
           </div>
         </div>
+
+        {quote && (
+          <div className="mb-6 text-sm">
+            <div>
+              {new Decimal(quote.outAmount).div(10 ** 6).toFixed(4)} {outputToken!.symbol}{' '}
+            </div>
+            <div>Est Price Impact: {new Decimal(quote.priceImpactPct).toFixed(4)}% </div>
+            <div>
+              {quote.routePlan.map((p) => (
+                <span className="bg-gray-200 mr-2 p-1 text-xs">{p.swapInfo.label}</span>
+              ))}
+            </div>
+          </div>
+        )}
 
         <button
           onClick={hasAllowance ? handleBridge : handleApprove}

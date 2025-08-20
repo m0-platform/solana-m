@@ -1,66 +1,68 @@
-import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
+import { createApproveInstruction, getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
 import {
   Keypair,
   PublicKey,
   LAMPORTS_PER_SOL,
   AddressLookupTableAccount,
-  TransactionMessage,
-  VersionedTransaction,
-  Transaction,
   TransactionInstruction,
   SystemProgram,
   Connection,
 } from '@solana/web3.js';
-import {
-  AccountAddress,
-  ChainAddress,
-  chainToChainId,
-  Network,
-  sha256,
-  toChainId,
-  toUniversal,
-  universalAddress,
-} from '@wormhole-foundation/sdk';
-import { SolanaChains, SolanaUnsignedTransaction, SolanaAddress } from '@wormhole-foundation/sdk-solana';
-import { SolanaNtt, WEI_PER_GWEI } from '@wormhole-foundation/sdk-solana-ntt';
-import { EARN_PROGRAM_ID, MINTS, SWAP_LUT } from './consts';
+import { chainToChainId, Network, sha256, toChainId, universalAddress } from '@wormhole-foundation/sdk';
+import { ChainAddress, toUniversal } from '@wormhole-foundation/sdk-definitions';
+import { SolanaChains, SolanaAddress } from '@wormhole-foundation/sdk-solana';
+import { NTT, SolanaNtt, WEI_PER_GWEI } from '@wormhole-foundation/sdk-solana-ntt';
+import { EARN_PROGRAM_ID, MINTS } from './consts';
 import BN from 'bn.js';
 import { EvmNtt } from '@wormhole-foundation/sdk-evm-ntt';
 import { addFrom, EvmAddress, EvmPlatform } from '@wormhole-foundation/sdk-evm';
 import { Contract } from 'ethers';
 
-export async function* transferSolanaExtension<N extends Network, C extends SolanaChains>(
+export async function transferSolanaExtension<N extends Network, C extends SolanaChains>(
   ntt: SolanaNtt<N, C>,
-  sender: AccountAddress<C>,
+  sender: PublicKey,
   amount: bigint,
   recipient: ChainAddress,
   sourceToken: string,
   destinationToken: string,
   outboxItem?: Keypair,
-): AsyncGenerator<SolanaUnsignedTransaction<N, C>> {
-  if ((await ntt.getConfig()).mint.toBase58() === sourceToken) {
-    return ntt.transfer(sender, amount, recipient, { queue: false });
-  }
-
+): Promise<TransactionInstruction[]> {
   const config = await ntt.getConfig();
   if (config.paused) throw new Error('Contract is paused');
 
   outboxItem = outboxItem ?? Keypair.generate();
   const payerAddress = new SolanaAddress(sender).unwrap();
 
-  // Use custom transfer instruction for extension tokens
-  const ixs = [
-    getTransferExtensionBurnIx(
-      ntt,
-      amount,
-      recipient,
-      new PublicKey(sender.toUint8Array()),
-      outboxItem.publicKey,
-      new PublicKey(sourceToken),
-      toUniversal(recipient.chain, destinationToken).toUint8Array(),
-      false,
-    ),
-  ];
+  const ixs: TransactionInstruction[] = [];
+
+  if (ntt.config!.mint.toBase58() === sourceToken) {
+    const ata = getAssociatedTokenAddressSync(config.mint, sender, true, config.tokenProgram);
+    const args = NTT.transferArgs(amount, recipient, false);
+
+    ixs.push(
+      createApproveInstruction(ata, ntt.pdas.sessionAuthority(sender, args), sender, amount, [], config.tokenProgram),
+      await NTT.createTransferBurnInstruction(ntt as any, ntt.config!, {
+        payer: sender,
+        from: ata,
+        fromAuthority: sender,
+        transferArgs: args,
+        outboxItem: outboxItem.publicKey,
+      }),
+    );
+  } else {
+    ixs.push(
+      getTransferExtensionBurnIx(
+        ntt,
+        amount,
+        recipient,
+        sender,
+        outboxItem.publicKey,
+        new PublicKey(sourceToken),
+        toUniversal(recipient.chain, destinationToken).toUint8Array(),
+        false,
+      ),
+    );
+  }
 
   // Create release ix for each transceiver
   for (let ix = 0; ix < ntt.transceivers.length; ++ix) {
@@ -74,41 +76,24 @@ export async function* transferSolanaExtension<N extends Network, C extends Sola
     }
   }
 
-  const tx = new Transaction();
-  tx.feePayer = payerAddress;
-  tx.add(...ixs);
-
   // Pay fee to relay on destination chain
   if (!ntt.quoter) throw new Error('No quoter available, cannot initiate an automatic transfer.');
 
-  const fee = await ntt.quoteDeliveryPrice(recipient.chain, {
+  const fee = await ntt.quoteDeliveryPrice(recipient.chain as any, {
     queue: false,
   });
 
-  const relayIx = await ntt.quoter.createRequestRelayInstruction(
-    payerAddress,
-    outboxItem.publicKey,
-    recipient.chain,
-    Number(fee) / LAMPORTS_PER_SOL,
-    Number(0n) / WEI_PER_GWEI,
+  ixs.push(
+    await ntt.quoter.createRequestRelayInstruction(
+      payerAddress,
+      outboxItem.publicKey,
+      recipient.chain as any,
+      Number(fee) / LAMPORTS_PER_SOL,
+      Number(0n) / WEI_PER_GWEI,
+    ),
   );
-  tx.add(relayIx);
 
-  const luts: AddressLookupTableAccount[] = [];
-  try {
-    luts.push(await ntt.getAddressLookupTable());
-    luts.push(await getAddressLookupTableAccounts(ntt.connection, SWAP_LUT));
-  } catch {}
-
-  const messageV0 = new TransactionMessage({
-    payerKey: payerAddress,
-    instructions: tx.instructions,
-    recentBlockhash: (await ntt.connection.getLatestBlockhash()).blockhash,
-  }).compileToV0Message(luts);
-
-  const vtx = new VersionedTransaction(messageV0);
-
-  yield ntt.createUnsignedTx({ transaction: vtx, signers: [outboxItem] }, 'Ntt.Transfer');
+  return ixs;
 }
 
 function getTransferExtensionBurnIx<N extends Network, C extends SolanaChains>(
@@ -229,7 +214,7 @@ function getTransferExtensionBurnIx<N extends Network, C extends SolanaChains>(
         pubkey: ntt.pdas.sessionAuthority(payer, {
           amount: new BN(amount.toString()),
           recipientChain: {
-            id: chainToChainId(recipient.chain),
+            id: chainToChainId(recipient.chain as any),
           },
           recipientAddress: Array.from(recipientAddress),
           shouldQueue: shouldQueue,
@@ -321,7 +306,7 @@ function getTransferExtensionBurnIx<N extends Network, C extends SolanaChains>(
     data: Buffer.concat([
       Buffer.from(sha256('global:transfer_extension_burn').subarray(0, 8)),
       new BN(amount.toString()).toArrayLike(Buffer, 'le', 8), // amount
-      new BN(chainToChainId(recipient.chain)).toArrayLike(Buffer, 'le', 2), // chain_id
+      new BN(chainToChainId(recipient.chain as any)).toArrayLike(Buffer, 'le', 2), // chain_id
       recipientAddress, // recipient_address
       Buffer.from([Number(shouldQueue)]), // should_queue
       destinationToken, // destination_token
@@ -329,7 +314,7 @@ function getTransferExtensionBurnIx<N extends Network, C extends SolanaChains>(
   });
 }
 
-async function getAddressLookupTableAccounts(
+export async function getAddressLookupTableAccounts(
   connection: Connection,
   lut: PublicKey,
 ): Promise<AddressLookupTableAccount> {
@@ -365,7 +350,7 @@ export async function* transferMLike(
     yield ntt.createUnsignedTx(addFrom(txReq, senderAddress), 'Ntt.Approve');
   }
 
-  const receiver = universalAddress(destination);
+  const receiver = universalAddress(destination as any);
 
   // TODO: replace with INttManagerWithExecutor method https://github.com/wormhole-foundation/native-token-transfers/blob/main/evm/ts/src/nttWithExecutor.ts#L158
   const contract = new Contract(ntt.managerAddress, [

@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ApiClient } from '../services/sdk';
 import { useDebouncedCallback } from 'use-debounce';
 import { M0SolanaApi } from '@m0-foundation/solana-m-api-sdk';
+import { PublicKey, TransactionInstruction } from '@solana/web3.js';
 
 type Chain = {
   name: string;
@@ -319,7 +320,7 @@ export const Bridge = () => {
 
       const quote = await ApiClient.swap.quote({
         inputMint: inputToken.address,
-        outputMint: MINTS.wM.toBase58(),
+        outputMint: MINTS.M.toBase58(),
         amount: new Decimal(amount).mul(10 ** 6).toString(),
       });
 
@@ -368,21 +369,42 @@ export const Bridge = () => {
           throw new Error('No wallet connected');
         }
 
+        let fromToken = inputToken.address;
+
         // add in swap if input token is USDC
+        const preIxs: TransactionInstruction[] = [];
         if (inputToken.address === MINTS.USDC.toBase58() && quote) {
           const swap = await ApiClient.swap.swap({
             quoteId: quote.quoteId,
             userPublicKey: walletProvider.publicKey.toBase58(),
           });
+
+          preIxs.push(
+            ...swap.instructions.map(
+              (ix) =>
+                new TransactionInstruction({
+                  programId: new PublicKey(ix.programId),
+                  data: Buffer.from(ix.data, 'base64'),
+                  keys: ix.keys.map((k) => ({
+                    pubkey: new PublicKey(k.pubkey),
+                    isSigner: k.isSigner,
+                    isWritable: k.isWritable,
+                  })),
+                }),
+            ),
+          );
+
+          fromToken = MINTS.wM.toBase58();
         }
 
         sig = await bridgeFromSolana(
           walletProvider,
           amountValue,
-          inputToken.address,
+          fromToken,
           recipientAddress,
           outputChain.label,
           outputToken.address,
+          preIxs,
         );
       } else {
         sig = await bridgeFromEvm(

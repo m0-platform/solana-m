@@ -66,6 +66,8 @@ service:
           response:
             body:
               simulationLogs: []
+              luts: []
+              instructions: []
               transaction: 'AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAQAGDkS+3LuGTbs......+/oD9qb31dH6i0QZ2IHELXUX3Y1YeW79p9Stkqk12z4yvZFJiQ4GCQwLBwYQBgUEDggNTQ=='
 
 types:
@@ -99,7 +101,21 @@ types:
   Swap:
     properties:
       transaction: string
+      instructions: list<Instruction>
+      luts: list<string>
       simulationLogs: list<string>
+
+  Instruction:
+    properties:
+      programId: string
+      data: string
+      keys: list<AccountMeta>
+
+  AccountMeta:
+    properties:
+      pubkey: string
+      isSigner: boolean
+      isWritable: boolean
 
   SwapRequestError:
     properties:

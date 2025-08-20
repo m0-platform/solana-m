@@ -5,15 +5,20 @@
 import * as serializers from "../../../index";
 import * as M0SolanaApi from "../../../../api/index";
 import * as core from "../../../../core";
+import { Instruction } from "./Instruction";
 
 export const Swap: core.serialization.ObjectSchema<serializers.Swap.Raw, M0SolanaApi.Swap> = core.serialization.object({
     transaction: core.serialization.string(),
+    instructions: core.serialization.list(Instruction),
+    luts: core.serialization.list(core.serialization.string()),
     simulationLogs: core.serialization.list(core.serialization.string()),
 });
 
 export declare namespace Swap {
     export interface Raw {
         transaction: string;
+        instructions: Instruction.Raw[];
+        luts: string[];
         simulationLogs: string[];
     }
 }

@@ -1,9 +1,17 @@
-import { Connection, Keypair, PublicKey, VersionedTransaction } from '@solana/web3.js';
+import {
+  AddressLookupTableAccount,
+  Connection,
+  Keypair,
+  PublicKey,
+  TransactionInstruction,
+  TransactionMessage,
+  VersionedTransaction,
+} from '@solana/web3.js';
 import { Mint, TOKEN_2022_PROGRAM_ID, unpackMint } from '@solana/spl-token';
-import { MINTS, PORTAL } from './consts';
+import { MINTS, PORTAL, SWAP_LUT } from './consts';
 import { type Provider } from '@reown/appkit-adapter-solana/react';
 import Decimal from 'decimal.js';
-import { UniversalAddress, Wormhole } from '@wormhole-foundation/sdk';
+import { Wormhole } from '@wormhole-foundation/sdk';
 import { SolanaNtt } from '@wormhole-foundation/sdk-solana-ntt';
 import { EvmNtt } from '@wormhole-foundation/sdk-evm-ntt';
 import { SolanaPlatform } from '@wormhole-foundation/sdk-solana';
@@ -12,7 +20,8 @@ import { Config } from 'wagmi';
 import { JsonRpcProvider } from 'ethers';
 import evm from '@wormhole-foundation/sdk/evm';
 import { wormhole } from '@wormhole-foundation/sdk';
-import { transferMLike, transferSolanaExtension } from './bridging';
+import { UniversalAddress } from '@wormhole-foundation/sdk-definitions';
+import { getAddressLookupTableAccounts, transferMLike, transferSolanaExtension } from './bridging';
 
 export const NETWORK: 'devnet' | 'mainnet' = import.meta.env.VITE_NETWORK;
 export const connection = new Connection(import.meta.env.VITE_RPC_URL);
@@ -42,6 +51,8 @@ export const bridgeFromSolana = async (
   recipient: string,
   toChain: string,
   toToken: string,
+  preIxs?: TransactionInstruction[],
+  additionalLuts?: PublicKey[],
 ) => {
   const ntt = NttManager(connection, MINTS.M);
 
@@ -49,12 +60,10 @@ export const bridgeFromSolana = async (
     throw new Error('Wallet not connected');
   }
 
-  const sender = Wormhole.parseAddress('Solana', walletProvider.publicKey.toBase58());
-
   const outboxItem = Keypair.generate();
-  const xferTxs = transferSolanaExtension(
+  const ixs = await transferSolanaExtension(
     ntt,
-    sender,
+    walletProvider.publicKey,
     BigInt(amount.toString()),
     {
       address: new UniversalAddress(recipient, 'hex'),
@@ -65,29 +74,42 @@ export const bridgeFromSolana = async (
     outboxItem,
   );
 
-  let sig = '';
-  for await (const tx of xferTxs) {
-    let txn = tx.transaction.transaction as VersionedTransaction;
-    txn = await walletProvider.signTransaction(txn);
-    txn.sign([outboxItem]);
-
-    sig = await connection.sendTransaction(txn);
-
-    try {
-      const { lastValidBlockHeight, blockhash } = await connection.getLatestBlockhash();
-
-      await connection.confirmTransaction(
-        {
-          blockhash: blockhash,
-          lastValidBlockHeight: lastValidBlockHeight,
-          signature: sig,
-        },
-        'confirmed',
-      );
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
-      throw new Error(`Failed to confirm transaction: ${sig}. Error details: ${errorMessage}`);
+  const luts: AddressLookupTableAccount[] = [];
+  luts.push(await ntt.getAddressLookupTable());
+  luts.push(await getAddressLookupTableAccounts(ntt.connection, SWAP_LUT));
+  if (additionalLuts) {
+    for (const lut of additionalLuts) {
+      luts.push(await getAddressLookupTableAccounts(ntt.connection, lut));
     }
+  }
+
+  const messageV0 = new TransactionMessage({
+    payerKey: walletProvider.publicKey,
+    instructions: [...(preIxs ?? []), ...ixs],
+    recentBlockhash: (await ntt.connection.getLatestBlockhash()).blockhash,
+  }).compileToV0Message(luts);
+
+  let txn = new VersionedTransaction(messageV0);
+  txn = await walletProvider.signTransaction(txn);
+  txn.sign([outboxItem]);
+
+  const sig = await connection.sendTransaction(txn);
+
+  // attempt to confirm the transaction
+  try {
+    const { lastValidBlockHeight, blockhash } = await connection.getLatestBlockhash();
+
+    await connection.confirmTransaction(
+      {
+        blockhash: blockhash,
+        lastValidBlockHeight: lastValidBlockHeight,
+        signature: sig,
+      },
+      'confirmed',
+    );
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
+    throw new Error(`Failed to confirm transaction: ${sig}. Error details: ${errorMessage}`);
   }
 
   return sig;

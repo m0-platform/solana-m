@@ -359,6 +359,16 @@ export const swap = new SwapService({
     res.send({
       transaction: b64,
       simulationLogs: logs,
+      luts: addressLookupTableAccounts.map((lut) => lut.key.toBase58()),
+      instructions: ixs.map((ix) => ({
+        programId: ix.programId.toBase58(),
+        keys: ix.keys.map((key) => ({
+          pubkey: key.pubkey.toBase58(),
+          isSigner: key.isSigner,
+          isWritable: key.isWritable,
+        })),
+        data: ix.data.toString('base64'),
+      })),
     });
   },
 });

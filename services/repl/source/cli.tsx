@@ -6,10 +6,12 @@ import App from './app.js';
 const cli = meow({
   importMeta: import.meta,
   flags: {
-    name: {
+    network: {
       type: 'string',
+      choices: ['mainnet', 'devnet'],
+      default: 'devnet',
     },
   },
 });
 
-render(<App name={cli.flags.name} />);
+render(<App network={cli.flags.network} />);

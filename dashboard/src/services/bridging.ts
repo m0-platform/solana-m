@@ -1,22 +1,24 @@
+import BN from 'bn.js';
+import { Contract } from 'ethers';
 import { createApproveInstruction, getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
 import {
-  Keypair,
-  PublicKey,
-  LAMPORTS_PER_SOL,
   AddressLookupTableAccount,
-  TransactionInstruction,
-  SystemProgram,
   Connection,
+  Keypair,
+  LAMPORTS_PER_SOL,
+  PublicKey,
+  SystemProgram,
+  TransactionInstruction,
 } from '@solana/web3.js';
 import { chainToChainId, Network, sha256, toChainId, universalAddress } from '@wormhole-foundation/sdk';
 import { ChainAddress, toUniversal } from '@wormhole-foundation/sdk-definitions';
-import { SolanaChains, SolanaAddress } from '@wormhole-foundation/sdk-solana';
-import { NTT, SolanaNtt, WEI_PER_GWEI } from '@wormhole-foundation/sdk-solana-ntt';
-import { EARN_PROGRAM_ID, MINTS } from './consts';
-import BN from 'bn.js';
-import { EvmNtt } from '@wormhole-foundation/sdk-evm-ntt';
+import { NttWithExecutor } from '@wormhole-foundation/sdk-definitions-ntt';
 import { addFrom, EvmAddress, EvmPlatform } from '@wormhole-foundation/sdk-evm';
-import { Contract } from 'ethers';
+import { EvmNtt } from '@wormhole-foundation/sdk-evm-ntt';
+import { NttExecutorRoute } from '@wormhole-foundation/sdk-route-ntt';
+import { SolanaAddress, SolanaChains } from '@wormhole-foundation/sdk-solana';
+import { NTT, SolanaNtt, WEI_PER_GWEI } from '@wormhole-foundation/sdk-solana-ntt';
+import { EARN_PROGRAM_ID, MINTS, PORTAL } from './consts';
 
 export async function transferSolanaExtension<N extends Network, C extends SolanaChains>(
   ntt: SolanaNtt<N, C>,
@@ -333,6 +335,7 @@ export async function* transferMLike(
   destination: ChainAddress,
   sourceToken: string,
   destinationToken: string,
+  quote?: NttWithExecutor.Quote,
 ) {
   const senderAddress = new EvmAddress(sender).toString();
 
@@ -352,22 +355,85 @@ export async function* transferMLike(
 
   const receiver = universalAddress(destination as any);
 
-  // TODO: replace with INttManagerWithExecutor method https://github.com/wormhole-foundation/native-token-transfers/blob/main/evm/ts/src/nttWithExecutor.ts#L158
-  const contract = new Contract(ntt.managerAddress, [
-    'function transferMLikeToken(uint256 amount, address sourceToken, uint16 destinationChainId, bytes32 destinationToken, bytes32 recipient, bytes32 refundAddress) external payable returns (uint64 sequence)',
-  ]);
+  // Use executor route if quote passed, else use standard relaying
+  if (quote) {
+    const contract = new Contract('0x355b7Df654f315d41ce379da7F74eE7D03cC783b', [
+      'function transferMLikeToken(uint256 amount, address sourceToken, uint16 destinationChainId, bytes32 destinationToken, bytes32 recipient, bytes32 refundAddress, (uint256 value, address refundAddress, bytes signedQuote, bytes instructions) executorArgs, bytes memory transceiverInstructions) external payable returns (bytes32 messageId)',
+    ]);
 
-  const txReq = await contract
-    .getFunction('transferMLikeToken')
-    .populateTransaction(
-      amount,
-      sourceToken,
-      toChainId(destination.chain),
-      toUniversal(destination.chain, destinationToken).toString(),
-      receiver,
-      receiver,
-      { value: totalPrice },
-    );
+    const executorArgs = {
+      value: quote.estimatedCost,
+      refundAddress: senderAddress,
+      signedQuote: quote.signedQuote,
+      instructions: quote.relayInstructions,
+    };
 
-  yield ntt.createUnsignedTx(addFrom(txReq, senderAddress), 'Ntt.transfer');
+    const txReq = await contract
+      .getFunction('transferMLikeToken')
+      .populateTransaction(
+        amount,
+        sourceToken,
+        toChainId(destination.chain),
+        toUniversal(destination.chain, destinationToken).toString(),
+        receiver,
+        receiver,
+        executorArgs,
+        Uint8Array.from(Buffer.from('01000101', 'hex')),
+        { value: totalPrice + quote.estimatedCost },
+      );
+
+    yield ntt.createUnsignedTx(addFrom(txReq, senderAddress), 'Ntt.transfer');
+  } else {
+    const contract = new Contract(ntt.managerAddress, [
+      'function transferMLikeToken(uint256 amount, address sourceToken, uint16 destinationChainId, bytes32 destinationToken, bytes32 recipient, bytes32 refundAddress) external payable returns (uint64 sequence)',
+    ]);
+
+    const txReq = await contract
+      .getFunction('transferMLikeToken')
+      .populateTransaction(
+        amount,
+        sourceToken,
+        toChainId(destination.chain),
+        toUniversal(destination.chain, destinationToken).toString(),
+        receiver,
+        receiver,
+        { value: totalPrice },
+      );
+
+    yield ntt.createUnsignedTx(addFrom(txReq, senderAddress), 'Ntt.transfer');
+  }
+}
+
+export function convertToExecutorConfig(): NttExecutorRoute.Config {
+  return {
+    ntt: {
+      tokens: {
+        M0: [
+          {
+            chain: 'Solana',
+            token: MINTS.M.toBase58(),
+            manager: PORTAL.toBase58(),
+            transceiver: [
+              {
+                type: 'wormhole',
+                address: PORTAL.toBase58(),
+              },
+            ],
+            quoter: 'Nqd6XqA8LbsCuG8MLWWuP865NV6jR1MbXeKxD4HLKDJ',
+          },
+          {
+            chain: 'Ethereum',
+            token: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b',
+            manager: '0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd',
+            transceiver: [
+              {
+                type: 'wormhole',
+                address: '0x0763196A091575adF99e2306E5e90E0Be5154841',
+              },
+            ],
+          },
+        ],
+      },
+    },
+  };
 }

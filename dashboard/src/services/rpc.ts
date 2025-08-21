@@ -1,3 +1,14 @@
+import { Config } from 'wagmi';
+import { SendTransactionMutate } from 'wagmi/query';
+import { Chain, Wormhole, routes } from '@wormhole-foundation/sdk';
+import { UniversalAddress } from '@wormhole-foundation/sdk-definitions';
+import { EvmNtt } from '@wormhole-foundation/sdk-evm-ntt';
+import evm from '@wormhole-foundation/sdk/platforms/evm';
+import solana from '@wormhole-foundation/sdk/platforms/solana';
+import { NttExecutorRoute, nttExecutorRoute } from '@wormhole-foundation/sdk-route-ntt';
+import { SolanaNtt } from '@wormhole-foundation/sdk-solana-ntt';
+import { type Provider } from '@reown/appkit-adapter-solana/react';
+import { Mint, TOKEN_2022_PROGRAM_ID, unpackMint } from '@solana/spl-token';
 import {
   AddressLookupTableAccount,
   Connection,
@@ -7,21 +18,16 @@ import {
   TransactionMessage,
   VersionedTransaction,
 } from '@solana/web3.js';
-import { Mint, TOKEN_2022_PROGRAM_ID, unpackMint } from '@solana/spl-token';
-import { MINTS, PORTAL, SWAP_LUT } from './consts';
-import { type Provider } from '@reown/appkit-adapter-solana/react';
 import Decimal from 'decimal.js';
-import { Wormhole } from '@wormhole-foundation/sdk';
-import { SolanaNtt } from '@wormhole-foundation/sdk-solana-ntt';
-import { EvmNtt } from '@wormhole-foundation/sdk-evm-ntt';
-import { SolanaPlatform } from '@wormhole-foundation/sdk-solana';
-import { SendTransactionMutate } from 'wagmi/query';
-import { Config } from 'wagmi';
 import { JsonRpcProvider } from 'ethers';
-import evm from '@wormhole-foundation/sdk/evm';
-import { wormhole } from '@wormhole-foundation/sdk';
-import { UniversalAddress } from '@wormhole-foundation/sdk-definitions';
-import { getAddressLookupTableAccounts, transferMLike, transferSolanaExtension } from './bridging';
+import {
+  convertToExecutorConfig,
+  getAddressLookupTableAccounts,
+  transferMLike,
+  transferSolanaExtension,
+} from './bridging';
+import { MINTS, PORTAL, SWAP_LUT } from './consts';
+import { NttWithExecutor } from '@wormhole-foundation/sdk-definitions-ntt';
 
 export const NETWORK: 'devnet' | 'mainnet' = import.meta.env.VITE_NETWORK;
 export const connection = new Connection(import.meta.env.VITE_RPC_URL);
@@ -130,7 +136,20 @@ export const bridgeFromEvm = async (
     throw new Error('Wallet not connected');
   }
 
-  const ntt = await EvmNttManager(fromChain);
+  const { ntt, routeInstance, wh } = await EvmNttManager(fromChain);
+
+  let routeQuote: NttWithExecutor.Quote | undefined;
+  if (toChain === 'Solana') {
+    const tr = (await routes.RouteTransferRequest.create(wh, {
+      source: Wormhole.tokenId(fromChain as Chain, fromToken),
+      destination: Wormhole.tokenId(toChain as Chain, toToken),
+    })) as any;
+
+    const validated = await routeInstance.validate(tr, { amount: amount.toString() });
+    if (!validated.valid) throw new Error(`Validation failed: ${validated.error.message}`);
+    const validatedParams = validated.params as NttExecutorRoute.ValidatedParams;
+    routeQuote = await routeInstance.fetchExecutorQuote(tr, validatedParams);
+  }
 
   const xferTxs = transferMLike(
     ntt,
@@ -142,6 +161,7 @@ export const bridgeFromEvm = async (
     },
     fromToken,
     toToken,
+    routeQuote,
   );
 
   let sig: string = '';
@@ -175,7 +195,7 @@ export const bridgeFromEvm = async (
 
 export function NttManager(connection: Connection, mint: PublicKey) {
   const wormholeNetwork = NETWORK === 'devnet' ? 'Testnet' : 'Mainnet';
-  const wh = new Wormhole(wormholeNetwork, [SolanaPlatform]);
+  const wh = new Wormhole(wormholeNetwork, [solana.Platform, evm.Platform]);
   const ctx = wh.getChain('Solana');
 
   const ntt = new SolanaNtt(
@@ -201,8 +221,24 @@ export function NttManager(connection: Connection, mint: PublicKey) {
 
 async function EvmNttManager(chain: string) {
   const wormholeNetwork = NETWORK === 'devnet' ? 'Testnet' : 'Mainnet';
-  const wh = await wormhole(wormholeNetwork, [evm]);
+  const wh = new Wormhole(wormholeNetwork, [solana.Platform, evm.Platform]);
   const ctx = wh.getChain(chain as any);
+
+  let executorConfig = convertToExecutorConfig();
+  executorConfig.referrerFee = {
+    feeDbps: 0n, // No referrer fee
+    perTokenOverrides: {
+      Solana: {
+        M0: {
+          msgValue: 10_000_000n + 1_500_000n,
+        },
+      },
+    },
+  };
+  const executorRoute = nttExecutorRoute(executorConfig);
+
+  // @ts-ignore
+  const routeInstance = new executorRoute(wh);
 
   const rpc: { [key: string]: string } = {
     Sepolia: import.meta.env.VITE_EVM_RPC_URL,
@@ -213,16 +249,20 @@ async function EvmNttManager(chain: string) {
     Optimism: import.meta.env.VITE_OPTIMISM_RPC_URL,
   };
 
-  return new EvmNtt(wormholeNetwork, chain as any, new JsonRpcProvider(rpc[chain]), {
-    ...ctx.config.contracts,
-    ntt: {
-      token: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b',
-      manager: '0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd',
-      transceiver: {
-        wormhole: '0x0763196A091575adF99e2306E5e90E0Be5154841',
+  return {
+    ntt: new EvmNtt(wormholeNetwork, chain as any, new JsonRpcProvider(rpc[chain]), {
+      ...ctx.config.contracts,
+      ntt: {
+        token: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b',
+        manager: '0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd',
+        transceiver: {
+          wormhole: '0x0763196A091575adF99e2306E5e90E0Be5154841',
+        },
       },
-    },
-  });
+    }),
+    routeInstance,
+    wh,
+  };
 }
 
 export const erc20Abi = [

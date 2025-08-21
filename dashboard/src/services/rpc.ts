@@ -128,7 +128,6 @@ export const bridgeFromSolana = async (
 };
 
 export const bridgeFromEvm = async (
-  // @ts-ignore
   sendTransaction: SendTransactionMutate<Config>,
   address: string | undefined,
   amount: Decimal,
@@ -155,8 +154,6 @@ export const bridgeFromEvm = async (
       const validated = await routeInstance.validate(tr, { amount: amount.toString() });
       if (!validated.valid) throw new Error(`Validation failed: ${validated.error.message}`);
       const validatedParams = validated.params as NttExecutorRoute.ValidatedParams;
-
-      registerProtocol('Evm', 'NttWithExecutor', EvmNttWithExecutor);
 
       // Error: No protocols registered for Solana:NttWithExecutor
       routeQuote = await routeInstance.fetchExecutorQuote(tr, validatedParams);

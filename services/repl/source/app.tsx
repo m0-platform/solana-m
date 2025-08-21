@@ -13,7 +13,7 @@ export default function App({ network = 'mainnet' }: BaseProps) {
 
   if (!selectedAction)
     return (
-      <Box flexDirection="column" aria-role="list">
+      <Box flexDirection="column">
         <Text>Select an action:</Text>
         <Select
           options={[

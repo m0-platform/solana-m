@@ -11,6 +11,7 @@ import { PublicKey, VersionedTransaction } from '@solana/web3.js';
 import { useDebouncedCallback } from 'use-debounce';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { TbSwitchHorizontal } from 'react-icons/tb';
+import { MINTS } from '../services/consts';
 
 const additionalStables: Asset[] = [
   {
@@ -31,7 +32,7 @@ const additionalStables: Asset[] = [
 
 // for wrapping and unwrapping
 const mAsset = {
-  mint: new PublicKey('mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo'),
+  mint: MINTS.M,
   balance: new Decimal(0),
   decimals: 6,
   icon: 'https://gistcdn.githack.com/SC4RECOIN/a729afb77aa15a4aa6b1b46c3afa1b52/raw/209da531ed46c1aaef0b1d3d7b67b3a5cec257f3/M_Symbol_512.svg',

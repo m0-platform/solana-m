@@ -432,7 +432,28 @@ export function convertToExecutorConfig(): NttExecutorRoute.Config {
               },
             ],
           },
+          {
+            chain: 'Sepolia',
+            token: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b',
+            manager: '0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd',
+            transceiver: [
+              {
+                type: 'wormhole',
+                address: '0x0763196A091575adF99e2306E5e90E0Be5154841',
+              },
+            ],
+          },
         ],
+      },
+    },
+    referrerFee: {
+      feeDbps: 0n, // No referrer fee
+      perTokenOverrides: {
+        Solana: {
+          M0: {
+            msgValue: 10_000_000n + 1_500_000n,
+          },
+        },
       },
     },
   };

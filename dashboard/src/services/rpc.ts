@@ -1,8 +1,13 @@
+// register protocol implementations
+import '@wormhole-foundation/sdk-definitions-ntt';
+import '@wormhole-foundation/sdk-evm-ntt';
+import '@wormhole-foundation/sdk-solana-ntt';
+
 import { Config } from 'wagmi';
 import { SendTransactionMutate } from 'wagmi/query';
 import { Chain, Wormhole, routes } from '@wormhole-foundation/sdk';
-import { UniversalAddress } from '@wormhole-foundation/sdk-definitions';
-import { EvmNtt } from '@wormhole-foundation/sdk-evm-ntt';
+import { registerProtocol, UniversalAddress } from '@wormhole-foundation/sdk-definitions';
+import { EvmNtt, EvmNttWithExecutor } from '@wormhole-foundation/sdk-evm-ntt';
 import evm from '@wormhole-foundation/sdk/platforms/evm';
 import solana from '@wormhole-foundation/sdk/platforms/solana';
 import { NttExecutorRoute, nttExecutorRoute } from '@wormhole-foundation/sdk-route-ntt';
@@ -21,13 +26,14 @@ import {
 import Decimal from 'decimal.js';
 import { JsonRpcProvider } from 'ethers';
 import {
-  convertToExecutorConfig,
+  convertToExecutorConfig as getExecutorConfig,
   getAddressLookupTableAccounts,
   transferMLike,
   transferSolanaExtension,
 } from './bridging';
-import { MINTS, PORTAL, SWAP_LUT } from './consts';
+import { M_EVM, MINTS, PORTAL, SWAP_LUT } from './consts';
 import { NttWithExecutor } from '@wormhole-foundation/sdk-definitions-ntt';
+import { _platform } from '@wormhole-foundation/sdk-evm';
 
 export const NETWORK: 'devnet' | 'mainnet' = import.meta.env.VITE_NETWORK;
 export const connection = new Connection(import.meta.env.VITE_RPC_URL);
@@ -60,7 +66,7 @@ export const bridgeFromSolana = async (
   preIxs?: TransactionInstruction[],
   additionalLuts?: PublicKey[],
 ) => {
-  const ntt = NttManager(connection, MINTS.M);
+  const ntt = NttManager(connection);
 
   if (!walletProvider.publicKey) {
     throw new Error('Wallet not connected');
@@ -140,15 +146,24 @@ export const bridgeFromEvm = async (
 
   let routeQuote: NttWithExecutor.Quote | undefined;
   if (toChain === 'Solana') {
-    const tr = (await routes.RouteTransferRequest.create(wh, {
-      source: Wormhole.tokenId(fromChain as Chain, fromToken),
-      destination: Wormhole.tokenId(toChain as Chain, toToken),
-    })) as any;
+    try {
+      const tr = (await routes.RouteTransferRequest.create(wh, {
+        source: Wormhole.tokenId(fromChain as Chain, M_EVM),
+        destination: Wormhole.tokenId(toChain as Chain, MINTS.M.toBase58()),
+      })) as any;
 
-    const validated = await routeInstance.validate(tr, { amount: amount.toString() });
-    if (!validated.valid) throw new Error(`Validation failed: ${validated.error.message}`);
-    const validatedParams = validated.params as NttExecutorRoute.ValidatedParams;
-    routeQuote = await routeInstance.fetchExecutorQuote(tr, validatedParams);
+      const validated = await routeInstance.validate(tr, { amount: amount.toString() });
+      if (!validated.valid) throw new Error(`Validation failed: ${validated.error.message}`);
+      const validatedParams = validated.params as NttExecutorRoute.ValidatedParams;
+
+      registerProtocol('Evm', 'NttWithExecutor', EvmNttWithExecutor);
+
+      // Error: No protocols registered for Solana:NttWithExecutor
+      routeQuote = await routeInstance.fetchExecutorQuote(tr, validatedParams);
+    } catch (error) {
+      console.error('Error fetching quote:', error);
+      throw new Error('Failed to fetch quote for executor route');
+    }
   }
 
   const xferTxs = transferMLike(
@@ -193,7 +208,7 @@ export const bridgeFromEvm = async (
   return sig;
 };
 
-export function NttManager(connection: Connection, mint: PublicKey) {
+export function NttManager(connection: Connection) {
   const wormholeNetwork = NETWORK === 'devnet' ? 'Testnet' : 'Mainnet';
   const wh = new Wormhole(wormholeNetwork, [solana.Platform, evm.Platform]);
   const ctx = wh.getChain('Solana');
@@ -205,7 +220,7 @@ export function NttManager(connection: Connection, mint: PublicKey) {
     {
       ...ctx.config.contracts,
       ntt: {
-        token: mint.toBase58(),
+        token: MINTS.M.toBase58(),
         manager: PORTAL.toBase58(),
         transceiver: {
           wormhole: PORTAL.toBase58(),
@@ -223,19 +238,7 @@ async function EvmNttManager(chain: string) {
   const wormholeNetwork = NETWORK === 'devnet' ? 'Testnet' : 'Mainnet';
   const wh = new Wormhole(wormholeNetwork, [solana.Platform, evm.Platform]);
   const ctx = wh.getChain(chain as any);
-
-  let executorConfig = convertToExecutorConfig();
-  executorConfig.referrerFee = {
-    feeDbps: 0n, // No referrer fee
-    perTokenOverrides: {
-      Solana: {
-        M0: {
-          msgValue: 10_000_000n + 1_500_000n,
-        },
-      },
-    },
-  };
-  const executorRoute = nttExecutorRoute(executorConfig);
+  const executorRoute = nttExecutorRoute(getExecutorConfig());
 
   // @ts-ignore
   const routeInstance = new executorRoute(wh);

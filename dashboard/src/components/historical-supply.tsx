@@ -21,7 +21,7 @@ export const HistoricalSupply = () => {
     [];
 
   // append current mint supply
-  if (mintData) {
+  if (mintData && mintData.M?.supply) {
     events.push({
       ts: Date.now() / 1000,
       supply: new Decimal(mintData.M?.supply.toString()).div(1e6).toNumber(),

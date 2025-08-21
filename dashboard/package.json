@@ -62,10 +62,5 @@
     "vite": "^6.2.0",
     "vite-plugin-node-polyfills": "^0.23.0",
     "wagmi": "^2.14.16"
-  },
-  "overrides": {
-    "@wormhole-foundation/sdk": "3.0.4",
-    "@wormhole-foundation/sdk-base": "3.0.4",
-    "@wormhole-foundation/sdk-definitions": "3.0.4"
   }
 }

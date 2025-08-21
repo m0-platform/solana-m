@@ -1,11 +1,15 @@
 import { PublicKey } from '@solana/web3.js';
 
+const isDevnet = import.meta.env.VITE_NETWORK === 'devnet';
+
 export const EARN_PROGRAM_ID = new PublicKey('mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z');
 export const EXT_EARN_PROGRAM_ID = new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko');
 export const PORTAL = new PublicKey('mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY');
 
 export const MINTS = {
-  M: new PublicKey('mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo'),
+  M: isDevnet
+    ? new PublicKey('mzeroZRGCah3j5xEWp2Nih3GDejSBbH1rbHoxDg8By6')
+    : new PublicKey('mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo'),
   USDC: new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'),
   wM: new PublicKey('mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp'),
 };
@@ -25,7 +29,6 @@ export const EVM_TOKENS = [
   },
 ];
 
-export const SWAP_LUT =
-  import.meta.env.VITE_NETWORK === 'devnet'
-    ? new PublicKey('6GhuWPuAmiJeeSVsr58KjqHcAejJRndCx9BVtHkaYHUR')
-    : new PublicKey('9JLRqBqkznKiSoNfotA4ywSRdnWb2fE76SiFrAfkaRCD');
+export const SWAP_LUT = isDevnet
+  ? new PublicKey('6GhuWPuAmiJeeSVsr58KjqHcAejJRndCx9BVtHkaYHUR')
+  : new PublicKey('9JLRqBqkznKiSoNfotA4ywSRdnWb2fE76SiFrAfkaRCD');

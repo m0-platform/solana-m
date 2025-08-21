@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "node16",
+    "strict": false,
+    "esModuleInterop": true,
+    "resolveJsonModule": false,
+    "moduleResolution": "node16",
+    "jsx": "react-jsx",
+    "outDir": "dist",
+    "skipLibCheck": true
+  }
+}

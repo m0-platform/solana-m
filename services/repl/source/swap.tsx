@@ -1,24 +1,27 @@
 import { Box, Text } from 'ink';
-import { BaseProps } from './app.js';
 import { useEffect, useState } from 'react';
 import TokenInput, { Token } from './token-input.js';
 import { ConfirmInput, Spinner, TextInput } from '@inkjs/ui';
 import { M0SolanaApi } from '@m0-foundation/solana-m-api-sdk';
 import { getApiClient } from './network.js';
-import { get } from 'http';
+import { useWallet } from './useWallet.js';
+import { VersionedTransaction } from '@solana/web3.js';
 
 const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 
-export default function Swap({ network = 'mainnet' }: BaseProps) {
+export default function Swap() {
   const [inputToken, setInputToken] = useState<Token | undefined>();
   const [outputToken, setOutputToken] = useState<Token | undefined>();
   const [amount, setAmount] = useState<string | undefined>();
 
   const [quote, setQuote] = useState<M0SolanaApi.Quote>();
   const [confirmedQuote, setConfirmedQuote] = useState(false);
+  const [signature, setSignature] = useState('');
+
+  const { publicKey, signAndSendTransaction } = useWallet();
 
   const getQuote = async () => {
-    const quote = await getApiClient(network).swap.quote({
+    const quote = await getApiClient().swap.quote({
       inputMint: inputToken.mint,
       outputMint: outputToken.mint,
       amount: (parseFloat(amount) * 10 ** 6).toString(),
@@ -26,30 +29,47 @@ export default function Swap({ network = 'mainnet' }: BaseProps) {
     setQuote(quote);
   };
 
+  const sendSwap = async () => {
+    const swap = await getApiClient().swap.swap({
+      quoteId: quote.quoteId,
+      userPublicKey: publicKey.toBase58(),
+    });
+
+    const txBuffer = Buffer.from(swap.transaction, 'base64');
+    const txn = VersionedTransaction.deserialize(txBuffer);
+
+    const sig = await signAndSendTransaction(txn);
+    setSignature(sig);
+  };
+
   useEffect(() => {
     if (!quote && amount) getQuote();
   }, [quote, amount]);
 
+  useEffect(() => {
+    if (confirmedQuote) sendSwap();
+  }, [confirmedQuote]);
+
   if (!inputToken)
     return (
       <Box flexDirection="column">
-        <Text>Select input token</Text>
-        <TokenInput network={network} onChange={setInputToken} nonExtensionTokens={[{ mint: USDC, name: 'USDC' }]} />
+        <Text>Select input token:</Text>
+        <TokenInput onChange={setInputToken} nonExtensionTokens={[{ mint: USDC, name: 'USDC' }]} />
       </Box>
     );
 
   if (!outputToken)
     return (
       <Box flexDirection="column">
-        <Text>Select output token</Text>
-        <TokenInput network={network} onChange={setOutputToken} />
+        <Text>Select output token:</Text>
+        <TokenInput onChange={setOutputToken} />
       </Box>
     );
 
   if (!amount)
     return (
       <Box flexDirection="column">
-        <Text>Select Amount</Text>
+        <Text>Input amount:</Text>
         <TextInput onSubmit={setAmount} />
       </Box>
     );
@@ -59,13 +79,12 @@ export default function Swap({ network = 'mainnet' }: BaseProps) {
   }
 
   const outAmount = parseFloat(quote.outAmount) / 10 ** 6;
+  const slip = quote.priceImpactPct.substring(0, 6);
 
   if (!confirmedQuote)
     return (
       <Box flexDirection="column">
-        <Text>
-          Swap {amount} {inputToken.name} for {outAmount} {outputToken.name}?
-        </Text>
+        <Text>{`Swap ${amount} ${inputToken.name} for ${outAmount} ${outputToken.name}? (slippage: ${slip}%)`}</Text>
         <ConfirmInput
           onConfirm={() => setConfirmedQuote(true)}
           onCancel={() => {
@@ -76,9 +95,14 @@ export default function Swap({ network = 'mainnet' }: BaseProps) {
       </Box>
     );
 
+  if (!signature) {
+    return <Spinner label="Sending swap" />;
+  }
+
   return (
-    <Text>
-      Swap {amount} {inputToken.name} for {outAmount} {outputToken.name} (yes)
-    </Text>
+    <Box flexDirection="column">
+      <Text>Swap complete!</Text>
+      <Text>Signature: {signature}</Text>
+    </Box>
   );
 }

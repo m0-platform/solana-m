@@ -10,7 +10,7 @@
     "cli:prod": "op run --account mzerolabs.1password.com --env-file='./.env.prod' -- ts-node services/cli/main.ts",
     "cli:test": "op run --account mzerolabs.1password.com --env-file='./.env.dev' -- ts-node services/cli/test.ts",
     "fb:dev": "op run --account mzerolabs.1password.com --env-file='./.env.dev' -- ts-node services/cli/fb.ts",
-    "repl": "cd services/repl && npm run build && node dist/cli.js"
+    "repl:prod": "cd services/repl && npm run build && op run --no-masking --account mzerolabs.1password.com --env-file='../../.env.prod' -- node dist/cli.js"
   },
   "devDependencies": {
     "ts-node": "~10.9.2",

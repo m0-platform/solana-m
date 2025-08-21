@@ -1,4 +1,3 @@
-import { BaseProps } from './app.js';
 import { useQuery } from 'react-query';
 import { getApiClient } from './network.js';
 import { Select, Spinner } from '@inkjs/ui';
@@ -8,15 +7,15 @@ export type Token = {
   name: string;
 };
 
-type TokenInputProps = BaseProps & {
+type TokenInputProps = {
   onChange?: (token: Token) => void;
   nonExtensionTokens?: Token[];
 };
 
-export default function TokenInput({ network = 'mainnet', onChange, nonExtensionTokens }: TokenInputProps) {
+export default function TokenInput({ onChange, nonExtensionTokens }: TokenInputProps) {
   const { data, isLoading } = useQuery({
     queryKey: ['extensions'],
-    queryFn: () => getApiClient(network).extensions.extensions(),
+    queryFn: () => getApiClient().extensions.extensions(),
   });
 
   if (isLoading) {

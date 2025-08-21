@@ -4,11 +4,7 @@ import Swap from './swap.js';
 import { Select } from '@inkjs/ui';
 import SwapAndBridge from './swap-and-bridge.js';
 
-export type BaseProps = {
-  network: string | undefined;
-};
-
-export default function App({ network = 'mainnet' }: BaseProps) {
+export default function App() {
   const [selectedAction, setSelectedAction] = useState<undefined | string>();
 
   if (!selectedAction)
@@ -33,7 +29,7 @@ export default function App({ network = 'mainnet' }: BaseProps) {
 
   switch (selectedAction) {
     case 'swap':
-      return <Swap network={network} />;
+      return <Swap />;
     case 'swapAndBridge':
       return <SwapAndBridge />;
   }

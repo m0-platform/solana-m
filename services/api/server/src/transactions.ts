@@ -1,10 +1,12 @@
 import { TransactionsService } from '../generated/api/resources/transactions/service/TransactionsService';
 import NodeCache from 'node-cache';
 import { createJupiterApiClient, Instruction, QuoteResponse, RoutePlanStep } from '@jup-ag/api';
-import { BadQuoteRequest, QuoteNotFound, RoutePlan, SimulationFailed } from '../generated/api';
+import { BadBridgeRequest, BadQuoteRequest, QuoteNotFound, RoutePlan, SimulationFailed } from '../generated/api';
 import {
   AddressLookupTableAccount,
   Connection,
+  Keypair,
+  LAMPORTS_PER_SOL,
   PublicKey,
   SimulatedTransactionResponse,
   TransactionInstruction,
@@ -22,6 +24,10 @@ import {
 } from '@solana-program/token-2022';
 import { BN } from '@coral-xyz/anchor';
 import { createSolanaRpc, Address, isSome, Account } from '@solana/kit';
+import { createApproveInstruction, getAssociatedTokenAddress, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
+import { UniversalAddress, Wormhole } from '@wormhole-foundation/sdk';
+import { NTT, SolanaNtt } from '@wormhole-foundation/sdk-solana-ntt';
+import solana from '@wormhole-foundation/sdk/platforms/solana';
 import { logger } from './server';
 
 const quoteCache = new NodeCache({ stdTTL: 90 });
@@ -327,60 +333,145 @@ export const transactions = new TransactionsService({
       );
     }
 
-    // resolve lut accounts
-    const addressLookupTableAccounts = await getAddressLookupTableAccounts(luts);
-
-    const blockhash = (await connection.getLatestBlockhash({ commitment: 'finalized' })).blockhash;
-    const messageV0 = new TransactionMessage({
-      payerKey: new PublicKey(userPublicKey),
-      recentBlockhash: blockhash,
-      instructions: ixs,
-    }).compileToV0Message(addressLookupTableAccounts);
-
-    const transaction = new VersionedTransaction(messageV0);
-
-    let sim: SimulatedTransactionResponse;
-    try {
-      sim = (await connection.simulateTransaction(transaction, { replaceRecentBlockhash: true })).value;
-    } catch (error) {
-      throw new SimulationFailed({
-        message: `Simulation failed: ${error}`,
-      });
-    }
-
-    const logs = sim.logs || [];
-    const b64 = Buffer.from(transaction.serialize()).toString('base64');
-
-    if (sim.err) {
-      logger.error('Swap simulation failed', { logs, quoteId, userPublicKey, b64 });
-
-      throw new SimulationFailed({
-        message: `Simulation failed: ${JSON.stringify(sim.err)}`,
-        logs,
-        b64: b64,
-      });
-    }
-
-    logger.info('Swap simulation successful', { logs, quoteId, userPublicKey, b64 });
+    const { logs, b64, formattedInstructions } = await buildTransaction(userPublicKey, ixs, luts);
 
     res.send({
       transaction: b64,
       simulationLogs: logs,
-      luts: addressLookupTableAccounts.map((lut) => lut.key.toBase58()),
-      instructions: ixs.map((ix) => ({
-        programId: ix.programId.toBase58(),
-        keys: ix.keys.map((key) => ({
-          pubkey: key.pubkey.toBase58(),
-          isSigner: key.isSigner,
-          isWritable: key.isWritable,
-        })),
-        data: ix.data.toString('base64'),
-      })),
+      luts: luts.map((lut) => lut.toBase58()),
+      instructions: formattedInstructions,
     });
   },
 
-  bridge: async (req, res, next) => {},
+  bridge: async (req, res, next) => {
+    const { userPublicKey, amount, fromChain, toChain, recipientAddress, outboxItem } = req.query;
+    const sender = new PublicKey(userPublicKey);
+
+    if (fromChain !== 'Solana') {
+      throw new BadBridgeRequest({ message: 'Only Solana to EVM bridging is supported ATM' });
+    }
+    if (fromChain === toChain) {
+      throw new BadBridgeRequest({ message: 'Cannot bridge to the same chain' });
+    }
+    if (fromChain === 'Solana' && !outboxItem) {
+      throw new BadBridgeRequest({ message: 'Outbox item is required when bridging from Solana' });
+    }
+
+    const ixs: TransactionInstruction[] = [];
+    const ntt = NttManager();
+    const outboxItemPubkey = new PublicKey(outboxItem!);
+
+    const destination = {
+      address: new UniversalAddress(recipientAddress, 'hex'),
+      chain: toChain as 'Ethereum',
+    };
+
+    const from = await getAssociatedTokenAddress(new PublicKey(mMint), sender, true, TOKEN_2022_PROGRAM_ID);
+    const transferArgs = NTT.transferArgs(BigInt(amount), destination, false);
+
+    ixs.push(
+      createApproveInstruction(
+        from,
+        ntt.pdas.sessionAuthority(sender, transferArgs),
+        sender,
+        BigInt(amount),
+        [],
+        TOKEN_2022_PROGRAM_ID,
+      ),
+    );
+
+    ixs.push(
+      await NTT.createTransferBurnInstruction(
+        ntt.program,
+        await ntt.getConfig(),
+        {
+          transferArgs,
+          payer: sender,
+          from,
+          fromAuthority: sender,
+          outboxItem: outboxItemPubkey,
+        },
+        ntt.pdas,
+      ),
+    );
+
+    const whTransceiver = await ntt.getWormholeTransceiver();
+    if (whTransceiver) {
+      ixs.push(await whTransceiver.createReleaseWormholeOutboundIx(sender, outboxItemPubkey, true));
+    }
+
+    const fee = await ntt.quoteDeliveryPrice(destination.chain, { queue: false, automatic: true });
+
+    ixs.push(
+      await ntt.quoter!.createRequestRelayInstruction(
+        sender,
+        outboxItemPubkey,
+        destination.chain,
+        Number(fee) / LAMPORTS_PER_SOL,
+        0,
+      ),
+    );
+
+    // @ts-ignore // load LUT from NTT pda
+    const lut = (await ntt.program.account.lut.fetchNullable(ntt.pdas.lutAccount()))!.address;
+
+    const { logs, b64, formattedInstructions } = await buildTransaction(userPublicKey, ixs, [lut]);
+
+    res.send({
+      transaction: b64,
+      simulationLogs: logs,
+      luts: [lut.toBase58()],
+      instructions: formattedInstructions,
+    });
+  },
 });
+
+async function buildTransaction(payer: string | PublicKey, ixs: TransactionInstruction[], luts: PublicKey[]) {
+  const addressLookupTableAccounts = await getAddressLookupTableAccounts(luts);
+
+  const blockhash = (await connection.getLatestBlockhash({ commitment: 'finalized' })).blockhash;
+  const messageV0 = new TransactionMessage({
+    payerKey: new PublicKey(payer),
+    recentBlockhash: blockhash,
+    instructions: ixs,
+  }).compileToV0Message(addressLookupTableAccounts);
+
+  const transaction = new VersionedTransaction(messageV0);
+
+  let sim: SimulatedTransactionResponse;
+  try {
+    sim = (await connection.simulateTransaction(transaction, { replaceRecentBlockhash: true })).value;
+  } catch (error) {
+    throw new SimulationFailed({
+      message: `Simulation failed: ${error}`,
+    });
+  }
+
+  const logs = sim.logs || [];
+  const b64 = Buffer.from(transaction.serialize()).toString('base64');
+
+  if (sim.err) {
+    logger.error('Swap simulation failed', { logs, payer, b64 });
+
+    throw new SimulationFailed({
+      message: `Simulation failed: ${JSON.stringify(sim.err)}`,
+      logs,
+      b64: b64,
+    });
+  }
+
+  const formattedInstructions = ixs.map((ix) => ({
+    programId: ix.programId.toBase58(),
+    keys: ix.keys.map((key) => ({
+      pubkey: key.pubkey.toBase58(),
+      isSigner: key.isSigner,
+      isWritable: key.isWritable,
+    })),
+    data: ix.data.toString('base64'),
+  }));
+
+  return { logs, b64, formattedInstructions };
+}
 
 function deserializeInstruction(instruction: Instruction) {
   return new TransactionInstruction({
@@ -476,4 +567,29 @@ function setWrapUnwrapQuote(quoteId: string, inputMint: string, outputMint: stri
       programId: extensionData.find((ext) => ext.mint === outputMint)?.programId ?? EARN,
     },
   });
+}
+
+function NttManager() {
+  const connection = new Connection(process.env.SVM_RPC!, 'confirmed');
+  const wormholeNetwork = process.env.SVM_RPC?.includes('devnet') ? 'Testnet' : 'Mainnet';
+  const wh = new Wormhole(wormholeNetwork, [solana.Platform]);
+  const ctx = wh.getChain('Solana');
+
+  return new SolanaNtt(
+    wormholeNetwork,
+    'Solana',
+    connection,
+    {
+      ...ctx.config.contracts,
+      ntt: {
+        token: mMint,
+        manager: 'mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY',
+        transceiver: {
+          wormhole: 'mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY',
+        },
+        quoter: 'Nqd6XqA8LbsCuG8MLWWuP865NV6jR1MbXeKxD4HLKDJ',
+      },
+    },
+    '3.0.0',
+  );
 }

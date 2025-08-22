@@ -84,6 +84,7 @@ service:
       path: /bridge
       response: Transaction
       errors:
+        - BadBridgeRequest
         - SimulationFailed
       request:
         name: GetBridgeRequest
@@ -92,6 +93,7 @@ service:
           fromChain: string
           toChain: string
           amount: string
+          recipientAddress: string
           outboxItem: optional<string>
       examples:
         - query-parameters:
@@ -99,6 +101,7 @@ service:
             toChain: 'Solana'
             amount: '1000000'
             userPublicKey: 'D76ySoHPwD8U2nnTTDqXeUJQg5UkD9UD1PUE1rnvPAGm'
+            recipientAddress: '0x77BAB32F75996de8075eBA62aEa7b1205cf7E004'
           response:
             body:
               transaction: 'AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAQAGDkS+3LuGTbs......+/oD9qb31dH6i0QZ2IHELXUX3Y1YeW79p9Stkqk12z4yvZFJiQ4GCQwLBwYQBgUEDggNTQ=='
@@ -161,6 +164,10 @@ types:
       isSigner: boolean
       isWritable: boolean
 
+  ErrorWithMessage:
+    properties:
+      message: string
+
   SwapRequestError:
     properties:
       message: string
@@ -180,6 +187,10 @@ errors:
     status-code: 400
     type: SwapRequestError
 
-  SimulationFailed:
+  BadBridgeRequest:
     status-code: 400
+    type: ErrorWithMessage
+
+  SimulationFailed:
+    status-code: 500
     type: SwapRequestError

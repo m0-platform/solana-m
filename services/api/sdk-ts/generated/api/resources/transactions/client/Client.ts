@@ -227,7 +227,7 @@ export class Transactions {
                         }),
                         _response.rawResponse,
                     );
-                case 400:
+                case 500:
                     throw new M0SolanaApi.SimulationFailed(
                         serializers.SwapRequestError.parseOrThrow(_response.error.body, {
                             unrecognizedObjectKeys: "passthrough",
@@ -269,6 +269,7 @@ export class Transactions {
      * @param {M0SolanaApi.GetBridgeRequest} request
      * @param {Transactions.RequestOptions} requestOptions - Request-specific configuration.
      *
+     * @throws {@link M0SolanaApi.BadBridgeRequest}
      * @throws {@link M0SolanaApi.SimulationFailed}
      *
      * @example
@@ -276,7 +277,8 @@ export class Transactions {
      *         fromChain: "Ethereum",
      *         toChain: "Solana",
      *         amount: "1000000",
-     *         userPublicKey: "D76ySoHPwD8U2nnTTDqXeUJQg5UkD9UD1PUE1rnvPAGm"
+     *         userPublicKey: "D76ySoHPwD8U2nnTTDqXeUJQg5UkD9UD1PUE1rnvPAGm",
+     *         recipientAddress: "0x77BAB32F75996de8075eBA62aEa7b1205cf7E004"
      *     })
      */
     public bridge(
@@ -290,12 +292,13 @@ export class Transactions {
         request: M0SolanaApi.GetBridgeRequest,
         requestOptions?: Transactions.RequestOptions,
     ): Promise<core.WithRawResponse<M0SolanaApi.Transaction>> {
-        const { userPublicKey, fromChain, toChain, amount, outboxItem } = request;
+        const { userPublicKey, fromChain, toChain, amount, recipientAddress, outboxItem } = request;
         const _queryParams: Record<string, string | string[] | object | object[] | null> = {};
         _queryParams["userPublicKey"] = userPublicKey;
         _queryParams["fromChain"] = fromChain;
         _queryParams["toChain"] = toChain;
         _queryParams["amount"] = amount;
+        _queryParams["recipientAddress"] = recipientAddress;
         if (outboxItem != null) {
             _queryParams["outboxItem"] = outboxItem;
         }
@@ -336,6 +339,16 @@ export class Transactions {
         if (_response.error.reason === "status-code") {
             switch (_response.error.statusCode) {
                 case 400:
+                    throw new M0SolanaApi.BadBridgeRequest(
+                        serializers.ErrorWithMessage.parseOrThrow(_response.error.body, {
+                            unrecognizedObjectKeys: "passthrough",
+                            allowUnrecognizedUnionMembers: true,
+                            allowUnrecognizedEnumValues: true,
+                            breadcrumbsPrefix: ["response"],
+                        }),
+                        _response.rawResponse,
+                    );
+                case 500:
                     throw new M0SolanaApi.SimulationFailed(
                         serializers.SwapRequestError.parseOrThrow(_response.error.body, {
                             unrecognizedObjectKeys: "passthrough",

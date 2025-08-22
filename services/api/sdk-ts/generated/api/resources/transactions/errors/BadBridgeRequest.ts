@@ -6,14 +6,14 @@ import * as errors from "../../../../errors/index";
 import * as M0SolanaApi from "../../../index";
 import * as core from "../../../../core";
 
-export class SimulationFailed extends errors.M0SolanaApiError {
-    constructor(body: M0SolanaApi.SwapRequestError, rawResponse?: core.RawResponse) {
+export class BadBridgeRequest extends errors.M0SolanaApiError {
+    constructor(body: M0SolanaApi.ErrorWithMessage, rawResponse?: core.RawResponse) {
         super({
-            message: "SimulationFailed",
-            statusCode: 500,
+            message: "BadBridgeRequest",
+            statusCode: 400,
             body: body,
             rawResponse: rawResponse,
         });
-        Object.setPrototypeOf(this, SimulationFailed.prototype);
+        Object.setPrototypeOf(this, BadBridgeRequest.prototype);
     }
 }

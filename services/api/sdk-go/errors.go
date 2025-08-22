@@ -30,6 +30,29 @@ func (i *InvalidMint) Unwrap() error {
 	return i.APIError
 }
 
+type BadBridgeRequest struct {
+	*core.APIError
+	Body *ErrorWithMessage
+}
+
+func (b *BadBridgeRequest) UnmarshalJSON(data []byte) error {
+	var body *ErrorWithMessage
+	if err := json.Unmarshal(data, &body); err != nil {
+		return err
+	}
+	b.StatusCode = 400
+	b.Body = body
+	return nil
+}
+
+func (b *BadBridgeRequest) MarshalJSON() ([]byte, error) {
+	return json.Marshal(b.Body)
+}
+
+func (b *BadBridgeRequest) Unwrap() error {
+	return b.APIError
+}
+
 type BadQuoteRequest struct {
 	*core.APIError
 	Body *SwapRequestError
@@ -109,7 +132,7 @@ func (s *SimulationFailed) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &body); err != nil {
 		return err
 	}
-	s.StatusCode = 400
+	s.StatusCode = 500
 	s.Body = body
 	return nil
 }

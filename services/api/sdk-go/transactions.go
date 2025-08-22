@@ -9,11 +9,12 @@ import (
 )
 
 type GetBridgeRequest struct {
-	UserPublicKey string  `json:"-" url:"userPublicKey"`
-	FromChain     string  `json:"-" url:"fromChain"`
-	ToChain       string  `json:"-" url:"toChain"`
-	Amount        string  `json:"-" url:"amount"`
-	OutboxItem    *string `json:"-" url:"outboxItem,omitempty"`
+	UserPublicKey    string  `json:"-" url:"userPublicKey"`
+	FromChain        string  `json:"-" url:"fromChain"`
+	ToChain          string  `json:"-" url:"toChain"`
+	Amount           string  `json:"-" url:"amount"`
+	RecipientAddress string  `json:"-" url:"recipientAddress"`
+	OutboxItem       *string `json:"-" url:"outboxItem,omitempty"`
 }
 
 type GetQuoteRequest struct {
@@ -89,6 +90,52 @@ func (a *AccountMeta) String() string {
 		return value
 	}
 	return fmt.Sprintf("%#v", a)
+}
+
+type ErrorWithMessage struct {
+	Message string `json:"message" url:"message"`
+
+	extraProperties map[string]interface{}
+	rawJSON         json.RawMessage
+}
+
+func (e *ErrorWithMessage) GetMessage() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
+}
+
+func (e *ErrorWithMessage) GetExtraProperties() map[string]interface{} {
+	return e.extraProperties
+}
+
+func (e *ErrorWithMessage) UnmarshalJSON(data []byte) error {
+	type unmarshaler ErrorWithMessage
+	var value unmarshaler
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	*e = ErrorWithMessage(value)
+	extraProperties, err := internal.ExtractExtraProperties(data, *e)
+	if err != nil {
+		return err
+	}
+	e.extraProperties = extraProperties
+	e.rawJSON = json.RawMessage(data)
+	return nil
+}
+
+func (e *ErrorWithMessage) String() string {
+	if len(e.rawJSON) > 0 {
+		if value, err := internal.StringifyJSON(e.rawJSON); err == nil {
+			return value
+		}
+	}
+	if value, err := internal.StringifyJSON(e); err == nil {
+		return value
+	}
+	return fmt.Sprintf("%#v", e)
 }
 
 type Instruction struct {

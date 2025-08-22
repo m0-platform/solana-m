@@ -8,7 +8,8 @@
  *         fromChain: "Ethereum",
  *         toChain: "Solana",
  *         amount: "1000000",
- *         userPublicKey: "D76ySoHPwD8U2nnTTDqXeUJQg5UkD9UD1PUE1rnvPAGm"
+ *         userPublicKey: "D76ySoHPwD8U2nnTTDqXeUJQg5UkD9UD1PUE1rnvPAGm",
+ *         recipientAddress: "0x77BAB32F75996de8075eBA62aEa7b1205cf7E004"
  *     }
  */
 export interface GetBridgeRequest {
@@ -16,5 +17,6 @@ export interface GetBridgeRequest {
     fromChain: string;
     toChain: string;
     amount: string;
+    recipientAddress: string;
     outboxItem?: string;
 }

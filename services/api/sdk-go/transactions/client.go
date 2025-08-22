@@ -118,7 +118,7 @@ func (c *Client) Swap(
 				APIError: apiError,
 			}
 		},
-		400: func(apiError *core.APIError) error {
+		500: func(apiError *core.APIError) error {
 			return &sdkgo.SimulationFailed{
 				APIError: apiError,
 			}
@@ -171,6 +171,11 @@ func (c *Client) Bridge(
 	)
 	errorCodes := internal.ErrorCodes{
 		400: func(apiError *core.APIError) error {
+			return &sdkgo.BadBridgeRequest{
+				APIError: apiError,
+			}
+		},
+		500: func(apiError *core.APIError) error {
 			return &sdkgo.SimulationFailed{
 				APIError: apiError,
 			}

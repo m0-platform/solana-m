@@ -284,8 +284,8 @@ export const transactions = new TransactionsService({
       );
     }
 
-    // swap if we are not wrapping or unwrapping
-    if (!isWrap && !isUnwrap) {
+    // swap if we are not wrapping or unwrapping (and not already wM)
+    if (!isWrap && !isUnwrap && quote.extensionTo?.mint !== wM.toBase58()) {
       const [associatedTokenAddress] = await findAssociatedTokenPda({
         mint: quote.extensionFrom!.mint as Address,
         owner: userPublicKey as Address,

@@ -112,7 +112,7 @@ export default function Swap({ fixedOutputToken, onQuoteResponse, onSwapResponse
     );
 
   if (!signature) {
-    return <Spinner label="Sending swap" />;
+    return <Spinner label={execute ? 'Sending swap' : 'Building swap'} />;
   }
 
   return (

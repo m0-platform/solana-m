@@ -46,11 +46,22 @@ export async function buildTransaction(
     return ix as TransactionInstruction;
   });
 
-  const messageV0 = new TransactionMessage({
-    payerKey: sender,
-    instructions: convertedIxs,
-    recentBlockhash: (await connection.getLatestBlockhash()).blockhash,
-  }).compileToV0Message(resolvedLuts);
+  const tx = new VersionedTransaction(
+    new TransactionMessage({
+      payerKey: sender,
+      instructions: convertedIxs,
+      recentBlockhash: (await connection.getLatestBlockhash()).blockhash,
+    }).compileToV0Message(resolvedLuts),
+  );
 
-  return new VersionedTransaction(messageV0);
+  console.log('Transaction', resolvedLuts.length);
+
+  const sim = await connection.simulateTransaction(tx, { sigVerify: true });
+  if (sim.value.err) {
+    throw new Error(`Transaction simulation failed: ${Buffer.from(tx.serialize()).toString('base64')}`);
+  }
+
+  console.log('Simulation successful:', sim.value.logs?.join('\n') || 'No logs');
+
+  return tx;
 }

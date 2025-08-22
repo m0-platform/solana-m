@@ -14,9 +14,8 @@
     "@m0-foundation/solana-m-api-sdk": "0.1.9",
     "@solana/spl-token": "catalog:",
     "@solana/web3.js": "catalog:",
-    "ink": "^4.1.0",
-    "meow": "^11.0.0",
-    "react": "^18.2.0",
+    "ink": "^4.4.1",
+    "react": "^18.3.1",
     "react-query": "^3.39.3"
   },
   "devDependencies": {

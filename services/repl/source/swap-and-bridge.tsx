@@ -49,7 +49,7 @@ export default function SwapAndBridgeFromSolana() {
     const tx = await buildTransaction(
       publicKey,
       [...swap.instructions, ...swapResponse.instructions, ...bridgeResponse.instructions],
-      [...bridgeResponse.luts, swapLUT],
+      [...bridgeResponse.luts, swapLUT, ...swap.luts],
     );
 
     tx.sign([outboxItem]);

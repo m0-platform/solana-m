@@ -213,9 +213,9 @@ export const transactions = new TransactionsService({
     const luts = [SWAP_LUT];
     const ixs: TransactionInstruction[] = [];
 
-    const resolveEarnerAccount = async (mint: string, programId: string) => {
+    const resolveEarnerAccount = async (programId: string) => {
       const [vaultTokenAccount] = await findAssociatedTokenPda({
-        mint: mint as Address,
+        mint: mMint,
         owner: PublicKey.findProgramAddressSync(
           [Buffer.from('m_vault')],
           new PublicKey(programId),
@@ -242,7 +242,7 @@ export const transactions = new TransactionsService({
             mMint: mMint,
             toTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
             mTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
-            toMEarnerAccount: await resolveEarnerAccount(quote.extensionTo!.mint, quote.extensionTo!.programId),
+            toMEarnerAccount: await resolveEarnerAccount(quote.extensionTo!.programId),
           })
           .instruction(),
       );
@@ -261,7 +261,7 @@ export const transactions = new TransactionsService({
             mMint: mMint,
             fromTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
             mTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
-            fromMEarnerAccount: await resolveEarnerAccount(quote.extensionFrom!.mint, quote.extensionFrom!.programId),
+            fromMEarnerAccount: await resolveEarnerAccount(quote.extensionFrom!.programId),
           })
           .instruction(),
       );
@@ -309,8 +309,8 @@ export const transactions = new TransactionsService({
             toTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
             mTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
             fromTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
-            toMEarnerAccount: await resolveEarnerAccount(quote.extensionTo!.mint, quote.extensionTo!.programId),
-            fromMEarnerAccount: await resolveEarnerAccount(quote.extensionFrom!.mint, quote.extensionFrom!.programId),
+            toMEarnerAccount: await resolveEarnerAccount(quote.extensionTo!.programId),
+            fromMEarnerAccount: await resolveEarnerAccount(quote.extensionFrom!.programId),
           })
           .instruction(),
       );

@@ -144,7 +144,7 @@ export const Swap = ({ mode }: { mode: SwapMode }) => {
     try {
       setIsLoading(true);
 
-      const quote = await ApiClient.swap.quote({
+      const quote = await ApiClient.transactions.quote({
         inputMint: fromAsset.mint.toBase58(),
         outputMint: toAsset.mint.toBase58(),
         amount: new Decimal(debouncedAmount).mul(10 ** fromAsset.decimals).toString(),
@@ -170,7 +170,7 @@ export const Swap = ({ mode }: { mode: SwapMode }) => {
         throw new Error('No wallet connected');
       }
 
-      const swap = await ApiClient.swap.swap({
+      const swap = await ApiClient.transactions.swap({
         quoteId: quote.quoteId,
         userPublicKey: walletProvider.publicKey.toBase58(),
       });

@@ -2,7 +2,7 @@ import { M0SolanaApi } from '@m0-foundation/solana-m-api-sdk';
 import { Box, Text } from 'ink';
 import { useEffect, useState } from 'react';
 import Swap from './swap.js';
-import { buildTransaction, convertApiInstructions, createBridgeFromSolana, getApiClient } from './network.js';
+import { buildTransaction, getApiClient } from './network.js';
 import { useWallet } from './useWallet.js';
 import { Spinner, TextInput } from '@inkjs/ui';
 import { Keypair, PublicKey } from '@solana/web3.js';
@@ -15,7 +15,7 @@ export default function SwapAndBridgeFromSolana() {
   const { publicKey, signAndSendTransaction } = useWallet();
 
   const [quote, setQuote] = useState<M0SolanaApi.Quote | undefined>();
-  const [swap, setSwap] = useState<M0SolanaApi.Swap | undefined>();
+  const [swap, setSwap] = useState<M0SolanaApi.Transaction | undefined>();
   const [recipientAddress, setRecipientAddress] = useState('');
   const [signature, setSignature] = useState('');
 
@@ -23,12 +23,12 @@ export default function SwapAndBridgeFromSolana() {
     const ixs = swap.instructions;
 
     // get unwrap ix from API
-    const quoteResponse = await getApiClient().swap.quote({
+    const quoteResponse = await getApiClient().transactions.quote({
       inputMint: wM,
       outputMint: M,
       amount: quote.outAmount,
     });
-    const swapResponse = await getApiClient().swap.swap({
+    const swapResponse = await getApiClient().transactions.swap({
       quoteId: quote.quoteId,
       userPublicKey: publicKey.toBase58(),
     });
@@ -37,17 +37,22 @@ export default function SwapAndBridgeFromSolana() {
 
     const outboxItem = Keypair.generate();
 
-    // build bridge transaction
-    const { ixs: bridgeIxs, lut } = await createBridgeFromSolana(
-      publicKey,
-      quoteResponse.outAmount,
-      outboxItem.publicKey,
+    const bridgeResponse = await getApiClient().transactions.bridge({
+      userPublicKey: publicKey.toBase58(),
+      amount: quoteResponse.outAmount,
       recipientAddress,
+      fromChain: 'Solana',
+      toChain: 'Ethereum',
+      outboxItem: outboxItem.publicKey.toBase58(),
+    });
+
+    const tx = await buildTransaction(
+      publicKey,
+      [...swap.instructions, ...swapResponse.instructions, ...bridgeResponse.instructions],
+      [...bridgeResponse.luts, swapLUT],
     );
 
-    const tx = await buildTransaction(publicKey, [...convertApiInstructions(ixs), ...bridgeIxs], [lut, swapLUT]);
     tx.sign([outboxItem]);
-
     const sig = await signAndSendTransaction(tx);
     setSignature(sig);
   };

@@ -11,11 +11,9 @@
   ],
   "dependencies": {
     "@inkjs/ui": "^2.0.0",
-    "@m0-foundation/solana-m-api-sdk": "workspace:*",
+    "@m0-foundation/solana-m-api-sdk": "0.1.9",
     "@solana/spl-token": "catalog:",
     "@solana/web3.js": "catalog:",
-    "@wormhole-foundation/sdk": "catalog:",
-    "@wormhole-foundation/sdk-solana-ntt": "catalog:",
     "ink": "^4.1.0",
     "meow": "^11.0.0",
     "react": "^18.2.0",

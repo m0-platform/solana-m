@@ -12,7 +12,7 @@ const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 type Props = {
   fixedOutputToken?: Token;
   onQuoteResponse?: (quote: M0SolanaApi.Quote) => void;
-  onSwapResponse?: (signature: M0SolanaApi.Swap) => void;
+  onSwapResponse?: (signature: M0SolanaApi.Transaction) => void;
   execute?: boolean;
 };
 
@@ -28,7 +28,7 @@ export default function Swap({ fixedOutputToken, onQuoteResponse, onSwapResponse
   const [signature, setSignature] = useState('');
 
   const getQuote = async () => {
-    const quote = await getApiClient().swap.quote({
+    const quote = await getApiClient().transactions.quote({
       inputMint: inputToken.mint,
       outputMint: outputToken.mint,
       amount: (parseFloat(amount) * 10 ** 6).toString(),
@@ -38,7 +38,7 @@ export default function Swap({ fixedOutputToken, onQuoteResponse, onSwapResponse
   };
 
   const sendSwap = async () => {
-    const swap = await getApiClient().swap.swap({
+    const swap = await getApiClient().transactions.swap({
       quoteId: quote.quoteId,
       userPublicKey: publicKey.toBase58(),
     });

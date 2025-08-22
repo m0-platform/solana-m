@@ -54,14 +54,10 @@ export async function buildTransaction(
     }).compileToV0Message(resolvedLuts),
   );
 
-  console.log('Transaction', resolvedLuts.length);
-
-  const sim = await connection.simulateTransaction(tx, { sigVerify: true });
+  const sim = await connection.simulateTransaction(tx, { sigVerify: false });
   if (sim.value.err) {
     throw new Error(`Transaction simulation failed: ${Buffer.from(tx.serialize()).toString('base64')}`);
   }
-
-  console.log('Simulation successful:', sim.value.logs?.join('\n') || 'No logs');
 
   return tx;
 }

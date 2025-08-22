@@ -14,9 +14,16 @@ type Props = {
   onQuoteResponse?: (quote: M0SolanaApi.Quote) => void;
   onSwapResponse?: (signature: M0SolanaApi.Transaction) => void;
   execute?: boolean;
+  maxAccounts?: number;
 };
 
-export default function Swap({ fixedOutputToken, onQuoteResponse, onSwapResponse, execute = true }: Props) {
+export default function Swap({
+  fixedOutputToken,
+  onQuoteResponse,
+  onSwapResponse,
+  execute = true,
+  maxAccounts = 48,
+}: Props) {
   const { publicKey, signAndSendTransaction } = useWallet();
 
   const [inputToken, setInputToken] = useState<Token | undefined>();
@@ -32,6 +39,7 @@ export default function Swap({ fixedOutputToken, onQuoteResponse, onSwapResponse
       inputMint: inputToken.mint,
       outputMint: outputToken.mint,
       amount: (parseFloat(amount) * 10 ** 6).toString(),
+      maxAccounts,
     });
     setQuote(quote);
     onQuoteResponse?.(quote);

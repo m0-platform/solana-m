@@ -20,8 +20,6 @@ export default function SwapAndBridgeFromSolana() {
   const [signature, setSignature] = useState('');
 
   const createTransaction = async () => {
-    const ixs = swap.instructions;
-
     // get unwrap ix from API
     const quoteResponse = await getApiClient().transactions.quote({
       inputMint: wM,
@@ -29,14 +27,13 @@ export default function SwapAndBridgeFromSolana() {
       amount: quote.outAmount,
     });
     const swapResponse = await getApiClient().transactions.swap({
-      quoteId: quote.quoteId,
+      quoteId: quoteResponse.quoteId,
       userPublicKey: publicKey.toBase58(),
     });
 
-    ixs.push(...swapResponse.instructions);
-
     const outboxItem = Keypair.generate();
 
+    // bridge after unwrapping
     const bridgeResponse = await getApiClient().transactions.bridge({
       userPublicKey: publicKey.toBase58(),
       amount: quoteResponse.outAmount,
@@ -68,6 +65,7 @@ export default function SwapAndBridgeFromSolana() {
         onSwapResponse={setSwap}
         execute={false}
         fixedOutputToken={{ mint: wM, name: 'wM' }}
+        maxAccounts={32}
       />
     );
   }

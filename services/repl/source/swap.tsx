@@ -9,16 +9,23 @@ import { VersionedTransaction } from '@solana/web3.js';
 
 const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 
-export default function Swap() {
+type Props = {
+  fixedOutputToken?: Token;
+  onQuoteResponse?: (quote: M0SolanaApi.Quote) => void;
+  onSwapResponse?: (signature: M0SolanaApi.Swap) => void;
+  execute?: boolean;
+};
+
+export default function Swap({ fixedOutputToken, onQuoteResponse, onSwapResponse, execute = true }: Props) {
+  const { publicKey, signAndSendTransaction } = useWallet();
+
   const [inputToken, setInputToken] = useState<Token | undefined>();
-  const [outputToken, setOutputToken] = useState<Token | undefined>();
+  const [outputToken, setOutputToken] = useState<Token | undefined>(fixedOutputToken);
   const [amount, setAmount] = useState<string | undefined>();
 
   const [quote, setQuote] = useState<M0SolanaApi.Quote>();
   const [confirmedQuote, setConfirmedQuote] = useState(false);
   const [signature, setSignature] = useState('');
-
-  const { publicKey, signAndSendTransaction } = useWallet();
 
   const getQuote = async () => {
     const quote = await getApiClient().swap.quote({
@@ -27,6 +34,7 @@ export default function Swap() {
       amount: (parseFloat(amount) * 10 ** 6).toString(),
     });
     setQuote(quote);
+    onQuoteResponse?.(quote);
   };
 
   const sendSwap = async () => {
@@ -35,11 +43,19 @@ export default function Swap() {
       userPublicKey: publicKey.toBase58(),
     });
 
-    const txBuffer = Buffer.from(swap.transaction, 'base64');
-    const txn = VersionedTransaction.deserialize(txBuffer);
+    if (execute) {
+      const txBuffer = Buffer.from(swap.transaction, 'base64');
+      const txn = VersionedTransaction.deserialize(txBuffer);
 
-    const sig = await signAndSendTransaction(txn);
-    setSignature(sig);
+      const sig = await signAndSendTransaction(txn);
+      setSignature(sig);
+    }
+
+    onSwapResponse?.(swap);
+
+    if (!execute && !onSwapResponse) {
+      console.warn('Swap transaction was not executed or handled');
+    }
   };
 
   useEffect(() => {

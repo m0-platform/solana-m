@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Text, Box } from 'ink';
 import Swap from './swap.js';
 import { Select } from '@inkjs/ui';
-import SwapAndBridge from './swap-and-bridge.js';
+import SwapAndBridgeFromSolana from './swap-and-bridge.js';
 
 export default function App() {
   const [selectedAction, setSelectedAction] = useState<undefined | string>();
@@ -18,8 +18,8 @@ export default function App() {
               value: 'swap',
             },
             {
-              label: 'Swap and Bridge',
-              value: 'swapAndBridge',
+              label: 'Swap and Bridge from Solana',
+              value: 'swapAndBridgeFromSolana',
             },
           ]}
           onChange={setSelectedAction}
@@ -30,7 +30,7 @@ export default function App() {
   switch (selectedAction) {
     case 'swap':
       return <Swap />;
-    case 'swapAndBridge':
-      return <SwapAndBridge />;
+    case 'swapAndBridgeFromSolana':
+      return <SwapAndBridgeFromSolana />;
   }
 }

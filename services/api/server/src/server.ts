@@ -9,7 +9,7 @@ import { events } from './events';
 import { connectToDatabase } from './db';
 import { tokenAccount } from './tokenAccount';
 import { extensions } from './extensions';
-import { swap } from './swap';
+import { transactions } from './transactions';
 
 const PORT = process.env.PORT ?? 5500;
 
@@ -29,7 +29,7 @@ if (process.env.DISABLE_CACHE === 'true') {
 
 // basic rate limiting to swap endpoints
 app.use(
-  '/swap',
+  '/transaction',
   rateLimit({
     windowMs: 5_000,
     limit: 5,
@@ -49,7 +49,7 @@ connectToDatabase()
 app.use('/docs', docs);
 
 // register all services implementation in api spec
-register(app, { events, tokenAccount, extensions, swap });
+register(app, { events, tokenAccount, extensions, transactions });
 
 app.listen(PORT);
 logger.info('Server is running', { port: `${PORT}` });

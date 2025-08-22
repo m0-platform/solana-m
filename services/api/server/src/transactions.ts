@@ -1,4 +1,4 @@
-import { SwapService } from '../generated/api/resources/swap/service/SwapService';
+import { TransactionsService } from '../generated/api/resources/transactions/service/TransactionsService';
 import NodeCache from 'node-cache';
 import { createJupiterApiClient, Instruction, QuoteResponse, RoutePlanStep } from '@jup-ag/api';
 import { BadQuoteRequest, QuoteNotFound, RoutePlan, SimulationFailed } from '../generated/api';
@@ -31,6 +31,7 @@ const swapProgram = getSwapProgram(connection);
 
 const MAX_ACCOUNTS = process.env.MAX_JUP_ACCOUNTS ? parseInt(process.env.MAX_JUP_ACCOUNTS) : 48;
 const SWAP_LUT = new PublicKey('9JLRqBqkznKiSoNfotA4ywSRdnWb2fE76SiFrAfkaRCD');
+const EARN = new PublicKey('MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c');
 const wM = new PublicKey('mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp');
 
 type extension = {
@@ -47,9 +48,9 @@ type Quote = {
   swapFacilityAmount?: string;
 };
 
-export const swap = new SwapService({
+export const transactions = new TransactionsService({
   quote: async (req, res, next) => {
-    const { inputMint, outputMint, amount, slippageBps } = req.query;
+    const { inputMint, outputMint, amount, slippageBps, maxAccounts } = req.query;
     const slippage = slippageBps ?? 50;
 
     // generate random id and save quote for swap endpoint
@@ -94,7 +95,7 @@ export const swap = new SwapService({
 
         quoteResponse.preQuote = quote;
         routePlan.push(...quote.routePlan.map(convertRoutePlan));
-        routePlan.push(getM0Route(wM.toBase58(), outputMint, quote.outAmount));
+        if (outputMint !== wM.toBase58()) routePlan.push(getM0Route(wM.toBase58(), outputMint, quote.outAmount));
 
         // minimum output amount after accounting for `slippageBps` and `platformFeeBps`
         quoteResponse.swapFacilityAmount = quote.otherAmountThreshold;
@@ -125,7 +126,7 @@ export const swap = new SwapService({
           outputMint,
           amount: parseInt(amount),
           slippageBps: slippage,
-          maxAccounts: MAX_ACCOUNTS,
+          maxAccounts: maxAccounts ?? MAX_ACCOUNTS,
         });
 
         quoteResponse.preQuote = quote;
@@ -206,6 +207,22 @@ export const swap = new SwapService({
     const luts = [SWAP_LUT];
     const ixs: TransactionInstruction[] = [];
 
+    const resolveEarnerAccount = async (mint: string, programId: string) => {
+      const [vaultTokenAccount] = await findAssociatedTokenPda({
+        mint: mint as Address,
+        owner: PublicKey.findProgramAddressSync(
+          [Buffer.from('m_vault')],
+          new PublicKey(programId),
+        )[0].toBase58() as Address,
+        tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
+      });
+      const [earnerAccount] = PublicKey.findProgramAddressSync(
+        [Buffer.from('earner'), new PublicKey(vaultTokenAccount).toBytes()],
+        EARN,
+      );
+      return earnerAccount;
+    };
+
     // wrapping
     if (isWrap) {
       ixs.push(
@@ -219,6 +236,7 @@ export const swap = new SwapService({
             mMint: mMint,
             toTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
             mTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
+            toMEarnerAccount: await resolveEarnerAccount(quote.extensionTo!.mint, quote.extensionTo!.programId),
           })
           .instruction(),
       );
@@ -237,6 +255,7 @@ export const swap = new SwapService({
             mMint: mMint,
             fromTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
             mTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
+            fromMEarnerAccount: await resolveEarnerAccount(quote.extensionFrom!.mint, quote.extensionFrom!.programId),
           })
           .instruction(),
       );
@@ -284,6 +303,8 @@ export const swap = new SwapService({
             toTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
             mTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
             fromTokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
+            toMEarnerAccount: await resolveEarnerAccount(quote.extensionTo!.mint, quote.extensionTo!.programId),
+            fromMEarnerAccount: await resolveEarnerAccount(quote.extensionFrom!.mint, quote.extensionFrom!.programId),
           })
           .instruction(),
       );
@@ -345,8 +366,20 @@ export const swap = new SwapService({
     res.send({
       transaction: b64,
       simulationLogs: logs,
+      luts: addressLookupTableAccounts.map((lut) => lut.key.toBase58()),
+      instructions: ixs.map((ix) => ({
+        programId: ix.programId.toBase58(),
+        keys: ix.keys.map((key) => ({
+          pubkey: key.pubkey.toBase58(),
+          isSigner: key.isSigner,
+          isWritable: key.isWritable,
+        })),
+        data: ix.data.toString('base64'),
+      })),
     });
   },
+
+  bridge: async (req, res, next) => {},
 });
 
 function deserializeInstruction(instruction: Instruction) {
@@ -432,16 +465,15 @@ function convertRoutePlan(step: RoutePlanStep): RoutePlan {
 }
 
 function setWrapUnwrapQuote(quoteId: string, inputMint: string, outputMint: string, amount: string) {
-  const mProgram = 'MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c';
   quoteCache.set(quoteId, {
     extensionFrom: {
       mint: inputMint,
-      programId: extensionData.find((ext) => ext.mint === inputMint)?.programId ?? mProgram,
+      programId: extensionData.find((ext) => ext.mint === inputMint)?.programId ?? EARN,
     },
     swapFacilityAmount: amount,
     extensionTo: {
       mint: outputMint,
-      programId: extensionData.find((ext) => ext.mint === outputMint)?.programId ?? mProgram,
+      programId: extensionData.find((ext) => ext.mint === outputMint)?.programId ?? EARN,
     },
   });
 }

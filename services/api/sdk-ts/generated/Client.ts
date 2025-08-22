@@ -6,8 +6,8 @@ import * as environments from "./environments";
 import * as core from "./core";
 import { Events } from "./api/resources/events/client/Client";
 import { Extensions } from "./api/resources/extensions/client/Client";
-import { Swap } from "./api/resources/swap/client/Client";
 import { TokenAccount } from "./api/resources/tokenAccount/client/Client";
+import { Transactions } from "./api/resources/transactions/client/Client";
 
 export declare namespace M0SolanaApiClient {
     export interface Options {
@@ -31,8 +31,8 @@ export declare namespace M0SolanaApiClient {
 export class M0SolanaApiClient {
     protected _events: Events | undefined;
     protected _extensions: Extensions | undefined;
-    protected _swap: Swap | undefined;
     protected _tokenAccount: TokenAccount | undefined;
+    protected _transactions: Transactions | undefined;
 
     constructor(protected readonly _options: M0SolanaApiClient.Options = {}) {}
 
@@ -44,11 +44,11 @@ export class M0SolanaApiClient {
         return (this._extensions ??= new Extensions(this._options));
     }
 
-    public get swap(): Swap {
-        return (this._swap ??= new Swap(this._options));
-    }
-
     public get tokenAccount(): TokenAccount {
         return (this._tokenAccount ??= new TokenAccount(this._options));
+    }
+
+    public get transactions(): Transactions {
+        return (this._transactions ??= new Transactions(this._options));
     }
 }

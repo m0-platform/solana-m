@@ -8,16 +8,149 @@ import (
 	internal "github.com/m0-foundation/solana-m/services/api/sdk-go/internal"
 )
 
+type GetBridgeRequest struct {
+	UserPublicKey string  `json:"-" url:"userPublicKey"`
+	FromChain     string  `json:"-" url:"fromChain"`
+	ToChain       string  `json:"-" url:"toChain"`
+	Amount        string  `json:"-" url:"amount"`
+	OutboxItem    *string `json:"-" url:"outboxItem,omitempty"`
+}
+
 type GetQuoteRequest struct {
 	InputMint   string `json:"-" url:"inputMint"`
 	OutputMint  string `json:"-" url:"outputMint"`
 	Amount      string `json:"-" url:"amount"`
 	SlippageBps *int   `json:"-" url:"slippageBps,omitempty"`
+	MaxAccounts *int   `json:"-" url:"maxAccounts,omitempty"`
 }
 
 type GetSwapRequest struct {
 	QuoteId       string `json:"-" url:"quoteId"`
 	UserPublicKey string `json:"-" url:"userPublicKey"`
+}
+
+type AccountMeta struct {
+	Pubkey     string `json:"pubkey" url:"pubkey"`
+	IsSigner   bool   `json:"isSigner" url:"isSigner"`
+	IsWritable bool   `json:"isWritable" url:"isWritable"`
+
+	extraProperties map[string]interface{}
+	rawJSON         json.RawMessage
+}
+
+func (a *AccountMeta) GetPubkey() string {
+	if a == nil {
+		return ""
+	}
+	return a.Pubkey
+}
+
+func (a *AccountMeta) GetIsSigner() bool {
+	if a == nil {
+		return false
+	}
+	return a.IsSigner
+}
+
+func (a *AccountMeta) GetIsWritable() bool {
+	if a == nil {
+		return false
+	}
+	return a.IsWritable
+}
+
+func (a *AccountMeta) GetExtraProperties() map[string]interface{} {
+	return a.extraProperties
+}
+
+func (a *AccountMeta) UnmarshalJSON(data []byte) error {
+	type unmarshaler AccountMeta
+	var value unmarshaler
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	*a = AccountMeta(value)
+	extraProperties, err := internal.ExtractExtraProperties(data, *a)
+	if err != nil {
+		return err
+	}
+	a.extraProperties = extraProperties
+	a.rawJSON = json.RawMessage(data)
+	return nil
+}
+
+func (a *AccountMeta) String() string {
+	if len(a.rawJSON) > 0 {
+		if value, err := internal.StringifyJSON(a.rawJSON); err == nil {
+			return value
+		}
+	}
+	if value, err := internal.StringifyJSON(a); err == nil {
+		return value
+	}
+	return fmt.Sprintf("%#v", a)
+}
+
+type Instruction struct {
+	ProgramId string         `json:"programId" url:"programId"`
+	Data      string         `json:"data" url:"data"`
+	Keys      []*AccountMeta `json:"keys" url:"keys"`
+
+	extraProperties map[string]interface{}
+	rawJSON         json.RawMessage
+}
+
+func (i *Instruction) GetProgramId() string {
+	if i == nil {
+		return ""
+	}
+	return i.ProgramId
+}
+
+func (i *Instruction) GetData() string {
+	if i == nil {
+		return ""
+	}
+	return i.Data
+}
+
+func (i *Instruction) GetKeys() []*AccountMeta {
+	if i == nil {
+		return nil
+	}
+	return i.Keys
+}
+
+func (i *Instruction) GetExtraProperties() map[string]interface{} {
+	return i.extraProperties
+}
+
+func (i *Instruction) UnmarshalJSON(data []byte) error {
+	type unmarshaler Instruction
+	var value unmarshaler
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	*i = Instruction(value)
+	extraProperties, err := internal.ExtractExtraProperties(data, *i)
+	if err != nil {
+		return err
+	}
+	i.extraProperties = extraProperties
+	i.rawJSON = json.RawMessage(data)
+	return nil
+}
+
+func (i *Instruction) String() string {
+	if len(i.rawJSON) > 0 {
+		if value, err := internal.StringifyJSON(i.rawJSON); err == nil {
+			return value
+		}
+	}
+	if value, err := internal.StringifyJSON(i); err == nil {
+		return value
+	}
+	return fmt.Sprintf("%#v", i)
 }
 
 type Quote struct {
@@ -174,60 +307,6 @@ func (r *RoutePlan) String() string {
 		return value
 	}
 	return fmt.Sprintf("%#v", r)
-}
-
-type Swap struct {
-	Transaction    string   `json:"transaction" url:"transaction"`
-	SimulationLogs []string `json:"simulationLogs" url:"simulationLogs"`
-
-	extraProperties map[string]interface{}
-	rawJSON         json.RawMessage
-}
-
-func (s *Swap) GetTransaction() string {
-	if s == nil {
-		return ""
-	}
-	return s.Transaction
-}
-
-func (s *Swap) GetSimulationLogs() []string {
-	if s == nil {
-		return nil
-	}
-	return s.SimulationLogs
-}
-
-func (s *Swap) GetExtraProperties() map[string]interface{} {
-	return s.extraProperties
-}
-
-func (s *Swap) UnmarshalJSON(data []byte) error {
-	type unmarshaler Swap
-	var value unmarshaler
-	if err := json.Unmarshal(data, &value); err != nil {
-		return err
-	}
-	*s = Swap(value)
-	extraProperties, err := internal.ExtractExtraProperties(data, *s)
-	if err != nil {
-		return err
-	}
-	s.extraProperties = extraProperties
-	s.rawJSON = json.RawMessage(data)
-	return nil
-}
-
-func (s *Swap) String() string {
-	if len(s.rawJSON) > 0 {
-		if value, err := internal.StringifyJSON(s.rawJSON); err == nil {
-			return value
-		}
-	}
-	if value, err := internal.StringifyJSON(s); err == nil {
-		return value
-	}
-	return fmt.Sprintf("%#v", s)
 }
 
 type SwapInfo struct {
@@ -392,4 +471,74 @@ func (s *SwapRequestError) String() string {
 		return value
 	}
 	return fmt.Sprintf("%#v", s)
+}
+
+type Transaction struct {
+	Transaction    string         `json:"transaction" url:"transaction"`
+	Instructions   []*Instruction `json:"instructions" url:"instructions"`
+	Luts           []string       `json:"luts" url:"luts"`
+	SimulationLogs []string       `json:"simulationLogs" url:"simulationLogs"`
+
+	extraProperties map[string]interface{}
+	rawJSON         json.RawMessage
+}
+
+func (t *Transaction) GetTransaction() string {
+	if t == nil {
+		return ""
+	}
+	return t.Transaction
+}
+
+func (t *Transaction) GetInstructions() []*Instruction {
+	if t == nil {
+		return nil
+	}
+	return t.Instructions
+}
+
+func (t *Transaction) GetLuts() []string {
+	if t == nil {
+		return nil
+	}
+	return t.Luts
+}
+
+func (t *Transaction) GetSimulationLogs() []string {
+	if t == nil {
+		return nil
+	}
+	return t.SimulationLogs
+}
+
+func (t *Transaction) GetExtraProperties() map[string]interface{} {
+	return t.extraProperties
+}
+
+func (t *Transaction) UnmarshalJSON(data []byte) error {
+	type unmarshaler Transaction
+	var value unmarshaler
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	*t = Transaction(value)
+	extraProperties, err := internal.ExtractExtraProperties(data, *t)
+	if err != nil {
+		return err
+	}
+	t.extraProperties = extraProperties
+	t.rawJSON = json.RawMessage(data)
+	return nil
+}
+
+func (t *Transaction) String() string {
+	if len(t.rawJSON) > 0 {
+		if value, err := internal.StringifyJSON(t.rawJSON); err == nil {
+			return value
+		}
+	}
+	if value, err := internal.StringifyJSON(t); err == nil {
+		return value
+	}
+	return fmt.Sprintf("%#v", t)
 }

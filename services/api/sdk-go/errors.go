@@ -7,6 +7,29 @@ import (
 	core "github.com/m0-foundation/solana-m/services/api/sdk-go/core"
 )
 
+type InvalidMint struct {
+	*core.APIError
+	Body *RequestError
+}
+
+func (i *InvalidMint) UnmarshalJSON(data []byte) error {
+	var body *RequestError
+	if err := json.Unmarshal(data, &body); err != nil {
+		return err
+	}
+	i.StatusCode = 404
+	i.Body = body
+	return nil
+}
+
+func (i *InvalidMint) MarshalJSON() ([]byte, error) {
+	return json.Marshal(i.Body)
+}
+
+func (i *InvalidMint) Unwrap() error {
+	return i.APIError
+}
+
 type BadQuoteRequest struct {
 	*core.APIError
 	Body *SwapRequestError
@@ -97,27 +120,4 @@ func (s *SimulationFailed) MarshalJSON() ([]byte, error) {
 
 func (s *SimulationFailed) Unwrap() error {
 	return s.APIError
-}
-
-type InvalidMint struct {
-	*core.APIError
-	Body *RequestError
-}
-
-func (i *InvalidMint) UnmarshalJSON(data []byte) error {
-	var body *RequestError
-	if err := json.Unmarshal(data, &body); err != nil {
-		return err
-	}
-	i.StatusCode = 404
-	i.Body = body
-	return nil
-}
-
-func (i *InvalidMint) MarshalJSON() ([]byte, error) {
-	return json.Marshal(i.Body)
-}
-
-func (i *InvalidMint) Unwrap() error {
-	return i.APIError
 }

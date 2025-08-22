@@ -2,7 +2,7 @@
 
 service:
   auth: false
-  base-path: /swap
+  base-path: /transactions
   endpoints:
     quote:
       docs: Get swap quote
@@ -19,6 +19,7 @@ service:
           outputMint: string
           amount: string
           slippageBps: optional<integer>
+          maxAccounts: optional<integer>
       examples:
         - query-parameters:
             inputMint: So11111111111111111111111111111111111111112
@@ -48,8 +49,8 @@ service:
     swap:
       docs: Get swap transaction
       method: GET
-      path: /transaction
-      response: Swap
+      path: /swap
+      response: Transaction
       errors:
         - QuoteNotFound
         - SimulationFailed
@@ -64,8 +65,54 @@ service:
             userPublicKey: 'D76ySoHPwD8U2nnTTDqXeUJQg5UkD9UD1PUE1rnvPAGm'
           response:
             body:
-              simulationLogs: []
               transaction: 'AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAQAGDkS+3LuGTbs......+/oD9qb31dH6i0QZ2IHELXUX3Y1YeW79p9Stkqk12z4yvZFJiQ4GCQwLBwYQBgUEDggNTQ=='
+              simulationLogs:
+                - Transaction successful
+              luts:
+                - 9JLRqBqkznKiSoNfotA4ywSRdnWb2fE76SiFrAfkaRCD
+              instructions:
+                - programId: 9JLRqBqkznKiSoNfotA4ywSRdnWb2fE76SiFrAfkaRCD
+                  data: 3Bxs6mXg8fV7jXg5c6kUeXoGx5r4
+                  keys:
+                    - pubkey: 9JLRqBqkznKiSoNfotA4ywSRdnWb2fE76SiFrAfkaRCD
+                      isSigner: false
+                      isWritable: true
+
+    bridge:
+      docs: Get bridge transaction
+      method: GET
+      path: /bridge
+      response: Transaction
+      errors:
+        - SimulationFailed
+      request:
+        name: GetBridgeRequest
+        query-parameters:
+          userPublicKey: string
+          fromChain: string
+          toChain: string
+          amount: string
+          outboxItem: optional<string>
+      examples:
+        - query-parameters:
+            fromChain: 'Ethereum'
+            toChain: 'Solana'
+            amount: '1000000'
+            userPublicKey: 'D76ySoHPwD8U2nnTTDqXeUJQg5UkD9UD1PUE1rnvPAGm'
+          response:
+            body:
+              transaction: 'AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAQAGDkS+3LuGTbs......+/oD9qb31dH6i0QZ2IHELXUX3Y1YeW79p9Stkqk12z4yvZFJiQ4GCQwLBwYQBgUEDggNTQ=='
+              simulationLogs:
+                - Transaction successful
+              luts:
+                - 9JLRqBqkznKiSoNfotA4ywSRdnWb2fE76SiFrAfkaRCD
+              instructions:
+                - programId: 9JLRqBqkznKiSoNfotA4ywSRdnWb2fE76SiFrAfkaRCD
+                  data: 3Bxs6mXg8fV7jXg5c6kUeXoGx5r4
+                  keys:
+                    - pubkey: 9JLRqBqkznKiSoNfotA4ywSRdnWb2fE76SiFrAfkaRCD
+                      isSigner: false
+                      isWritable: true
 
 types:
   Quote:
@@ -95,10 +142,24 @@ types:
       feeAmount: string
       feeMint: string
 
-  Swap:
+  Transaction:
     properties:
       transaction: string
+      instructions: list<Instruction>
+      luts: list<string>
       simulationLogs: list<string>
+
+  Instruction:
+    properties:
+      programId: string
+      data: string
+      keys: list<AccountMeta>
+
+  AccountMeta:
+    properties:
+      pubkey: string
+      isSigner: boolean
+      isWritable: boolean
 
   SwapRequestError:
     properties:

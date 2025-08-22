@@ -9,7 +9,7 @@ import urlJoin from "url-join";
 import * as serializers from "../../../../serialization/index";
 import * as errors from "../../../../errors/index";
 
-export declare namespace Swap {
+export declare namespace Transactions {
     export interface Options {
         environment?: core.Supplier<environments.M0SolanaApiEnvironment | string>;
         /** Specify a custom URL to connect the client to. */
@@ -28,20 +28,20 @@ export declare namespace Swap {
     }
 }
 
-export class Swap {
-    constructor(protected readonly _options: Swap.Options = {}) {}
+export class Transactions {
+    constructor(protected readonly _options: Transactions.Options = {}) {}
 
     /**
      * Get swap quote
      *
      * @param {M0SolanaApi.GetQuoteRequest} request
-     * @param {Swap.RequestOptions} requestOptions - Request-specific configuration.
+     * @param {Transactions.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link M0SolanaApi.QuoteError}
      * @throws {@link M0SolanaApi.BadQuoteRequest}
      *
      * @example
-     *     await client.swap.quote({
+     *     await client.transactions.quote({
      *         inputMint: "So11111111111111111111111111111111111111112",
      *         outputMint: "usdkyPPxgV7sfNyKb8eDz66ogPrkRXG3wS2FVb6LLUf",
      *         amount: "1000000"
@@ -49,16 +49,16 @@ export class Swap {
      */
     public quote(
         request: M0SolanaApi.GetQuoteRequest,
-        requestOptions?: Swap.RequestOptions,
+        requestOptions?: Transactions.RequestOptions,
     ): core.HttpResponsePromise<M0SolanaApi.Quote> {
         return core.HttpResponsePromise.fromPromise(this.__quote(request, requestOptions));
     }
 
     private async __quote(
         request: M0SolanaApi.GetQuoteRequest,
-        requestOptions?: Swap.RequestOptions,
+        requestOptions?: Transactions.RequestOptions,
     ): Promise<core.WithRawResponse<M0SolanaApi.Quote>> {
-        const { inputMint, outputMint, amount, slippageBps } = request;
+        const { inputMint, outputMint, amount, slippageBps, maxAccounts } = request;
         const _queryParams: Record<string, string | string[] | object | object[] | null> = {};
         _queryParams["inputMint"] = inputMint;
         _queryParams["outputMint"] = outputMint;
@@ -67,12 +67,16 @@ export class Swap {
             _queryParams["slippageBps"] = slippageBps.toString();
         }
 
+        if (maxAccounts != null) {
+            _queryParams["maxAccounts"] = maxAccounts.toString();
+        }
+
         const _response = await core.fetcher({
             url: urlJoin(
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.M0SolanaApiEnvironment.Mainnet,
-                "/swap/quote",
+                "/transactions/quote",
             ),
             method: "GET",
             headers: {
@@ -139,7 +143,7 @@ export class Swap {
                     rawResponse: _response.rawResponse,
                 });
             case "timeout":
-                throw new errors.M0SolanaApiTimeoutError("Timeout exceeded when calling GET /swap/quote.");
+                throw new errors.M0SolanaApiTimeoutError("Timeout exceeded when calling GET /transactions/quote.");
             case "unknown":
                 throw new errors.M0SolanaApiError({
                     message: _response.error.errorMessage,
@@ -152,28 +156,28 @@ export class Swap {
      * Get swap transaction
      *
      * @param {M0SolanaApi.GetSwapRequest} request
-     * @param {Swap.RequestOptions} requestOptions - Request-specific configuration.
+     * @param {Transactions.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link M0SolanaApi.QuoteNotFound}
      * @throws {@link M0SolanaApi.SimulationFailed}
      *
      * @example
-     *     await client.swap.swap({
+     *     await client.transactions.swap({
      *         quoteId: "abc1234356",
      *         userPublicKey: "D76ySoHPwD8U2nnTTDqXeUJQg5UkD9UD1PUE1rnvPAGm"
      *     })
      */
     public swap(
         request: M0SolanaApi.GetSwapRequest,
-        requestOptions?: Swap.RequestOptions,
-    ): core.HttpResponsePromise<M0SolanaApi.Swap> {
+        requestOptions?: Transactions.RequestOptions,
+    ): core.HttpResponsePromise<M0SolanaApi.Transaction> {
         return core.HttpResponsePromise.fromPromise(this.__swap(request, requestOptions));
     }
 
     private async __swap(
         request: M0SolanaApi.GetSwapRequest,
-        requestOptions?: Swap.RequestOptions,
-    ): Promise<core.WithRawResponse<M0SolanaApi.Swap>> {
+        requestOptions?: Transactions.RequestOptions,
+    ): Promise<core.WithRawResponse<M0SolanaApi.Transaction>> {
         const { quoteId, userPublicKey } = request;
         const _queryParams: Record<string, string | string[] | object | object[] | null> = {};
         _queryParams["quoteId"] = quoteId;
@@ -183,7 +187,7 @@ export class Swap {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.M0SolanaApiEnvironment.Mainnet,
-                "/swap/transaction",
+                "/transactions/swap",
             ),
             method: "GET",
             headers: {
@@ -201,7 +205,7 @@ export class Swap {
         });
         if (_response.ok) {
             return {
-                data: serializers.Swap.parseOrThrow(_response.body, {
+                data: serializers.Transaction.parseOrThrow(_response.body, {
                     unrecognizedObjectKeys: "passthrough",
                     allowUnrecognizedUnionMembers: true,
                     allowUnrecognizedEnumValues: true,
@@ -250,7 +254,115 @@ export class Swap {
                     rawResponse: _response.rawResponse,
                 });
             case "timeout":
-                throw new errors.M0SolanaApiTimeoutError("Timeout exceeded when calling GET /swap/transaction.");
+                throw new errors.M0SolanaApiTimeoutError("Timeout exceeded when calling GET /transactions/swap.");
+            case "unknown":
+                throw new errors.M0SolanaApiError({
+                    message: _response.error.errorMessage,
+                    rawResponse: _response.rawResponse,
+                });
+        }
+    }
+
+    /**
+     * Get bridge transaction
+     *
+     * @param {M0SolanaApi.GetBridgeRequest} request
+     * @param {Transactions.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link M0SolanaApi.SimulationFailed}
+     *
+     * @example
+     *     await client.transactions.bridge({
+     *         fromChain: "Ethereum",
+     *         toChain: "Solana",
+     *         amount: "1000000",
+     *         userPublicKey: "D76ySoHPwD8U2nnTTDqXeUJQg5UkD9UD1PUE1rnvPAGm"
+     *     })
+     */
+    public bridge(
+        request: M0SolanaApi.GetBridgeRequest,
+        requestOptions?: Transactions.RequestOptions,
+    ): core.HttpResponsePromise<M0SolanaApi.Transaction> {
+        return core.HttpResponsePromise.fromPromise(this.__bridge(request, requestOptions));
+    }
+
+    private async __bridge(
+        request: M0SolanaApi.GetBridgeRequest,
+        requestOptions?: Transactions.RequestOptions,
+    ): Promise<core.WithRawResponse<M0SolanaApi.Transaction>> {
+        const { userPublicKey, fromChain, toChain, amount, outboxItem } = request;
+        const _queryParams: Record<string, string | string[] | object | object[] | null> = {};
+        _queryParams["userPublicKey"] = userPublicKey;
+        _queryParams["fromChain"] = fromChain;
+        _queryParams["toChain"] = toChain;
+        _queryParams["amount"] = amount;
+        if (outboxItem != null) {
+            _queryParams["outboxItem"] = outboxItem;
+        }
+
+        const _response = await core.fetcher({
+            url: urlJoin(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.M0SolanaApiEnvironment.Mainnet,
+                "/transactions/bridge",
+            ),
+            method: "GET",
+            headers: {
+                "X-Fern-Language": "JavaScript",
+                "X-Fern-Runtime": core.RUNTIME.type,
+                "X-Fern-Runtime-Version": core.RUNTIME.version,
+                ...requestOptions?.headers,
+            },
+            contentType: "application/json",
+            queryParameters: _queryParams,
+            requestType: "json",
+            timeoutMs: requestOptions?.timeoutInSeconds != null ? requestOptions.timeoutInSeconds * 1000 : 30000,
+            maxRetries: requestOptions?.maxRetries,
+            abortSignal: requestOptions?.abortSignal,
+        });
+        if (_response.ok) {
+            return {
+                data: serializers.Transaction.parseOrThrow(_response.body, {
+                    unrecognizedObjectKeys: "passthrough",
+                    allowUnrecognizedUnionMembers: true,
+                    allowUnrecognizedEnumValues: true,
+                    breadcrumbsPrefix: ["response"],
+                }),
+                rawResponse: _response.rawResponse,
+            };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 400:
+                    throw new M0SolanaApi.SimulationFailed(
+                        serializers.SwapRequestError.parseOrThrow(_response.error.body, {
+                            unrecognizedObjectKeys: "passthrough",
+                            allowUnrecognizedUnionMembers: true,
+                            allowUnrecognizedEnumValues: true,
+                            breadcrumbsPrefix: ["response"],
+                        }),
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.M0SolanaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        switch (_response.error.reason) {
+            case "non-json":
+                throw new errors.M0SolanaApiError({
+                    statusCode: _response.error.statusCode,
+                    body: _response.error.rawBody,
+                    rawResponse: _response.rawResponse,
+                });
+            case "timeout":
+                throw new errors.M0SolanaApiTimeoutError("Timeout exceeded when calling GET /transactions/bridge.");
             case "unknown":
                 throw new errors.M0SolanaApiError({
                     message: _response.error.errorMessage,

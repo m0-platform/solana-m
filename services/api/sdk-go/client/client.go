@@ -8,8 +8,8 @@ import (
 	extensions "github.com/m0-foundation/solana-m/services/api/sdk-go/extensions"
 	internal "github.com/m0-foundation/solana-m/services/api/sdk-go/internal"
 	option "github.com/m0-foundation/solana-m/services/api/sdk-go/option"
-	swap "github.com/m0-foundation/solana-m/services/api/sdk-go/swap"
 	tokenaccount "github.com/m0-foundation/solana-m/services/api/sdk-go/tokenaccount"
+	transactions "github.com/m0-foundation/solana-m/services/api/sdk-go/transactions"
 	http "net/http"
 )
 
@@ -20,8 +20,8 @@ type Client struct {
 
 	Events       *events.Client
 	Extensions   *extensions.Client
-	Swap         *swap.Client
 	TokenAccount *tokenaccount.Client
+	Transactions *transactions.Client
 }
 
 func NewClient(opts ...option.RequestOption) *Client {
@@ -37,7 +37,7 @@ func NewClient(opts ...option.RequestOption) *Client {
 		header:       options.ToHeader(),
 		Events:       events.NewClient(opts...),
 		Extensions:   extensions.NewClient(opts...),
-		Swap:         swap.NewClient(opts...),
 		TokenAccount: tokenaccount.NewClient(opts...),
+		Transactions: transactions.NewClient(opts...),
 	}
 }

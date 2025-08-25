@@ -329,15 +329,27 @@ export class EarnAuthority {
       true,
       spl.TOKEN_2022_PROGRAM_ID,
     );
+    const [mEarnerAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from('earner'), vaultMTokenAccount.toBuffer()],
+      PROGRAM_ID,
+    );
+    const [mEarnGlobalAccount] = PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAM_ID);
+    const [globalAccount] = PublicKey.findProgramAddressSync([Buffer.from('global')], this.programID);
 
+    // Note: this is specific to ScaledUi extensions. We will need to update
+    // if there is an extension that uses the crank variant.
     return (this.program as Program<MExt>).methods
       .sync()
       .accounts({
-        earnAuthority: this.global.admin,
+        globalAccount,
+        mEarnGlobalAccount,
         mVault,
         vaultMTokenAccount,
+        mEarnerAccount,
         extMint: this.global.mint,
         extMintAuthority: this.mintAuth,
+        mTokenProgram: spl.TOKEN_2022_PROGRAM_ID,
+        extTokenProgram: spl.TOKEN_2022_PROGRAM_ID,
       })
       .instruction();
   }

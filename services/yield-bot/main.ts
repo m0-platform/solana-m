@@ -185,7 +185,7 @@ async function addEarners(opt: ParsedOptions) {
     return;
   }
 
-  const signature = await buildAndSendTransaction(opt, instructions, 10, 'adding earners');
+  const signature = await buildAndSendTransaction(opt, instructions, 2, 'adding earners');
   logger.info('added earners', { signature, earners: instructions.length });
   slackMessage.messages.push(`Added ${instructions.length} earners`);
 }

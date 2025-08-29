@@ -20,7 +20,7 @@ use crate::{
     constants::{ANCHOR_DISCRIMINATOR_SIZE, PORTAL_PROGRAM},
     errors::EarnError,
     state::{EarnGlobal, GLOBAL_SEED, TOKEN_AUTHORITY_SEED},
-    utils::{conversion::update_multiplier, token::thaw_token_account},
+    utils::{conversion::{update_multiplier, index_to_multiplier}, token::thaw_token_account},
 };
 
 cfg_if::cfg_if!(
@@ -177,12 +177,12 @@ impl Initialize<'_> {
 
                 // Set the multiplier on the m_mint to the current index and timestamp on the old earn program
                 update_multiplier(
-                    &mut ctx.accounts.m_mint,                         // mint
-                    &ctx.accounts.global_account.to_account_info(),   // authority
-                    &[&[GLOBAL_SEED, &[ctx.bumps.global_account]]],   // authority seeds
-                    &ctx.accounts.token_program,                      // token program
-                    ctx.accounts.old_global_account.index,            // index
-                    ctx.accounts.old_global_account.timestamp as i64, // timestamp
+                    &mut ctx.accounts.m_mint,                                       // mint
+                    &ctx.accounts.global_account.to_account_info(),                 // authority
+                    &[&[GLOBAL_SEED, &[ctx.bumps.global_account]]],                 // authority seeds
+                    &ctx.accounts.token_program,                                    // token program
+                    index_to_multiplier(ctx.accounts.old_global_account.index)?,    // index
+                    ctx.accounts.old_global_account.timestamp as i64,               // timestamp
                 )?;
             } else {
                 update_multiplier(
@@ -190,7 +190,7 @@ impl Initialize<'_> {
                     &ctx.accounts.global_account.to_account_info(), // authority
                     &[&[GLOBAL_SEED, &[ctx.bumps.global_account]]], // authority seeds
                     &ctx.accounts.token_program,                    // token program
-                    _current_index,                                 // index
+                    index_to_multiplier(_current_index)?,            // index
                     Clock::get()?.unix_timestamp,                   // timestamp
                 )?;
             }

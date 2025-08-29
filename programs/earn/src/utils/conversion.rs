@@ -14,11 +14,9 @@ pub fn update_multiplier<'info>(
     authority: &AccountInfo<'info>,
     authority_seeds: &[&[&[u8]]],
     token_program: &Program<'info, Token2022>,
-    index: u64,
+    multiplier: f64,
     timestamp: i64,
 ) -> Result<()> {
-    let multiplier = (index as f64) / INDEX_SCALE_F64;
-
     // Only update multiplier if the new multiplier is greater than the current multiplier
     // Indices in the M protocol are monotonically increasing, but we may receive a stale update
     // from another chain.
@@ -135,6 +133,23 @@ pub fn principal_to_amount_up(principal: u64, multiplier: f64) -> Result<u64> {
         .try_into()?;
 
     Ok(amount)
+}
+
+pub fn multiplier_to_index(multiplier: f64) -> Result<u64> {
+    let index: f64 = (INDEX_SCALE_F64 * multiplier).trunc();
+
+    if index < 0.0 {
+        err!(EarnError::MathUnderflow)
+    } else if index > u64::MAX as f64 {
+        err!(EarnError::MathOverflow)
+    } else {
+        // Convert the f64 index to u64
+        Ok(index as u64)
+    }
+}
+
+pub fn index_to_multiplier(index: u64) -> Result<f64> {
+    Ok(index as f64 / INDEX_SCALE_F64)
 }
 
 pub fn get_mint_extensions<'info>(

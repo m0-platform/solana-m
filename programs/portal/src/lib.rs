@@ -160,6 +160,10 @@ pub mod portal {
         instructions::claim_token_authority(ctx)
     }
 
+    pub fn set_mint(ctx: Context<SetMint>) -> Result<()> {
+        instructions::set_mint(ctx)
+    }
+
     pub fn set_paused(ctx: Context<SetPaused>, pause: bool) -> Result<()> {
         instructions::set_paused(ctx, pause)
     }

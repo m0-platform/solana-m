@@ -50,7 +50,7 @@ import {
 } from '../../sdk/src';
 import { createInitializeConfidentialTransferMintInstruction } from './confidential-transfers';
 import { Program, BN } from '@coral-xyz/anchor';
-import { anchorProvider, keysFromEnv, NttManager } from './utils';
+import { anchorProvider, keysFromEnv, NttManager, updatePortalMint } from './utils';
 import { MerkleTree } from '../../sdk/src/merkle';
 import { bs58 } from '@coral-xyz/anchor/dist/cjs/utils/bytes';
 import { sha256 } from '@noble/hashes/sha2';
@@ -84,7 +84,7 @@ async function main() {
     .command('print-addresses')
     .description('Print the addresses of all the relevant programs and accounts')
     .action(() => {
-      const [mMint, wmMint, multisig] = keysFromEnv(['M_MINT_KEYPAIR', 'WM_MINT_KEYPAIR', 'M_MINT_MULTISIG_KEYPAIR']);
+      const [mMint, wmMint] = keysFromEnv(['M_MINT_KEYPAIR', 'WM_MINT_KEYPAIR']);
       const [portalTokenAuthPda] = PublicKey.findProgramAddressSync([Buffer.from('token_authority')], PROGRAMS.portal);
       const [earnTokenAuthPda] = PublicKey.findProgramAddressSync([Buffer.from('token_authority')], PROGRAMS.earn);
       const [portalEmitter] = PublicKey.findProgramAddressSync([Buffer.from('emitter')], PROGRAMS.portal);
@@ -100,7 +100,6 @@ async function main() {
         'Earn Program': PROGRAMS.earn,
         'Swap Program': PROGRAMS.swap,
         'M Mint': mMint.publicKey,
-        'M Mint Multisig': multisig.publicKey,
         'Portal Token Authority': portalTokenAuthPda,
         'Earn Token Authority': earnTokenAuthPda,
         'wM Mint': wmMint.publicKey,
@@ -367,92 +366,14 @@ async function main() {
 
   program.command('update-portal-mint').action(async () => {
     const [payer, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
-    const admin = process.env.SQUADS_VAULT ? new PublicKey(process.env.SQUADS_VAULT) : payer.publicKey;
     const { ntt } = NttManager(connection, payer, mint.publicKey);
 
-    const tx = new Transaction().add(
-      new TransactionInstruction({
-        programId: PROGRAMS.portal,
-        keys: [
-          {
-            pubkey: admin,
-            isSigner: true,
-            isWritable: false,
-          },
-          {
-            pubkey: ntt.pdas.configAccount(),
-            isSigner: false,
-            isWritable: true,
-          },
-          {
-            pubkey: mint.publicKey,
-            isSigner: false,
-            isWritable: false,
-          },
-        ],
-        data: Buffer.concat([Buffer.from(sha256('global:set_mint').subarray(0, 8))]),
-      }),
-    );
-
-    tx.feePayer = admin;
-    tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-
+    let owner = payer.publicKey;
     if (process.env.SQUADS_VAULT) {
-      const b = tx.serialize({ verifySignatures: false });
-      console.log('Transaction:', {
-        b64: b.toString('base64'),
-        b58: bs58.encode(b),
-      });
-    } else {
-      const sig = await connection.sendTransaction(tx, [payer]);
-      console.log(`Updated mint: ${sig}`);
+      owner = new PublicKey(process.env.SQUADS_VAULT);
     }
-  });
 
-  program.command('initialize-portal-resolver').action(async () => {
-    const [payer, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
-    const admin = process.env.SQUADS_VAULT ? new PublicKey(process.env.SQUADS_VAULT) : payer.publicKey;
-    const { ntt } = NttManager(connection, payer, mint.publicKey);
-    const swapLUT = new PublicKey('9JLRqBqkznKiSoNfotA4ywSRdnWb2fE76SiFrAfkaRCD');
-
-    const tx = new Transaction().add(
-      new TransactionInstruction({
-        programId: PROGRAMS.portal,
-        keys: [
-          {
-            pubkey: admin,
-            isSigner: true,
-            isWritable: true,
-          },
-          {
-            pubkey: ntt.pdas.configAccount(),
-            isSigner: false,
-            isWritable: true,
-          },
-          {
-            pubkey: PublicKey.findProgramAddressSync(
-              [Buffer.from('executor-account-resolver:result')],
-              PROGRAMS.portal,
-            )[0],
-            isSigner: false,
-            isWritable: true,
-          },
-          {
-            pubkey: SystemProgram.programId,
-            isSigner: false,
-            isWritable: false,
-          },
-        ],
-        data: Buffer.concat([
-          Buffer.from(sha256('global:initialize_resolver_accounts').subarray(0, 8)),
-          Buffer.from([1]),
-          swapLUT.toBuffer(),
-        ]),
-      }),
-    );
-
-    tx.feePayer = admin;
-    tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+    const tx = new Transaction().add(updatePortalMint(owner, ntt.pdas.configAccount(), mint.publicKey));
 
     if (process.env.SQUADS_VAULT) {
       const b = tx.serialize({ verifySignatures: false });
@@ -462,7 +383,7 @@ async function main() {
       });
     } else {
       const sig = await connection.sendTransaction(tx, [payer]);
-      console.log(`Initialized resolver: ${sig}`);
+      console.log(`Paused: ${sig}`);
     }
   });
 
@@ -587,6 +508,25 @@ async function main() {
         console.log(`Updated inbound limit for ${chain}: ${sigs[0].txid}`);
       }
     });
+
+  program.command('pause-bridging').action(async () => {
+    const [payer, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
+    const { ntt, sender } = NttManager(connection, payer, mint.publicKey);
+
+    const pauseTxn = (await ntt.pause(sender).next()).value as SolanaUnsignedTransaction<'Mainnet', 'Solana'>;
+    const tx = pauseTxn.transaction.transaction as Transaction;
+
+    if (process.env.SQUADS_VAULT) {
+      const b = tx.serialize({ verifySignatures: false });
+      console.log('Transaction:', {
+        b64: b.toString('base64'),
+        b58: bs58.encode(b),
+      });
+    } else {
+      const sig = await connection.sendTransaction(tx, [payer]);
+      console.log(`Paused: ${sig}`);
+    }
+  });
 
   program
     .command('pause-bridging')

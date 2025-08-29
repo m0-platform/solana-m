@@ -5,8 +5,7 @@ use ext_swap::{accounts::SwapGlobal, program::ExtSwap};
 
 use crate::{
     TransferBurnBumps, __client_accounts_transfer_burn, __cpi_client_accounts_transfer_burn,
-    instructions::{ext_swap, transfer_burn, TransferArgs, TransferBurn},
-    ntt_messages::ChainId,
+    instructions::{ext_swap, transfer_burn_common, TransferArgs, TransferBurn},
 };
 
 #[derive(Accounts)]
@@ -76,12 +75,21 @@ pub struct TransferExtensionBurn<'info> {
 
 pub fn transfer_extension_burn<'info>(
     ctx: Context<'_, '_, '_, 'info, TransferExtensionBurn<'info>>,
-    ext_principal: u64,
-    recipient_chain: ChainId,
-    recipient_address: [u8; 32],
+    args: TransferArgs,
     destination_token: [u8; 32],
-    should_queue: bool,
 ) -> Result<()> {
+    // $M token account should be owned by token authority
+    if !ctx
+        .accounts
+        .common
+        .common
+        .from
+        .owner
+        .eq(ctx.accounts.common.token_authority.key)
+    {
+        return err!(ErrorCode::ConstraintTokenOwner);
+    }
+
     let m_pre_balance = ctx.accounts.common.common.from.amount;
     let token_auth_bump = ctx.bumps.common.token_authority;
 
@@ -108,7 +116,7 @@ pub fn transfer_extension_burn<'info>(
             },
             &[&[crate::TOKEN_AUTHORITY_SEED, &[token_auth_bump]]],
         ),
-        ext_principal,
+        args.amount,
     )?;
 
     // Amount of $M we got from unwrap
@@ -140,15 +148,7 @@ pub fn transfer_extension_burn<'info>(
     );
 
     // TransferBurn $M from unwrap
-    transfer_burn(
-        sub_ctx,
-        TransferArgs {
-            amount: m_amount,
-            recipient_chain: recipient_chain,
-            recipient_address: recipient_address,
-            should_queue: should_queue,
-        },
-    )?;
+    transfer_burn_common(sub_ctx, args, m_amount)?;
 
     // Overwrite default destination token
     ctx.accounts.common.common.outbox_item.destination_token = destination_token;

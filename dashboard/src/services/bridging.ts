@@ -346,18 +346,19 @@ export async function* transferMLike(
 
   const tokenContract = EvmPlatform.getTokenImplementation(ntt.provider, sourceToken);
 
-  const allowance = await tokenContract.allowance(senderAddress, ntt.managerAddress);
-
-  if (allowance < amount) {
-    const txReq = await tokenContract.approve.populateTransaction(ntt.managerAddress, amount);
-    yield ntt.createUnsignedTx(addFrom(txReq, senderAddress), 'Ntt.Approve');
-  }
-
   const receiver = universalAddress(destination as any);
 
   // Use executor route if quote passed, else use standard relaying
   if (quote) {
-    const contract = new Contract('0x355b7Df654f315d41ce379da7F74eE7D03cC783b', [
+    const executorContract = '0x355b7Df654f315d41ce379da7F74eE7D03cC783b';
+    const allowance = await tokenContract.allowance(senderAddress, executorContract);
+
+    if (allowance < amount) {
+      const txReq = await tokenContract.approve.populateTransaction(executorContract, amount);
+      yield ntt.createUnsignedTx(addFrom(txReq, senderAddress), 'Ntt.Approve');
+    }
+
+    const contract = new Contract(executorContract, [
       'function transferMLikeToken(uint256 amount, address sourceToken, uint16 destinationChainId, bytes32 destinationToken, bytes32 recipient, bytes32 refundAddress, (uint256 value, address refundAddress, bytes signedQuote, bytes instructions) executorArgs, bytes memory transceiverInstructions) external payable returns (bytes32 messageId)',
     ]);
 
@@ -384,6 +385,13 @@ export async function* transferMLike(
 
     yield ntt.createUnsignedTx(addFrom(txReq, senderAddress), 'Ntt.transfer');
   } else {
+    const allowance = await tokenContract.allowance(senderAddress, ntt.managerAddress);
+
+    if (allowance < amount) {
+      const txReq = await tokenContract.approve.populateTransaction(ntt.managerAddress, amount);
+      yield ntt.createUnsignedTx(addFrom(txReq, senderAddress), 'Ntt.Approve');
+    }
+
     const contract = new Contract(ntt.managerAddress, [
       'function transferMLikeToken(uint256 amount, address sourceToken, uint16 destinationChainId, bytes32 destinationToken, bytes32 recipient, bytes32 refundAddress) external payable returns (uint64 sequence)',
     ]);

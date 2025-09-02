@@ -5,7 +5,7 @@ import '@wormhole-foundation/sdk-solana-ntt';
 import { Config } from 'wagmi';
 import { SendTransactionMutate } from 'wagmi/query';
 import { Chain, Wormhole, routes } from '@wormhole-foundation/sdk';
-import { UniversalAddress } from '@wormhole-foundation/sdk-definitions';
+import { ChainAddress, UniversalAddress } from '@wormhole-foundation/sdk-definitions';
 import { EvmNtt } from '@wormhole-foundation/sdk-evm-ntt';
 import evm from '@wormhole-foundation/sdk/platforms/evm';
 import solana from '@wormhole-foundation/sdk/platforms/solana';
@@ -154,7 +154,6 @@ export const bridgeFromEvm = async (
       if (!validated.valid) throw new Error(`Validation failed: ${validated.error.message}`);
       const validatedParams = validated.params as NttExecutorRoute.ValidatedParams;
 
-      // Error: No native address type registered for platform Evm, import the platform directly or, if using sdk package, import the addresses conditional export
       routeQuote = await routeInstance.fetchExecutorQuote(tr, validatedParams);
     } catch (error) {
       console.error('Error fetching quote:', error);

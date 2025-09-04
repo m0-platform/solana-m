@@ -350,7 +350,7 @@ export async function* transferMLike(
 
   // Use executor route if quote passed, else use standard relaying
   if (quote) {
-    const executorContract = '0x355b7Df654f315d41ce379da7F74eE7D03cC783b';
+    const executorContract = '0x8518040a9cf9dfb55a4f099bb0eaabeefeb03643';
     const allowance = await tokenContract.allowance(senderAddress, executorContract);
 
     if (allowance < amount) {
@@ -455,11 +455,14 @@ export function convertToExecutorConfig(): NttExecutorRoute.Config {
       },
     },
     referrerFee: {
-      feeDbps: 0n, // No referrer fee
+      feeDbps: 0n,
       perTokenOverrides: {
         Solana: {
-          M0: {
-            msgValue: 10_000_000n + 1_500_000n,
+          mzeroZRGCah3j5xEWp2Nih3GDejSBbH1rbHoxDg8By6: {
+            msgValue: 20_000_000n,
+          },
+          mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo: {
+            msgValue: 20_000_000n,
           },
         },
       },

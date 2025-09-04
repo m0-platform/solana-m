@@ -5,7 +5,7 @@ import '@wormhole-foundation/sdk-solana-ntt';
 import { Config } from 'wagmi';
 import { SendTransactionMutate } from 'wagmi/query';
 import { Chain, Wormhole, routes } from '@wormhole-foundation/sdk';
-import { ChainAddress, UniversalAddress } from '@wormhole-foundation/sdk-definitions';
+import { UniversalAddress } from '@wormhole-foundation/sdk-definitions';
 import { EvmNtt } from '@wormhole-foundation/sdk-evm-ntt';
 import evm from '@wormhole-foundation/sdk/platforms/evm';
 import solana from '@wormhole-foundation/sdk/platforms/solana';

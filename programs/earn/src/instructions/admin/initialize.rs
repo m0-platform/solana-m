@@ -27,6 +27,8 @@ cfg_if::cfg_if!(
     if #[cfg(feature = "migrate")] {
         declare_program!(old_earn);
         use old_earn::{accounts::Global as OldGlobal, ID as OLD_EARN_PROGRAM_ID};
+
+        use crate::utils::conversion::{get_scaled_ui_config, principal_to_amount_up};
     }
 );
 
@@ -60,6 +62,13 @@ pub struct Initialize<'info> {
         mint::token_program = token_program
     )]
     pub m_mint: InterfaceAccount<'info, Mint>,
+
+    #[cfg(feature = "migrate")]
+    #[account(
+        address = old_global_account.mint @ EarnError::InvalidMint,
+        mint::decimals = m_mint.decimals 
+    )]
+    pub old_m_mint: InterfaceAccount<'info, Mint>,
 
     /// CHECK: This account is validated by its seeds
     #[account(
@@ -184,6 +193,14 @@ impl Initialize<'_> {
                     ctx.accounts.old_global_account.index,            // index
                     ctx.accounts.old_global_account.timestamp as i64, // timestamp
                 )?;
+
+                // Check that the supply of the new mint (adjusted for the multiplier) is not greater than the supply of the old m mint
+                let scaled_ui_config = get_scaled_ui_config(&ctx.accounts.m_mint)?;
+                let new_supply_amount = principal_to_amount_up(ctx.accounts.m_mint.supply, scaled_ui_config.new_multiplier.into())?; 
+
+                if new_supply_amount > ctx.accounts.old_m_mint.supply {
+                    return err!(EarnError::InvalidMint);
+                }
             } else {
                 update_multiplier(
                     &mut ctx.accounts.m_mint,                       // mint

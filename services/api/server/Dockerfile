@@ -6,7 +6,6 @@ FROM node:24-alpine AS build
 WORKDIR /app
 
 COPY package.json ./
-COPY tsconfig.json ./
 COPY *.yaml ./
 COPY --exclude=node_modules services/api/server/ services/api/server/
 

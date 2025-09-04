@@ -54,33 +54,11 @@ const chains: Chain[] = [
     tokens: EVM_TOKENS,
   },
   {
-    name: 'Arbitrum',
-    label: NETWORK === 'devnet' ? 'ArbitrumSepolia' : 'Arbitrum',
-    icon: chainIcons.Arbitrum,
-    namespace: 'evm',
-    id: NETWORK === 'devnet' ? 421614 : 42161,
-    tokens: EVM_TOKENS,
-  },
-  {
-    name: 'Optimism',
-    label: NETWORK === 'devnet' ? 'OptimismSepolia' : 'Optimism',
-    icon: chainIcons.Optimism,
-    namespace: 'evm',
-    id: NETWORK === 'devnet' ? 11155420 : 10,
-    tokens: EVM_TOKENS,
-  },
-  {
     name: 'Fogo',
     label: 'Fogo',
     icon: chainIcons.Fogo,
     namespace: 'svm',
-    tokens: [
-      {
-        address: MINTS.fUSD.toBase58(),
-        symbol: 'fUSD',
-        icon: 'https://www.fogo.io/tokens/fusd.svg',
-      },
-    ],
+    tokens: [],
   },
 ];
 

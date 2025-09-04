@@ -9,6 +9,7 @@ import {
 } from '@solana-program/token-2022';
 import { database } from './db';
 import { Chain } from '../generated/api';
+import { logger } from './server';
 
 const rpc = createSolanaRpc(process.env.SVM_RPC!);
 const isDevnet = process.env.SVM_RPC?.includes('devnet') ?? false;
@@ -83,29 +84,33 @@ export const extensions = new ExtensionsService({
     const claims = await getClaims();
 
     for (const ext of extensionData) {
-      const mint = await fetchMint(rpc, ext.mint as Address);
-      ext.tokenSupply = Number(mint.data.supply);
+      try {
+        const mint = await fetchMint(rpc, ext.mint as Address);
+        ext.tokenSupply = Number(mint.data.supply);
 
-      // get vault balance
-      const [associatedTokenAddress] = await findAssociatedTokenPda({
-        mint: mMint,
-        owner: ext.mVault as Address,
-        tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
-      });
+        // get vault balance
+        const [associatedTokenAddress] = await findAssociatedTokenPda({
+          mint: mMint,
+          owner: ext.mVault as Address,
+          tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
+        });
 
-      const ataDetails = await fetchToken(rpc, associatedTokenAddress);
-      ext.mVaultBalance = Number(ataDetails.data.amount);
+        const ataDetails = await fetchToken(rpc, associatedTokenAddress);
+        ext.mVaultBalance = Number(ataDetails.data.amount);
 
-      // check for mint extensions
-      if (isSome(mint.data.extensions)) {
-        for (const type of mint.data.extensions.value) {
-          if (isExtension('ScaledUiAmountConfig', type)) {
-            ext.uiMultiplier = type.multiplier;
+        // check for mint extensions
+        if (isSome(mint.data.extensions)) {
+          for (const type of mint.data.extensions.value) {
+            if (isExtension('ScaledUiAmountConfig', type)) {
+              ext.uiMultiplier = type.multiplier;
+            }
           }
         }
-      }
 
-      ext.mEarned = claims[associatedTokenAddress] ?? 0;
+        ext.mEarned = claims[associatedTokenAddress] ?? 0;
+      } catch (e) {
+        logger.warn('Error fetching data for extension', { extension: ext.name, error: (e as Error).message });
+      }
     }
 
     res.send({ extensions: extensionData });

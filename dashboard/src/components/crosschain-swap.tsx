@@ -197,8 +197,13 @@ export const CrossChainSwap = () => {
   if (extensionData) {
     chains[0].tokens = [
       chains[0].tokens[0],
-      ...extensionData.extensions.map((ext) => ({ address: ext.mint, symbol: ext.symbol, icon: ext.icon })),
+      ...extensionData.extensions
+        .filter((ext) => ext.chain === M0SolanaApi.Chain.Solana)
+        .map((ext) => ({ address: ext.mint, symbol: ext.symbol, icon: ext.icon })),
     ];
+    chains[2].tokens = extensionData.extensions
+      .filter((ext) => ext.chain === M0SolanaApi.Chain.Fogo)
+      .map((ext) => ({ address: ext.mint, symbol: ext.symbol, icon: ext.icon }));
   }
 
   const {
@@ -589,7 +594,6 @@ export const CrossChainSwap = () => {
             'Approve'
           )}
         </button>
-        <div className="mt-5 text-xs text-gray-400 text-center">Bridge M using Wormhole</div>
       </div>
       <ToastContainer position="bottom-right" autoClose={false} stacked={false} closeOnClick={false} />
     </div>

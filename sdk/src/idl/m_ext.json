@@ -9,24 +9,13 @@
   "instructions": [
     {
       "name": "add_wrap_authority",
-      "discriminator": [
-        234,
-        104,
-        99,
-        10,
-        191,
-        202,
-        68,
-        43
-      ],
+      "discriminator": [234, 104, 99, 10, 191, 202, 68, 43],
       "accounts": [
         {
           "name": "admin",
           "writable": true,
           "signer": true,
-          "relations": [
-            "global_account"
-          ]
+          "relations": ["global_account"]
         },
         {
           "name": "global_account",
@@ -35,14 +24,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
+                "value": [103, 108, 111, 98, 97, 108]
               }
             ]
           }
@@ -61,23 +43,12 @@
     },
     {
       "name": "claim_fees",
-      "discriminator": [
-        82,
-        251,
-        233,
-        156,
-        12,
-        52,
-        184,
-        202
-      ],
+      "discriminator": [82, 251, 233, 156, 12, 52, 184, 202],
       "accounts": [
         {
           "name": "admin",
           "signer": true,
-          "relations": [
-            "global_account"
-          ]
+          "relations": ["global_account"]
         },
         {
           "name": "global_account",
@@ -86,85 +57,23 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
+                "value": [103, 108, 111, 98, 97, 108]
               }
             ]
           }
         },
         {
           "name": "m_earn_global_account",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
-                78,
-                85,
-                26,
-                180,
-                224,
-                26,
-                229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
-                49,
-                118,
-                130,
-                244,
-                142,
-                245
-              ]
-            }
-          }
+          "relations": ["global_account"]
         },
         {
           "name": "m_mint",
-          "relations": [
-            "global_account"
-          ]
+          "relations": ["global_account"]
         },
         {
           "name": "ext_mint",
           "writable": true,
-          "relations": [
-            "global_account"
-          ]
+          "relations": ["global_account"]
         },
         {
           "name": "ext_mint_authority",
@@ -172,22 +81,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  109,
-                  105,
-                  110,
-                  116,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  111,
-                  114,
-                  105,
-                  116,
-                  121
-                ]
+                "value": [109, 105, 110, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121]
               }
             ]
           }
@@ -198,15 +92,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  109,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116
-                ]
+                "value": [109, 95, 118, 97, 117, 108, 116]
               }
             ]
           }
@@ -232,48 +118,42 @@
             "program": {
               "kind": "const",
               "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16,
+                132, 4, 142, 123, 216, 219, 233, 248, 89
               ]
             }
           }
         },
         {
           "name": "recipient_ext_token_account",
-          "docs": [
-            "so the authority of this token account is not checked"
-          ],
+          "docs": ["so the authority of this token account is not checked"],
           "writable": true
+        },
+        {
+          "name": "m_earner_account",
+          "docs": [
+            "via the seed, but we delay full validation to the handler",
+            "so we can handle cases where the account has been closed."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [101, 97, 114, 110, 101, 114]
+              },
+              {
+                "kind": "account",
+                "path": "vault_m_token_account"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                5, 96, 203, 194, 112, 168, 176, 78, 85, 26, 180, 224, 26, 229, 153, 66, 23, 208, 230, 56, 28, 164, 98,
+                240, 154, 37, 49, 118, 130, 244, 142, 245
+              ]
+            }
+          }
         },
         {
           "name": "m_token_program",
@@ -288,16 +168,7 @@
     },
     {
       "name": "initialize",
-      "discriminator": [
-        175,
-        175,
-        109,
-        31,
-        13,
-        152,
-        155,
-        237
-      ],
+      "discriminator": [175, 175, 109, 31, 13, 152, 155, 237],
       "accounts": [
         {
           "name": "admin",
@@ -311,14 +182,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
+                "value": [103, 108, 111, 98, 97, 108]
               }
             ]
           }
@@ -336,22 +200,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  109,
-                  105,
-                  110,
-                  116,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  111,
-                  114,
-                  105,
-                  116,
-                  121
-                ]
+                "value": [109, 105, 110, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121]
               }
             ]
           }
@@ -362,15 +211,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  109,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116
-                ]
+                "value": [109, 95, 118, 97, 117, 108, 116]
               }
             ]
           }
@@ -395,38 +236,8 @@
             "program": {
               "kind": "const",
               "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16,
+                132, 4, 142, 123, 216, 219, 233, 248, 89
               ]
             }
           }
@@ -437,51 +248,14 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
+                "value": [103, 108, 111, 98, 97, 108]
               }
             ],
             "program": {
               "kind": "const",
               "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
-                78,
-                85,
-                26,
-                180,
-                224,
-                26,
-                229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
-                49,
-                118,
-                130,
-                244,
-                142,
-                245
+                5, 96, 203, 194, 112, 168, 176, 78, 85, 26, 180, 224, 26, 229, 153, 66, 23, 208, 230, 56, 28, 164, 98,
+                240, 154, 37, 49, 118, 130, 244, 142, 245
               ]
             }
           }
@@ -492,14 +266,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  101,
-                  97,
-                  114,
-                  110,
-                  101,
-                  114
-                ]
+                "value": [101, 97, 114, 110, 101, 114]
               },
               {
                 "kind": "account",
@@ -509,38 +276,8 @@
             "program": {
               "kind": "const",
               "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
-                78,
-                85,
-                26,
-                180,
-                224,
-                26,
-                229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
-                49,
-                118,
-                130,
-                244,
-                142,
-                245
+                5, 96, 203, 194, 112, 168, 176, 78, 85, 26, 180, 224, 26, 229, 153, 66, 23, 208, 230, 56, 28, 164, 98,
+                240, 154, 37, 49, 118, 130, 244, 142, 245
               ]
             }
           }
@@ -573,24 +310,13 @@
     },
     {
       "name": "remove_wrap_authority",
-      "discriminator": [
-        218,
-        60,
-        185,
-        181,
-        112,
-        63,
-        60,
-        152
-      ],
+      "discriminator": [218, 60, 185, 181, 112, 63, 60, 152],
       "accounts": [
         {
           "name": "admin",
           "writable": true,
           "signer": true,
-          "relations": [
-            "global_account"
-          ]
+          "relations": ["global_account"]
         },
         {
           "name": "global_account",
@@ -599,14 +325,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
+                "value": [103, 108, 111, 98, 97, 108]
               }
             ]
           }
@@ -625,23 +344,12 @@
     },
     {
       "name": "set_fee",
-      "discriminator": [
-        18,
-        154,
-        24,
-        18,
-        237,
-        214,
-        19,
-        80
-      ],
+      "discriminator": [18, 154, 24, 18, 237, 214, 19, 80],
       "accounts": [
         {
           "name": "admin",
           "signer": true,
-          "relations": [
-            "global_account"
-          ]
+          "relations": ["global_account"]
         },
         {
           "name": "global_account",
@@ -650,69 +358,75 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
+                "value": [103, 108, 111, 98, 97, 108]
               }
             ]
           }
         },
         {
           "name": "m_earn_global_account",
+          "relations": ["global_account"]
+        },
+        {
+          "name": "m_vault",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
+                "value": [109, 95, 118, 97, 117, 108, 116]
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_m_token_account",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "m_vault"
+              },
+              {
+                "kind": "account",
+                "path": "m_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "global_account.m_mint",
+                "account": "ExtGlobal"
               }
             ],
             "program": {
               "kind": "const",
               "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
-                78,
-                85,
-                26,
-                180,
-                224,
-                26,
-                229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
-                49,
-                118,
-                130,
-                244,
-                142,
-                245
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16,
+                132, 4, 142, 123, 216, 219, 233, 248, 89
+              ]
+            }
+          }
+        },
+        {
+          "name": "m_earner_account",
+          "docs": [
+            "via the seed, but we delay full validation to the handler",
+            "so we can handle cases where the account has been closed."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [101, 97, 114, 110, 101, 114]
+              },
+              {
+                "kind": "account",
+                "path": "vault_m_token_account"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                5, 96, 203, 194, 112, 168, 176, 78, 85, 26, 180, 224, 26, 229, 153, 66, 23, 208, 230, 56, 28, 164, 98,
+                240, 154, 37, 49, 118, 130, 244, 142, 245
               ]
             }
           }
@@ -720,9 +434,7 @@
         {
           "name": "ext_mint",
           "writable": true,
-          "relations": [
-            "global_account"
-          ]
+          "relations": ["global_account"]
         },
         {
           "name": "ext_mint_authority",
@@ -730,25 +442,14 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  109,
-                  105,
-                  110,
-                  116,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  111,
-                  114,
-                  105,
-                  116,
-                  121
-                ]
+                "value": [109, 105, 110, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121]
               }
             ]
           }
+        },
+        {
+          "name": "m_token_program",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         },
         {
           "name": "ext_token_program",
@@ -764,16 +465,7 @@
     },
     {
       "name": "sync",
-      "discriminator": [
-        4,
-        219,
-        40,
-        164,
-        21,
-        157,
-        189,
-        88
-      ],
+      "discriminator": [4, 219, 40, 164, 21, 157, 189, 88],
       "accounts": [
         {
           "name": "global_account",
@@ -782,69 +474,75 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
+                "value": [103, 108, 111, 98, 97, 108]
               }
             ]
           }
         },
         {
           "name": "m_earn_global_account",
+          "relations": ["global_account"]
+        },
+        {
+          "name": "m_vault",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
+                "value": [109, 95, 118, 97, 117, 108, 116]
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_m_token_account",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "m_vault"
+              },
+              {
+                "kind": "account",
+                "path": "m_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "global_account.m_mint",
+                "account": "ExtGlobal"
               }
             ],
             "program": {
               "kind": "const",
               "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
-                78,
-                85,
-                26,
-                180,
-                224,
-                26,
-                229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
-                49,
-                118,
-                130,
-                244,
-                142,
-                245
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16,
+                132, 4, 142, 123, 216, 219, 233, 248, 89
+              ]
+            }
+          }
+        },
+        {
+          "name": "m_earner_account",
+          "docs": [
+            "via the seed, but we delay full validation to the handler",
+            "so we can handle cases where the account has been closed."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [101, 97, 114, 110, 101, 114]
+              },
+              {
+                "kind": "account",
+                "path": "vault_m_token_account"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                5, 96, 203, 194, 112, 168, 176, 78, 85, 26, 180, 224, 26, 229, 153, 66, 23, 208, 230, 56, 28, 164, 98,
+                240, 154, 37, 49, 118, 130, 244, 142, 245
               ]
             }
           }
@@ -852,9 +550,7 @@
         {
           "name": "ext_mint",
           "writable": true,
-          "relations": [
-            "global_account"
-          ]
+          "relations": ["global_account"]
         },
         {
           "name": "ext_mint_authority",
@@ -862,25 +558,14 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  109,
-                  105,
-                  110,
-                  116,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  111,
-                  114,
-                  105,
-                  116,
-                  121
-                ]
+                "value": [109, 105, 110, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121]
               }
             ]
           }
+        },
+        {
+          "name": "m_token_program",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         },
         {
           "name": "ext_token_program",
@@ -891,16 +576,7 @@
     },
     {
       "name": "unwrap",
-      "discriminator": [
-        126,
-        175,
-        198,
-        14,
-        212,
-        69,
-        50,
-        44
-      ],
+      "discriminator": [126, 175, 198, 14, 212, 69, 50, 44],
       "accounts": [
         {
           "name": "token_authority",
@@ -913,16 +589,12 @@
         },
         {
           "name": "m_mint",
-          "relations": [
-            "global_account"
-          ]
+          "relations": ["global_account"]
         },
         {
           "name": "ext_mint",
           "writable": true,
-          "relations": [
-            "global_account"
-          ]
+          "relations": ["global_account"]
         },
         {
           "name": "global_account",
@@ -931,72 +603,14 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
+                "value": [103, 108, 111, 98, 97, 108]
               }
             ]
           }
         },
         {
           "name": "m_earn_global_account",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
-                78,
-                85,
-                26,
-                180,
-                224,
-                26,
-                229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
-                49,
-                118,
-                130,
-                244,
-                142,
-                245
-              ]
-            }
-          }
+          "relations": ["global_account"]
         },
         {
           "name": "m_vault",
@@ -1004,15 +618,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  109,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116
-                ]
+                "value": [109, 95, 118, 97, 117, 108, 116]
               }
             ]
           }
@@ -1023,22 +629,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  109,
-                  105,
-                  110,
-                  116,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  111,
-                  114,
-                  105,
-                  116,
-                  121
-                ]
+                "value": [109, 105, 110, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121]
               }
             ]
           }
@@ -1068,38 +659,8 @@
             "program": {
               "kind": "const",
               "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16,
+                132, 4, 142, 123, 216, 219, 233, 248, 89
               ]
             }
           }
@@ -1107,6 +668,32 @@
         {
           "name": "from_ext_token_account",
           "writable": true
+        },
+        {
+          "name": "m_earner_account",
+          "docs": [
+            "via the seed, but we delay full validation to the handler",
+            "so we can handle cases where the account has been closed."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [101, 97, 114, 110, 101, 114]
+              },
+              {
+                "kind": "account",
+                "path": "vault_m_token_account"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                5, 96, 203, 194, 112, 168, 176, 78, 85, 26, 180, 224, 26, 229, 153, 66, 23, 208, 230, 56, 28, 164, 98,
+                240, 154, 37, 49, 118, 130, 244, 142, 245
+              ]
+            }
+          }
         },
         {
           "name": "m_token_program",
@@ -1126,16 +713,7 @@
     },
     {
       "name": "wrap",
-      "discriminator": [
-        178,
-        40,
-        10,
-        189,
-        228,
-        129,
-        186,
-        140
-      ],
+      "discriminator": [178, 40, 10, 189, 228, 129, 186, 140],
       "accounts": [
         {
           "name": "token_authority",
@@ -1148,16 +726,12 @@
         },
         {
           "name": "m_mint",
-          "relations": [
-            "global_account"
-          ]
+          "relations": ["global_account"]
         },
         {
           "name": "ext_mint",
           "writable": true,
-          "relations": [
-            "global_account"
-          ]
+          "relations": ["global_account"]
         },
         {
           "name": "global_account",
@@ -1166,72 +740,14 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
+                "value": [103, 108, 111, 98, 97, 108]
               }
             ]
           }
         },
         {
           "name": "m_earn_global_account",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                5,
-                96,
-                203,
-                194,
-                112,
-                168,
-                176,
-                78,
-                85,
-                26,
-                180,
-                224,
-                26,
-                229,
-                153,
-                66,
-                23,
-                208,
-                230,
-                56,
-                28,
-                164,
-                98,
-                240,
-                154,
-                37,
-                49,
-                118,
-                130,
-                244,
-                142,
-                245
-              ]
-            }
-          }
+          "relations": ["global_account"]
         },
         {
           "name": "m_vault",
@@ -1239,15 +755,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  109,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116
-                ]
+                "value": [109, 95, 118, 97, 117, 108, 116]
               }
             ]
           }
@@ -1258,22 +766,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  109,
-                  105,
-                  110,
-                  116,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  111,
-                  114,
-                  105,
-                  116,
-                  121
-                ]
+                "value": [109, 105, 110, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121]
               }
             ]
           }
@@ -1303,38 +796,8 @@
             "program": {
               "kind": "const",
               "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16,
+                132, 4, 142, 123, 216, 219, 233, 248, 89
               ]
             }
           }
@@ -1342,6 +805,32 @@
         {
           "name": "to_ext_token_account",
           "writable": true
+        },
+        {
+          "name": "m_earner_account",
+          "docs": [
+            "via the seed, but we delay full validation to the handler",
+            "so we can handle cases where the account has been closed."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [101, 97, 114, 110, 101, 114]
+              },
+              {
+                "kind": "account",
+                "path": "vault_m_token_account"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                5, 96, 203, 194, 112, 168, 176, 78, 85, 26, 180, 224, 26, 229, 153, 66, 23, 208, 230, 56, 28, 164, 98,
+                240, 154, 37, 49, 118, 130, 244, 142, 245
+              ]
+            }
+          }
         },
         {
           "name": "m_token_program",
@@ -1363,57 +852,21 @@
   "accounts": [
     {
       "name": "Earner",
-      "discriminator": [
-        236,
-        126,
-        51,
-        96,
-        46,
-        225,
-        103,
-        207
-      ]
+      "discriminator": [236, 126, 51, 96, 46, 225, 103, 207]
     },
     {
       "name": "ExtGlobal",
-      "discriminator": [
-        157,
-        61,
-        26,
-        72,
-        16,
-        241,
-        83,
-        140
-      ]
+      "discriminator": [157, 61, 26, 72, 16, 241, 83, 140]
     },
     {
       "name": "Global",
-      "discriminator": [
-        167,
-        232,
-        232,
-        177,
-        200,
-        108,
-        114,
-        127
-      ]
+      "discriminator": [167, 232, 232, 177, 200, 108, 114, 127]
     }
   ],
   "events": [
     {
       "name": "FeesClaimed",
-      "discriminator": [
-        22,
-        104,
-        110,
-        222,
-        38,
-        157,
-        14,
-        62
-      ]
+      "discriminator": [22, 104, 110, 222, 38, 157, 14, 62]
     }
   ],
   "errors": [
@@ -1625,10 +1078,7 @@
           {
             "name": "earner_merkle_root",
             "type": {
-              "array": [
-                "u8",
-                32
-              ]
+              "array": ["u8", 32]
             }
           },
           {

@@ -15,6 +15,8 @@ import { ApiClient } from '../services/sdk';
 import { useDebouncedCallback } from 'use-debounce';
 import { M0SolanaApi } from '@m0-foundation/solana-m-api-sdk';
 import { PublicKey, TransactionInstruction } from '@solana/web3.js';
+import { useAddressDirectory } from '../hooks/useAddressDirectory';
+import { AddressDirectory } from './AddressDirectory';
 
 type Chain = {
   name: string;
@@ -180,6 +182,8 @@ export const CrossChainSwap = () => {
   const [outputChain, setOutputChain] = useState<Chain>(chains[1]);
   const [inputToken, setInputToken] = useState<Token>(chains[0].tokens[0]);
   const [outputToken, setOutputToken] = useState<Token>(chains[1].tokens[0]);
+  const [isDirectoryOpen, setIsDirectoryOpen] = useState<boolean>(false);
+  const { getAddressEntry } = useAddressDirectory();
 
   // quoting state if input token is USDC
   const [quote, setQuote] = useState<M0SolanaApi.Quote>();
@@ -333,7 +337,15 @@ export const CrossChainSwap = () => {
   }, [inputToken, debouncedAmount]);
 
   const handleRecipientChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setRecipientAddress(e.target.value.trim());
+    const address = e.target.value.trim();
+    setRecipientAddress(address);
+
+    // Check if this address is not in our directory and prompt to add it
+    if (address.match(/^0x[a-fA-F0-9]{40}$|^[1-9A-HJ-NP-Za-km-z]{32,44}$/) && !getAddressEntry(address)) {
+      setTimeout(() => {
+        setIsDirectoryOpen(true);
+      }, 500);
+    }
   };
 
   const getTokenBalance = () => {
@@ -556,8 +568,28 @@ export const CrossChainSwap = () => {
               value={recipientAddress}
               onChange={handleRecipientChange}
               placeholder={outputChain.namespace === 'evm' ? '0x...' : ''}
-              className="w-full bg-off-blue py-3 px-4 focus:outline-none"
+              className="w-full bg-off-blue py-3 px-4 pr-12 focus:outline-none"
             />
+            <button
+              onClick={() => setIsDirectoryOpen(true)}
+              className="absolute right-2 text-gray-400 hover:text-black hover:cursor-pointer p-2"
+              title="Address Directory"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
+                />
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -596,6 +628,17 @@ export const CrossChainSwap = () => {
         </button>
       </div>
       <ToastContainer position="bottom-right" autoClose={false} stacked={false} closeOnClick={false} />
+
+      <AddressDirectory
+        isOpen={isDirectoryOpen}
+        onClose={() => setIsDirectoryOpen(false)}
+        onSelect={(address) => {
+          setRecipientAddress(address);
+          setIsDirectoryOpen(false);
+        }}
+        selectedChain={outputChain.name}
+        currentAddress={recipientAddress}
+      />
     </div>
   );
 };

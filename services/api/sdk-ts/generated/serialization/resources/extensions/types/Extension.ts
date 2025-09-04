@@ -5,10 +5,12 @@
 import * as serializers from "../../../index";
 import * as M0SolanaApi from "../../../../api/index";
 import * as core from "../../../../core";
+import { Chain } from "./Chain";
 
 export const Extension: core.serialization.ObjectSchema<serializers.Extension.Raw, M0SolanaApi.Extension> =
     core.serialization.object({
         mint: core.serialization.string(),
+        chain: Chain,
         programId: core.serialization.string(),
         symbol: core.serialization.string(),
         name: core.serialization.string(),
@@ -23,6 +25,7 @@ export const Extension: core.serialization.ObjectSchema<serializers.Extension.Ra
 export declare namespace Extension {
     export interface Raw {
         mint: string;
+        chain: Chain.Raw;
         programId: string;
         symbol: string;
         name: string;

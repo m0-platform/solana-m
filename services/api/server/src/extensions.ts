@@ -8,6 +8,7 @@ import {
   TOKEN_2022_PROGRAM_ADDRESS,
 } from '@solana-program/token-2022';
 import { database } from './db';
+import { Chain } from '../generated/api';
 
 const rpc = createSolanaRpc(process.env.SVM_RPC!);
 const isDevnet = process.env.SVM_RPC?.includes('devnet') ?? false;
@@ -15,6 +16,7 @@ const isDevnet = process.env.SVM_RPC?.includes('devnet') ?? false;
 export const extensionData = [
   {
     name: 'Wrapped $M by M0',
+    chain: Chain.Solana,
     mint: 'mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp',
     programId: 'wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko',
     symbol: 'wM',
@@ -27,6 +29,7 @@ export const extensionData = [
   },
   {
     name: 'Kast USDK',
+    chain: Chain.Solana,
     mint: 'usdkbee86pkLyRmxfFCdkyySpxRb5ndCxVsK2BkRXwX',
     programId: 'extaykYu5AQcDm3qZAbiDN3yp6skqn6Nssj7veUUGZw',
     symbol: 'USDK',
@@ -39,11 +42,25 @@ export const extensionData = [
   },
   {
     name: 'Kast USDKY',
+    chain: Chain.Solana,
     mint: 'usdkyPPxgV7sfNyKb8eDz66ogPrkRXG3wS2FVb6LLUf',
     programId: 'extMahs9bUFMYcviKCvnSRaXgs5PcqmMzcnHRtTqE85',
     symbol: 'USDKY',
     icon: 'https://green-obedient-albatross-155.mypinata.cloud/ipfs/bafkreiagyys7yuwvxgsmdsim7ta2q53bhokoz2hhl4rhumwork367ttwry',
     mVault: '4QqDEKoXeD5esxx1UCDXiKyMsmQyhxN3zsaHSxUJZWmR',
+    mVaultBalance: 0,
+    mEarned: 0,
+    tokenSupply: 0,
+    uiMultiplier: 1,
+  },
+  {
+    name: 'Fogo USD',
+    chain: Chain.Fogo,
+    mint: 'fUSDqquEMUU8UmU2YWYGZy2Lda1oMzBc88Mkzc1PRDw',
+    programId: 'extUkDFf3HLekkxbcZ3XRUizMjbxMJgKBay3p9xGVmg',
+    symbol: 'fUSD',
+    icon: 'https://green-obedient-albatross-155.mypinata.cloud/ipfs/bafkreicxtfsmi6icguqxiaygechibdsmm4neaityzxa67o5tzushirsrty',
+    mVault: 'ERJHhMRf53swz5APhH3dXr26i3icH2rf6UhBAEmA19G8',
     mVaultBalance: 0,
     mEarned: 0,
     tokenSupply: 0,

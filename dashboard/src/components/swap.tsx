@@ -41,8 +41,8 @@ const mAsset = {
 
 export enum SwapMode {
   SWAP = 'swap',
-  WRAP = 'wrap', // hidden from nav
-  UNWRAP = 'unwrap', // hidden from nav
+  WRAP = 'wrap',
+  UNWRAP = 'unwrap',
 }
 
 export const Swap = ({ mode }: { mode: SwapMode }) => {

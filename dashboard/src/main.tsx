@@ -22,7 +22,7 @@ import {
   AppKitNetwork,
 } from '@reown/appkit/networks';
 import { Swap, SwapMode } from './components/swap';
-import { Bridge } from './components/bridge';
+import { CrossChainSwap } from './components/crosschain-swap';
 import { EarnerDetails } from './components/earner';
 import { IndexUpdates } from './components/index-updates';
 import { WagmiProvider } from 'wagmi';
@@ -102,11 +102,11 @@ createRoot(document.getElementById('root')!).render(
                 </div>
               }
             />
-            <Route path="/swap" element={<Swap mode={SwapMode.SWAP} />} />
-            <Route path="/bridge" element={<Bridge />} />
+            <Route path="/crosschain-swap" element={<CrossChainSwap />} />
             <Route path="/earner/:vault" element={<EarnerDetails />} />
 
             {/* hidden from navbar */}
+            <Route path="/swap" element={<Swap mode={SwapMode.SWAP} />} />
             <Route path="/wrap" element={<Swap mode={SwapMode.WRAP} />} />
             <Route path="/unwrap" element={<Swap mode={SwapMode.UNWRAP} />} />
           </Routes>

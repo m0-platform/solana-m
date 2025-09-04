@@ -18,8 +18,7 @@ export const Navbar = () => {
           <div className="space-x-4 flex items-center">
             {[
               { path: '/', label: 'Home' },
-              { path: '/swap', label: 'Swap' },
-              { path: '/bridge', label: 'Bridge' },
+              { path: '/crosschain-swap', label: 'Swap' },
             ].map(({ path, label }) => (
               <NavLink
                 key={path}

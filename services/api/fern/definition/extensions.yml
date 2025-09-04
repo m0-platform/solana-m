@@ -16,6 +16,7 @@ service:
             body:
               extensions:
                 - mint: mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp
+                  chain: solana
                   programId: wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko
                   symbol: wM
                   name: Wrapped $M by M0
@@ -34,6 +35,7 @@ types:
   Extension:
     properties:
       mint: string
+      chain: Chain
       programId: string
       symbol: string
       name: string
@@ -43,3 +45,8 @@ types:
       mEarned: double
       tokenSupply: double
       uiMultiplier: double
+
+  Chain:
+    enum:
+      - solana
+      - fogo

@@ -39,11 +39,6 @@ const chains: Chain[] = [
     namespace: 'svm',
     tokens: [
       {
-        address: MINTS.M.toBase58(),
-        symbol: 'M',
-        icon: 'https://gistcdn.githack.com/SC4RECOIN/a729afb77aa15a4aa6b1b46c3afa1b52/raw/209da531ed46c1aaef0b1d3d7b67b3a5cec257f3/M_Symbol_512.svg',
-      },
-      {
         address: MINTS.USDC.toBase58(),
         symbol: 'USDC',
         icon: 'https://statics.solscan.io/cdn/imgs/s60?ref=68747470733a2f2f7261772e67697468756275736572636f6e74656e742e636f6d2f736f6c616e612d6c6162732f746f6b656e2d6c6973742f6d61696e2f6173736574732f6d61696e6e65742f45506a465764643541756671535371654d32714e31787a7962617043384734774547476b5a777954447431762f6c6f676f2e706e67',
@@ -73,6 +68,19 @@ const chains: Chain[] = [
     namespace: 'evm',
     id: NETWORK === 'devnet' ? 11155420 : 10,
     tokens: EVM_TOKENS,
+  },
+  {
+    name: 'Fogo',
+    label: 'Fogo',
+    icon: chainIcons.Fogo,
+    namespace: 'svm',
+    tokens: [
+      {
+        address: MINTS.fUSD.toBase58(),
+        symbol: 'fUSD',
+        icon: 'https://www.fogo.io/tokens/fusd.svg',
+      },
+    ],
   },
 ];
 
@@ -182,7 +190,7 @@ const TokenDropdown = ({
   );
 };
 
-export const Bridge = () => {
+export const CrossChainSwap = () => {
   const { isConnected, solanaBalances, evmBalances, isSolanaWallet, isEvmWallet, address, caipAddress } = useAccount();
   const { walletProvider } = useAppKitProvider<Provider>('solana');
   const { sendTransaction, isPending } = useSendTransaction();
@@ -211,7 +219,6 @@ export const Bridge = () => {
   if (extensionData) {
     chains[0].tokens = [
       chains[0].tokens[0],
-      chains[0].tokens[1],
       ...extensionData.extensions.map((ext) => ({ address: ext.mint, symbol: ext.symbol, icon: ext.icon })),
     ];
   }
@@ -503,7 +510,7 @@ export const Bridge = () => {
 
   return (
     <div className="flex justify-center mt-20">
-      <div className="p-6 w-full max-w-md">
+      <div className="p-6 w-full max-w-2xl">
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block mb-2 text-gray-400 text-xs">Input Chain</label>
@@ -565,7 +572,7 @@ export const Bridge = () => {
               type="text"
               value={recipientAddress}
               onChange={handleRecipientChange}
-              placeholder={inputChain.name === 'Solana' ? '0x...' : ''}
+              placeholder={outputChain.namespace === 'evm' ? '0x...' : ''}
               className="w-full bg-off-blue py-3 px-4 focus:outline-none"
             />
           </div>

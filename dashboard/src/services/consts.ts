@@ -12,6 +12,7 @@ export const MINTS = {
     : new PublicKey('mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo'),
   USDC: new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'),
   wM: new PublicKey('mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp'),
+  fUSD: new PublicKey('fUSDNGgHkZfwckbr5RLLvRbvqvRcTLdH9hcHJiq4jry'),
 };
 
 export const M_EVM = '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b';

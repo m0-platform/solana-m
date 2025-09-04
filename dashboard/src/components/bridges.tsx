@@ -11,6 +11,7 @@ export const chainIcons: { [key: string]: string } = {
   Arbitrum: 'https://s2.coinmarketcap.com/static/img/coins/64x64/11841.png',
   'Arbitrum Sepolia': 'https://s2.coinmarketcap.com/static/img/coins/64x64/11841.png',
   Solana: 'https://s2.coinmarketcap.com/static/img/coins/64x64/5426.png',
+  Fogo: 'https://pbs.twimg.com/profile_images/1864802804709163008/7eus0Fgx_400x400.jpg',
 };
 
 export const Bridges = () => {

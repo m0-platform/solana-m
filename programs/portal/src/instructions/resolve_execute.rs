@@ -407,6 +407,12 @@ pub fn resolve_execute_vaa_v1<'a>(
     }
 
     // Find the extension program ID based on the destination mint
+    // Handle case where no extensions are whitelisted
+    if swap_global_data.whitelisted_extensions.is_empty() {
+        msg!("Cannot bridge to extension since none are whitelisted");
+        return err!(NTTError::NoWhitelistedExtensions);
+    }
+
     let ext_program = swap_global_data
         .whitelisted_extensions
         .iter()

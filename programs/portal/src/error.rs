@@ -69,6 +69,8 @@ pub enum NTTError {
     InvalidReturnAccount,
     #[msg("Missing payer account")]
     MissingPayerAccount,
+    #[msg("No whitelisted extensions in swap global")]
+    NoWhitelistedExtensions,
 }
 
 impl From<ScalingError> for NTTError {

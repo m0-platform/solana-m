@@ -143,6 +143,7 @@ export async function createMintInstruction(
   defaultAccountState = AccountState.Initialized,
   vault?: PublicKey,
   mintTokens = false,
+  decimals = 6,
 ) {
   // mint size with extensions
   const mintLen = getMintLen([
@@ -164,7 +165,7 @@ export async function createMintInstruction(
     createInitializeScaledUiAmountConfigInstruction(mint, extensionAuth, 1.0, TOKEN_2022_PROGRAM_ID),
     createInitializeDefaultAccountStateInstruction(mint, AccountState.Initialized, TOKEN_2022_PROGRAM_ID),
     createInitializePermanentDelegateInstruction(mint, extensionAuth, TOKEN_2022_PROGRAM_ID),
-    createInitializeMintInstruction(mint, 6, payer.publicKey, payer.publicKey, TOKEN_2022_PROGRAM_ID),
+    createInitializeMintInstruction(mint, decimals, payer.publicKey, payer.publicKey, TOKEN_2022_PROGRAM_ID),
   ];
 
   const tokenAccount = getAssociatedTokenAddressSync(mint, payer.publicKey, false, TOKEN_2022_PROGRAM_ID);

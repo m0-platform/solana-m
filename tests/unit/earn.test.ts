@@ -463,6 +463,9 @@ class EarnTest<V extends Variant = Variant.New> {
       this.getEarnGlobalAccount(),
       mint.publicKey,
       AccountState.Frozen,
+      undefined,
+      false,
+      decimals,
     );
 
     let tx = new Transaction();
@@ -1304,6 +1307,40 @@ for (const variant of VARIANTS) {
                 mMint: $.mMint.publicKey,
                 oldMMint: $.oldMMint!.publicKey,
                 oldGlobalAccount: wrongGlobalAccount,
+              })
+              .signers([$.admin])
+              .rpc(),
+          );
+        });
+
+        test('New m mint has different decimals - reverts', async () => {
+          const wrongMint = new Keypair();
+          await $.createMMint(wrongMint, $.nonAdmin, 9);
+
+          await $.expectAnchorError(
+            $.earn.methods
+              .initialize()
+              .accountsPartial({
+                admin: $.admin.publicKey,
+                mMint: wrongMint.publicKey,
+                oldMMint: $.oldMMint!.publicKey,
+              })
+              .signers([$.admin])
+              .rpc(),
+            'ConstraintMintDecimals',
+          );
+        });
+
+        test('New m mint supply is too large - reverts', async () => {
+          await $.mintM($.admin.publicKey, new BN(100_000_000)); // mint 100 m tokens to admin
+
+          await $.expectSystemError(
+            $.earn.methods
+              .initialize()
+              .accountsPartial({
+                admin: $.admin.publicKey,
+                mMint: $.mMint.publicKey,
+                oldMMint: $.oldMMint!.publicKey,
               })
               .signers([$.admin])
               .rpc(),

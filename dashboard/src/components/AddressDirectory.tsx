@@ -3,26 +3,16 @@ import { useAddressDirectory } from '../hooks/useAddressDirectory';
 
 interface AddressDirectoryProps {
   onSelect: (address: string) => void;
-  selectedChain: string;
   currentAddress: string;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const AddressDirectory: React.FC<AddressDirectoryProps> = ({
-  onSelect,
-  selectedChain,
-  currentAddress,
-  isOpen,
-  onClose,
-}) => {
+export const AddressDirectory: React.FC<AddressDirectoryProps> = ({ onSelect, currentAddress, isOpen, onClose }) => {
   const { addresses, saveAddress, removeAddress } = useAddressDirectory();
   const [newTag, setNewTag] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
-
-  // Filter addresses by selected chain
-  const filteredAddresses = selectedChain ? addresses.filter((addr) => addr.chain === selectedChain) : addresses;
 
   const handleClickOutside = (event: MouseEvent) => {
     if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
@@ -51,7 +41,6 @@ export const AddressDirectory: React.FC<AddressDirectoryProps> = ({
       saveAddress({
         address: currentAddress,
         tag: newTag || 'Untitled',
-        chain: selectedChain,
       });
       setNewTag('');
       setShowAddForm(false);
@@ -74,7 +63,7 @@ export const AddressDirectory: React.FC<AddressDirectoryProps> = ({
           </button>
         </div>
 
-        {showAddForm || !filteredAddresses.length ? (
+        {showAddForm || !addresses.length ? (
           <div className="mb-4">
             <h3 className="font-medium mb-2">{currentAddress ? 'Save this address?' : 'Add new address:'}</h3>
             <div className="mb-2 break-all bg-white text-black p-2">{currentAddress || 'No address selected'}</div>
@@ -109,9 +98,9 @@ export const AddressDirectory: React.FC<AddressDirectoryProps> = ({
           </button>
         )}
 
-        {filteredAddresses.length > 0 && (
+        {addresses.length > 0 && (
           <div className="max-h-80 overflow-y-auto">
-            {filteredAddresses.map((entry) => (
+            {addresses.map((entry) => (
               <div key={entry.address} className="mb-2 p-2 bg-gray-800">
                 <div className="flex justify-between items-start">
                   <div

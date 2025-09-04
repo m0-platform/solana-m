@@ -9,7 +9,7 @@ import { UniversalAddress } from '@wormhole-foundation/sdk-definitions';
 import { EvmNtt } from '@wormhole-foundation/sdk-evm-ntt';
 import evm from '@wormhole-foundation/sdk/platforms/evm';
 import solana from '@wormhole-foundation/sdk/platforms/solana';
-import { NttExecutorRoute, nttExecutorRoute } from '@wormhole-foundation/sdk-route-ntt';
+import { NttExecutorRoute } from '@wormhole-foundation/sdk-route-ntt';
 import { SolanaNtt } from '@wormhole-foundation/sdk-solana-ntt';
 import { type Provider } from '@reown/appkit-adapter-solana/react';
 import { Mint, TOKEN_2022_PROGRAM_ID, unpackMint } from '@solana/spl-token';
@@ -24,12 +24,7 @@ import {
 } from '@solana/web3.js';
 import Decimal from 'decimal.js';
 import { JsonRpcProvider } from 'ethers';
-import {
-  convertToExecutorConfig as getExecutorConfig,
-  getAddressLookupTableAccounts,
-  transferMLike,
-  transferSolanaExtension,
-} from './bridging';
+import { getAddressLookupTableAccounts, transferMLike, transferSolanaExtension } from './bridging';
 import { M_EVM, MINTS, PORTAL, SWAP_LUT } from './consts';
 import { NttWithExecutor } from '@wormhole-foundation/sdk-definitions-ntt';
 import { _platform } from '@wormhole-foundation/sdk-evm';
@@ -55,9 +50,10 @@ export const getMintsRPC = async (): Promise<Record<string, Mint>> => {
   return data;
 };
 
-export const bridgeFromSolana = async (
+export const bridgeFromSvm = async (
   walletProvider: Provider,
   amount: Decimal,
+  fromChain: string,
   fromToken: string,
   recipient: string,
   toChain: string,
@@ -65,11 +61,11 @@ export const bridgeFromSolana = async (
   preIxs?: TransactionInstruction[],
   additionalLuts?: PublicKey[],
 ) => {
-  const ntt = NttManager(connection);
-
   if (!walletProvider.publicKey) {
     throw new Error('Wallet not connected');
   }
+
+  const ntt = NttManager(connection);
 
   const outboxItem = Keypair.generate();
   const ixs = await transferSolanaExtension(
@@ -77,12 +73,13 @@ export const bridgeFromSolana = async (
     walletProvider.publicKey,
     BigInt(amount.toString()),
     {
-      address: new UniversalAddress(recipient, 'hex'),
+      address: new UniversalAddress(recipient, recipient.startsWith('0x') ? 'hex' : 'base58'),
       chain: toChain as any,
     },
     fromToken,
     toToken,
     outboxItem,
+    await getExecutorQuote(fromChain as Chain, toChain as Chain, amount),
   );
 
   const luts: AddressLookupTableAccount[] = [];
@@ -140,26 +137,7 @@ export const bridgeFromEvm = async (
     throw new Error('Wallet not connected');
   }
 
-  const { ntt, routeInstance, wh } = await EvmNttManager(fromChain);
-
-  let routeQuote: NttWithExecutor.Quote | undefined;
-  if (toChain === 'Solana') {
-    try {
-      const tr = (await routes.RouteTransferRequest.create(wh, {
-        source: Wormhole.tokenId(fromChain as Chain, M_EVM),
-        destination: Wormhole.tokenId(toChain as Chain, MINTS.M.toBase58()),
-      })) as any;
-
-      const validated = await routeInstance.validate(tr, { amount: amount.toString() });
-      if (!validated.valid) throw new Error(`Validation failed: ${validated.error.message}`);
-      const validatedParams = validated.params as NttExecutorRoute.ValidatedParams;
-
-      routeQuote = await routeInstance.fetchExecutorQuote(tr, validatedParams);
-    } catch (error) {
-      console.error('Error fetching quote:', error);
-      throw new Error('Failed to fetch quote for executor route');
-    }
-  }
+  const ntt = await EvmNttManager(fromChain);
 
   const xferTxs = transferMLike(
     ntt,
@@ -171,7 +149,7 @@ export const bridgeFromEvm = async (
     },
     fromToken,
     toToken,
-    routeQuote,
+    await getExecutorQuote(fromChain as Chain, toChain as Chain, amount),
   );
 
   let sig: string = '';
@@ -203,12 +181,37 @@ export const bridgeFromEvm = async (
   return sig;
 };
 
+async function getExecutorQuote(
+  fromChain: Chain,
+  toChain: Chain,
+  amount: Decimal,
+): Promise<NttWithExecutor.Quote | undefined> {
+  if (toChain !== 'Solana' && toChain !== 'Fogo') return undefined;
+
+  const wormholeNetwork = NETWORK === 'devnet' ? 'Testnet' : 'Mainnet';
+  const wh = new Wormhole(wormholeNetwork, [solana.Platform, evm.Platform]);
+
+  // @ts-ignore
+  const routeInstance = new executorRoute(wh);
+
+  const tr = (await routes.RouteTransferRequest.create(wh, {
+    source: Wormhole.tokenId(fromChain as Chain, M_EVM),
+    destination: Wormhole.tokenId(toChain as Chain, MINTS.M.toBase58()),
+  })) as any;
+
+  const validated = await routeInstance.validate(tr, { amount: amount.toString() });
+  if (!validated.valid) throw new Error(`Validation failed: ${validated.error.message}`);
+  const validatedParams = validated.params as NttExecutorRoute.ValidatedParams;
+
+  return await routeInstance.fetchExecutorQuote(tr, validatedParams);
+}
+
 export function NttManager(connection: Connection) {
   const wormholeNetwork = NETWORK === 'devnet' ? 'Testnet' : 'Mainnet';
   const wh = new Wormhole(wormholeNetwork, [solana.Platform, evm.Platform]);
   const ctx = wh.getChain('Solana');
 
-  const ntt = new SolanaNtt(
+  return new SolanaNtt(
     wormholeNetwork,
     'Solana',
     connection,
@@ -225,18 +228,12 @@ export function NttManager(connection: Connection) {
     },
     '3.0.0',
   );
-
-  return ntt;
 }
 
 async function EvmNttManager(chain: string) {
   const wormholeNetwork = NETWORK === 'devnet' ? 'Testnet' : 'Mainnet';
   const wh = new Wormhole(wormholeNetwork, [solana.Platform, evm.Platform]);
   const ctx = wh.getChain(chain as any);
-  const executorRoute = nttExecutorRoute(getExecutorConfig());
-
-  // @ts-ignore
-  const routeInstance = new executorRoute(wh);
 
   const rpc: { [key: string]: string } = {
     Sepolia: import.meta.env.VITE_EVM_RPC_URL,
@@ -247,20 +244,16 @@ async function EvmNttManager(chain: string) {
     Optimism: import.meta.env.VITE_OPTIMISM_RPC_URL,
   };
 
-  return {
-    ntt: new EvmNtt(wormholeNetwork, chain as any, new JsonRpcProvider(rpc[chain]), {
-      ...ctx.config.contracts,
-      ntt: {
-        token: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b',
-        manager: '0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd',
-        transceiver: {
-          wormhole: '0x0763196A091575adF99e2306E5e90E0Be5154841',
-        },
+  return new EvmNtt(wormholeNetwork, chain as any, new JsonRpcProvider(rpc[chain]), {
+    ...ctx.config.contracts,
+    ntt: {
+      token: '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b',
+      manager: '0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd',
+      transceiver: {
+        wormhole: '0x0763196A091575adF99e2306E5e90E0Be5154841',
       },
-    }),
-    routeInstance,
-    wh,
-  };
+    },
+  });
 }
 
 export const erc20Abi = [

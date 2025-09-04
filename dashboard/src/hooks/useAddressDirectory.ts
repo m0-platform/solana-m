@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 export type AddressEntry = {
   address: string;
   tag: string;
-  chain: string;
 };
 
 const LOCAL_STORAGE_KEY = 'address-directory';

@@ -4,7 +4,7 @@ import { type Provider } from '@reown/appkit-adapter-solana/react';
 import { useAppKitProvider } from '@reown/appkit/react';
 import Decimal from 'decimal.js';
 import { toast, ToastContainer } from 'react-toastify';
-import { bridgeFromEvm, bridgeFromSolana, erc20Abi, NETWORK } from '../services/rpc';
+import { bridgeFromEvm, bridgeFromSvm, erc20Abi, NETWORK } from '../services/rpc';
 import { chainIcons } from './bridges';
 import { useReadContract, useSendTransaction } from 'wagmi';
 import { switchChain, waitForTransactionReceipt, writeContract } from '@wagmi/core';
@@ -400,9 +400,10 @@ export const CrossChainSwap = () => {
           amountValue = new Decimal(quote.outAmount);
         }
 
-        sig = await bridgeFromSolana(
+        sig = await bridgeFromSvm(
           walletProvider,
           amountValue,
+          inputChain.label,
           fromToken,
           recipientAddress,
           outputChain.label,
@@ -636,7 +637,6 @@ export const CrossChainSwap = () => {
           setRecipientAddress(address);
           setIsDirectoryOpen(false);
         }}
-        selectedChain={outputChain.name}
         currentAddress={recipientAddress}
       />
     </div>

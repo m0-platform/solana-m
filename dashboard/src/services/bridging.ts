@@ -28,6 +28,7 @@ export async function transferSolanaExtension<N extends Network, C extends Solan
   sourceToken: string,
   destinationToken: string,
   outboxItem?: Keypair,
+  quote?: NttWithExecutor.Quote,
 ): Promise<TransactionInstruction[]> {
   const config = await ntt.getConfig();
   if (config.paused) throw new Error('Contract is paused');
@@ -78,22 +79,87 @@ export async function transferSolanaExtension<N extends Network, C extends Solan
     }
   }
 
-  // Pay fee to relay on destination chain
-  if (!ntt.quoter) throw new Error('No quoter available, cannot initiate an automatic transfer.');
+  // use exector framework
+  if (quote) {
+    const nttPeer = PublicKey.findProgramAddressSync(
+      [Buffer.from('peer'), new BN(chainToChainId(recipient.chain as any)).toArrayLike(Buffer, 'le', 2)],
+      ntt.program.programId,
+    )[0];
 
-  const fee = await ntt.quoteDeliveryPrice(recipient.chain as any, {
-    queue: false,
-  });
+    const signedQuoteBytes = Buffer.from(quote.signedQuote);
+    const relayInstructions = Buffer.from(quote.relayInstructions);
 
-  ixs.push(
-    await ntt.quoter.createRequestRelayInstruction(
-      payerAddress,
-      outboxItem.publicKey,
-      recipient.chain as any,
-      Number(fee) / LAMPORTS_PER_SOL,
-      Number(0n) / WEI_PER_GWEI,
-    ),
-  );
+    ixs.push(
+      new TransactionInstruction({
+        keys: [
+          {
+            pubkey: sender,
+            isSigner: true,
+            isWritable: true,
+          },
+          {
+            // payee
+            pubkey: new PublicKey(quote.payeeAddress),
+            isSigner: false,
+            isWritable: true,
+          },
+          {
+            // ntt_program_id
+            pubkey: ntt.program.programId,
+            isSigner: false,
+            isWritable: false,
+          },
+          {
+            pubkey: nttPeer,
+            isSigner: false,
+            isWritable: false,
+          },
+          {
+            // ntt_message
+            pubkey: outboxItem.publicKey,
+            isSigner: false,
+            isWritable: false,
+          },
+          {
+            // executor_program
+            pubkey: new PublicKey('execXUrAsMnqMmTHj5m7N1YQgsDz3cwGLYCYyuDRciV'),
+            isSigner: false,
+            isWritable: false,
+          },
+          {
+            pubkey: SystemProgram.programId,
+            isSigner: false,
+            isWritable: false,
+          },
+        ],
+        programId: new PublicKey('nex1gkSWtRBheEJuQZMqHhbMG5A45qPU76KqnCZNVHR'),
+        data: Buffer.concat([
+          Buffer.from(sha256('global:relay_ntt_mesage').subarray(0, 8)),
+          new BN(chainToChainId(recipient.chain as any)).toArrayLike(Buffer, 'le', 2), // recipient_chain
+          new BN(signedQuoteBytes.length).toArrayLike(Buffer, 'le', 4), // vec length
+          Buffer.from(signedQuoteBytes), // signed_quote_bytes
+          new BN(relayInstructions.length).toArrayLike(Buffer, 'le', 4), // vec length
+          Buffer.from(relayInstructions), // relay_instructions
+        ]),
+      }),
+    );
+  } else {
+    if (!ntt.quoter) throw new Error('No quoter available, cannot initiate an automatic transfer.');
+
+    const fee = await ntt.quoteDeliveryPrice(recipient.chain as any, {
+      queue: false,
+    });
+
+    ixs.push(
+      await ntt.quoter.createRequestRelayInstruction(
+        payerAddress,
+        outboxItem.publicKey,
+        recipient.chain as any,
+        Number(fee) / LAMPORTS_PER_SOL,
+        Number(0n) / WEI_PER_GWEI,
+      ),
+    );
+  }
 
   return ixs;
 }
@@ -419,6 +485,18 @@ export function convertToExecutorConfig(): NttExecutorRoute.Config {
         M0: [
           {
             chain: 'Solana',
+            token: MINTS.M.toBase58(),
+            manager: PORTAL.toBase58(),
+            transceiver: [
+              {
+                type: 'wormhole',
+                address: PORTAL.toBase58(),
+              },
+            ],
+            quoter: 'Nqd6XqA8LbsCuG8MLWWuP865NV6jR1MbXeKxD4HLKDJ',
+          },
+          {
+            chain: 'Fogo',
             token: MINTS.M.toBase58(),
             manager: PORTAL.toBase58(),
             transceiver: [

@@ -60,6 +60,7 @@ pub struct Initialize<'info> {
     #[account(
         mut,
         mint::token_program = token_program
+        mint::decimals = 6, // Must be 6 decimals
     )]
     pub m_mint: InterfaceAccount<'info, Mint>,
 

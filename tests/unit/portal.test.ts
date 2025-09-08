@@ -279,7 +279,7 @@ describe('Portal unit tests', () => {
     });
     test('initialize earn', async () => {
       await earn.methods
-        .initialize(new BN(100_000_000))
+        .initialize(new BN(1e12))
         .accounts({
           admin: admin.publicKey,
           mMint: mint.publicKey,

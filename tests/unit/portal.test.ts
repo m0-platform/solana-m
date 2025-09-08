@@ -1114,6 +1114,51 @@ describe('Portal unit tests', () => {
       expect(extParsedTokenAccount.amount).toBe(9198n);
     });
 
+    it('extension tokens - redeem to portal authority', async () => {
+      const [portalAuth] = PublicKey.findProgramAddressSync([Buffer.from('token_authority')], config.PORTAL_PROGRAM_ID);
+
+      const getRedeemTxns = redeem(
+        [],
+        undefined,
+        true,
+        undefined,
+        true, // skip release ix
+      );
+
+      await ssw(ctx, getRedeemTxns(), signer);
+
+      // try to release to portal authority
+      const ix = await NTT.createReleaseInboundMintInstruction(ntt.program, await ntt.getConfig(), {
+        payer: payer.publicKey,
+        nttMessage: payload,
+        recipient: portalAuth,
+        chain: 'Ethereum',
+        revertOnDelay: false,
+      });
+
+      // add additional keys required for portal CPI
+      ix.keys.push(
+        {
+          pubkey: config.EARN_PROGRAM,
+          isSigner: false,
+          isWritable: false,
+        },
+        {
+          pubkey: config.EARN_GLOBAL_ACCOUNT,
+          isSigner: false,
+          isWritable: true,
+        },
+      );
+
+      const tx = new Transaction().add(ix);
+      tx.feePayer = payer.publicKey;
+      tx.recentBlockhash = svm.latestBlockhash();
+      tx.sign(payer);
+
+      const result = svm.sendTransaction!(tx) as FailedTransactionMetadata;
+      expect(result.meta().logs()[2]).toContain('Error Code: InvalidRecipientAddress');
+    });
+
     it('tokens with merkle roots', async () => {
       const additionalPayload = Buffer.concat([
         new BN(123456).toArrayLike(Buffer, 'be', 8), // index

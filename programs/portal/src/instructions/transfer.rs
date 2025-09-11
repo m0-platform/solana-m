@@ -353,6 +353,8 @@ fn insert_into_outbox(
         destination_token: common.config.evm_token,
         release_timestamp,
         released: Bitmap::new(),
+        index: 0,
+        merkle_root: [0; 32],
     });
 
     Ok(())

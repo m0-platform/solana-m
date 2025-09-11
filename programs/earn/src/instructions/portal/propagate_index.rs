@@ -6,7 +6,7 @@ use anchor_spl::token_interface::{Mint, Token2022};
 use crate::{
     errors::EarnError,
     state::{EarnGlobal, GLOBAL_SEED},
-    utils::conversion::{get_scaled_ui_config, update_multiplier, index_to_multiplier},
+    utils::conversion::{get_scaled_ui_config, index_to_multiplier, update_multiplier},
 };
 
 #[derive(Accounts)]
@@ -43,6 +43,8 @@ impl PropagateIndex<'_> {
 
         // Check if the new multiplier is greater than or equal to the previously seen multiplier.
         if new_multiplier >= current_multiplier {
+            ctx.accounts.global_account.index = new_index;
+
             // If so, update the merkle root if it is non-zero.
             // We don't necessarily need the second check if we know updates only come
             // from mainnet. However, it provides some protection against staleness

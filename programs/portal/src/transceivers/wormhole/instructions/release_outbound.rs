@@ -80,9 +80,11 @@ pub fn release_outbound(ctx: Context<ReleaseOutbound>, args: ReleaseOutboundArgs
                 source_token: accs.config.mint.to_bytes(),
                 to: accs.outbox_item.recipient_address,
                 to_chain: accs.outbox_item.recipient_chain,
-                additional_payload: AdditionalPayload::with_destination_token(
-                    accs.outbox_item.destination_token,
-                ),
+                additional_payload: AdditionalPayload {
+                    index: accs.outbox_item.index,
+                    destination_token: accs.outbox_item.destination_token,
+                    earner_root: Some(accs.outbox_item.merkle_root),
+                },
             }),
         },
         vec![],

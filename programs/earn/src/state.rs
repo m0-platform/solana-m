@@ -10,12 +10,13 @@ pub const GLOBAL_SEED: &[u8] = b"global";
 #[account]
 #[derive(InitSpace)]
 pub struct EarnGlobal {
-    pub admin: Pubkey,                // can update config values
-    pub m_mint: Pubkey,               // $M mint
-    pub portal_authority: Pubkey,     // portal authority that propogates indexes and roots
+    pub admin: Pubkey,                   // can update config values
+    pub m_mint: Pubkey,                  // $M mint
+    pub portal_authority: Pubkey,        // portal authority that propogates indexes and roots
     pub ext_swap_global_account: Pubkey, // global account for the extension swap program (owner of its intermediate account)
-    pub earner_merkle_root: [u8; 32], // merkle root for earners
-    pub bump: u8,                     // bump seed on this PDA
+    pub earner_merkle_root: [u8; 32],    // merkle root for earners
+    pub bump: u8,                        // bump seed on this PDA
+    pub index: u64,                      // latest index propogated from portal
 }
 
 // Seed used by the Portal program to derive the token authority PDA.

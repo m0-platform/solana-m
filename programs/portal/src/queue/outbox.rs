@@ -22,6 +22,8 @@ pub struct OutboxItem {
     pub release_timestamp: i64,
     pub released: Bitmap,
     pub destination_token: [u8; 32],
+    pub index: u64,
+    pub merkle_root: [u8; 32],
 }
 
 impl OutboxItem {

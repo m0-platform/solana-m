@@ -153,5 +153,9 @@ pub fn transfer_extension_burn<'info>(
     // Overwrite default destination token
     ctx.accounts.common.common.outbox_item.destination_token = destination_token;
 
+    // Earn global is avaiable so propagate merkle root and index
+    ctx.accounts.common.common.outbox_item.merkle_root = ctx.accounts.m_global.earner_merkle_root;
+    ctx.accounts.common.common.outbox_item.index = ctx.accounts.m_global.index;
+
     Ok(())
 }

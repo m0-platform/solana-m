@@ -194,6 +194,7 @@ impl Initialize<'_> {
             ext_swap_global_account: ctx.accounts.ext_swap_global.key(),
             earner_merkle_root: [0; 32],
             bump: ctx.bumps.global_account,
+            index: _current_index,
         });
 
         cfg_if! {

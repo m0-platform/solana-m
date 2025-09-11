@@ -279,7 +279,7 @@ describe('Portal unit tests', () => {
     });
     test('initialize earn', async () => {
       await earn.methods
-        .initialize(new BN(1e12))
+        .initialize(new BN(1e12 + 1))
         .accounts({
           admin: admin.publicKey,
           mMint: mint.publicKey,
@@ -506,8 +506,11 @@ describe('Portal unit tests', () => {
       const payloadHex = Buffer.from(unsignedVaa.payload).toString('hex').slice(272);
       const payloadAmount = BigInt('0x' + payloadHex.slice(10, 26));
 
-      // assert that amount is what we expect
-      expect(payloadAmount.toString()).toBe(amount.toString());
+      // assert that amount is what we expect (rounds down)
+      expect(payloadAmount.toString()).toBe((amount - 1).toString());
+
+      // expect index on the ntt payload
+      expect(payloadHex.slice(168, 178)).toBe(new BN(1e12 + 1).toString('hex'));
 
       // $M balance did not change (we unwrapped an extension token)
       const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
@@ -541,8 +544,8 @@ describe('Portal unit tests', () => {
       const payloadHex = Buffer.from(unsignedVaa.payload).toString('hex').slice(272);
       const payloadAmount = BigInt('0x' + payloadHex.slice(10, 26));
 
-      // assert that amount is what we expect
-      expect(payloadAmount.toString()).toBe(amount.toString());
+      // assert that amount is what we expect (rounds down)
+      expect(payloadAmount.toString()).toBe((amount - 1).toString());
 
       // $M balance did not change (we unwrapped an extension token)
       const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);

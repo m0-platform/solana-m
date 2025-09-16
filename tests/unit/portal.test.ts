@@ -1269,14 +1269,17 @@ function buildTransferExtensionIx(
       },
       {
         // session auth
-        pubkey: ntt.pdas.sessionAuthority(new PublicKey(signer), {
-          amount: new BN(amount),
-          recipientChain: {
-            id: 2, // Ethereum
+        pubkey: ntt.pdas.sessionAuthority(
+          PublicKey.findProgramAddressSync([Buffer.from('token_authority')], config.PORTAL_PROGRAM_ID)[0],
+          {
+            amount: new BN(amount),
+            recipientChain: {
+              id: 2, // Ethereum
+            },
+            recipientAddress: [...Array(32)],
+            shouldQueue: false,
           },
-          recipientAddress: [...Array(32)],
-          shouldQueue: false,
-        }),
+        ),
         isSigner: false,
         isWritable: false,
       },

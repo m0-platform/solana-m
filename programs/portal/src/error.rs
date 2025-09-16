@@ -31,6 +31,8 @@ pub enum NTTError {
     InvalidMode,
     #[msg("InvalidMintAuthority")]
     InvalidMintAuthority,
+    #[msg("InvalidMint")]
+    InvalidMint,
     #[msg("TransferExceedsRateLimit")]
     TransferExceedsRateLimit,
     #[msg("Paused")]

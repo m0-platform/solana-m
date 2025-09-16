@@ -3,6 +3,7 @@ use anchor_spl::{
     token_2022::{spl_token_2022::instruction::AuthorityType, Token2022},
     token_interface,
 };
+use earn::state::{EarnGlobal, GLOBAL_SEED};
 
 use crate::{
     config::Config,
@@ -657,9 +658,20 @@ pub struct SetMint<'info> {
         associated_token::token_program = Token2022::id(),
     )]
     pub custody: InterfaceAccount<'info, token_interface::TokenAccount>,
+
+    #[account(
+        seeds = [GLOBAL_SEED],
+        seeds::program = earn::ID,
+        bump = m_global.bump,
+    )]
+    pub m_global: Box<Account<'info, EarnGlobal>>,
 }
 
 pub fn set_mint(ctx: Context<SetMint>) -> Result<()> {
+    if ctx.accounts.mint.key() != ctx.accounts.m_global.m_mint {
+        return err!(NTTError::InvalidMint);
+    }
+
     ctx.accounts.config.mint = ctx.accounts.mint.key();
     ctx.accounts.config.custody = ctx.accounts.custody.key();
     Ok(())

@@ -1,24 +1,14 @@
-// earn/instructions/admin/mod.rs
-
 use anchor_lang::prelude::*;
 
 pub mod initialize;
-pub mod set_claim_cooldown;
-pub mod set_earn_authority;
-
-pub use initialize::Initialize;
-pub(crate) use initialize::__client_accounts_initialize;
+pub use initialize::*;
+pub mod recover;
+pub use recover::*;
 
 use crate::{
     errors::EarnError,
-    state::{Global, GLOBAL_SEED},
+    state::{EarnGlobal, GLOBAL_SEED},
 };
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "cpi")] {
-        pub(crate) use initialize::__cpi_client_accounts_initialize;
-    }
-}
 
 #[derive(Accounts)]
 pub struct AdminAction<'info> {
@@ -30,5 +20,5 @@ pub struct AdminAction<'info> {
         has_one = admin @ EarnError::NotAuthorized,
         bump = global_account.bump,
     )]
-    pub global_account: Account<'info, Global>,
+    pub global_account: Account<'info, EarnGlobal>,
 }

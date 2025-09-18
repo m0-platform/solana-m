@@ -31,6 +31,8 @@ pub enum NTTError {
     InvalidMode,
     #[msg("InvalidMintAuthority")]
     InvalidMintAuthority,
+    #[msg("InvalidMint")]
+    InvalidMint,
     #[msg("TransferExceedsRateLimit")]
     TransferExceedsRateLimit,
     #[msg("Paused")]
@@ -59,10 +61,20 @@ pub enum NTTError {
     InvalidPendingTokenAuthority,
     #[msg("IncorrectRentPayer")]
     IncorrectRentPayer,
-    #[msg("InvalidMultisig")]
-    InvalidMultisig,
-    #[msg("InvalidRemainingAccount")]
-    InvalidRemainingAccount,
+    #[msg("ThresholdTooHigh")]
+    ThresholdTooHigh,
+    #[msg("InvalidTransceiverProgram")]
+    InvalidTransceiverProgram,
+    #[msg("InvalidVAA")]
+    InvalidVAA,
+    #[msg("RESOLVER_RESULT_ACCOUNT needs to be writable")]
+    InvalidReturnAccount,
+    #[msg("Missing payer account")]
+    MissingPayerAccount,
+    #[msg("No whitelisted extensions in swap global")]
+    NoWhitelistedExtensions,
+    #[msg("Invalid token account state")]
+    InvalidTokenAccountState,
 }
 
 impl From<ScalingError> for NTTError {

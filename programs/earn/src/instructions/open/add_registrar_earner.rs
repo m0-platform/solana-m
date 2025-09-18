@@ -1,17 +1,17 @@
-// earn/instructins/open/add_earner.rs
-
 // external dependencies
 use anchor_lang::prelude::*;
-use anchor_spl::token_interface::TokenAccount;
+use anchor_spl::{
+    token_2022::spl_token_2022::state::AccountState,
+    token_interface::{Mint, Token2022, TokenAccount},
+};
 
 // local dependencies
 use crate::{
-    constants::ANCHOR_DISCRIMINATOR_SIZE,
     errors::EarnError,
-    state::{Earner, Global, EARNER_SEED, GLOBAL_SEED},
+    state::{EarnGlobal, GLOBAL_SEED},
     utils::{
         merkle_proof::{verify_in_tree, ProofElement},
-        token::has_immutable_owner,
+        token::{has_immutable_owner, thaw_token_account},
     },
 };
 
@@ -23,53 +23,53 @@ pub struct AddRegistrarEarner<'info> {
 
     #[account(
         seeds = [GLOBAL_SEED],
-        bump = global_account.bump
+        bump = global_account.bump,
+        has_one = m_mint @ EarnError::InvalidAccount,
     )]
-    pub global_account: Account<'info, Global>,
+    pub global_account: Account<'info, EarnGlobal>,
+
+    pub m_mint: InterfaceAccount<'info, Mint>,
 
     #[account(
-        token::mint = global_account.mint,
+        mut,
+        token::mint = global_account.m_mint,
         token::authority = user,
         constraint = has_immutable_owner(&user_token_account) @ EarnError::MutableOwner,
+        constraint = user_token_account.state == AccountState::Frozen @ EarnError::InvalidAccount,
     )]
     pub user_token_account: InterfaceAccount<'info, TokenAccount>,
 
-    #[account(
-        init,
-        payer = signer,
-        space = Earner::INIT_SPACE + ANCHOR_DISCRIMINATOR_SIZE,
-        seeds = [EARNER_SEED, user_token_account.key().as_ref()],
-        bump
-    )]
-    pub earner_account: Account<'info, Earner>,
-
-    pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token2022>,
 }
 
-pub fn handler(
-    ctx: Context<AddRegistrarEarner>,
-    user: Pubkey,
-    proof: Vec<ProofElement>,
-) -> Result<()> {
-    // Verify the user is in the approved earners list
-    verify_in_tree(
-        ctx.accounts.global_account.earner_merkle_root,
-        user.to_bytes(),
-        proof,
-    )?;
+impl AddRegistrarEarner<'_> {
+    fn validate(&self, user: Pubkey, proof: Vec<ProofElement>) -> Result<()> {
+        // Ensure the user is not the default public key (system program)
+        if user == Pubkey::default() {
+            return err!(EarnError::InvalidParam);
+        }
 
-    // Verify the user is not the default public key (system program)
-    if user == Pubkey::default() {
-        return err!(EarnError::InvalidParam);
+        // Verify the user is in the approved earners list
+        verify_in_tree(
+            self.global_account.earner_merkle_root,
+            user.to_bytes(),
+            proof,
+        )?;
+
+        Ok(())
     }
 
-    ctx.accounts.earner_account.set_inner(Earner {
-        last_claim_index: ctx.accounts.global_account.index,
-        last_claim_timestamp: ctx.accounts.global_account.timestamp,
-        bump: ctx.bumps.earner_account,
-        user,
-        user_token_account: ctx.accounts.user_token_account.key(),
-    });
+    #[access_control(ctx.accounts.validate(user, proof))]
+    pub fn handler(ctx: Context<Self>, user: Pubkey, proof: Vec<ProofElement>) -> Result<()> {
+        // Thaw the user's token account so they can hold $M
+        thaw_token_account(
+            &ctx.accounts.user_token_account,
+            &ctx.accounts.m_mint,
+            &ctx.accounts.global_account.to_account_info(),
+            &[&[GLOBAL_SEED, &[ctx.accounts.global_account.bump]]],
+            &ctx.accounts.token_program,
+        )?;
 
-    Ok(())
+        Ok(())
+    }
 }

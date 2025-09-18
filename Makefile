@@ -17,37 +17,29 @@ test-yield:
 
 test-sdk:
 	@cd sdk && pnpm build
-	@anchor localnet --skip-build > /dev/null 2>&1 & \
-	anvil -f https://gateway.tenderly.co/public/sepolia > /dev/null 2>&1 & \
-	sleep 2 && \
-	cd tests && pnpm jest --preset ts-jest tests/unit/sdk.test.ts; \
-	e=$$?; \
-	kill -9 $$(lsof -ti:8899) & kill -9 $$(lsof -ti:8545); \
-	exit $$e
+	cd tests && pnpm jest --preset ts-jest tests/unit/sdk.test.ts; exit $$?
 
 test-merkle:
-	@cd sdk && pnpm build
-	cd tests && pnpm jest --preset ts-jest tests/unit/merkle.test.ts; exit $$?
-
-test-local-validator:
-	solana-test-validator --deactivate-feature EenyoWx9UMXYKpR8mW5Jmfmy2fRjzUtM7NduYMY8bx33 -r \
-		--account 2yVjuQwpsvdsrywzsJJVs9Ueh4zayyo5DYJbBNc3DDpn tests/accounts/core_bridge_config.json \
-		--account 9bFNrXNb2WTx8fMHXCheaZqkLZ3YCCaiqTftHxeintHy tests/accounts/core_bridge_fee_collector.json \
-		--account DS7qfSAgYsonPpKoAjcGhX9VFjXdGkiHjEDkTidf8H2P tests/accounts/guardian_set_0.json \
-		--bpf-program worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth tests/programs/core_bridge.so > /dev/null 2>&1 & \
-	pid=$$! && \
-	sleep 5 && \
-	solana airdrop 25 TEstCHtKciMYKuaXJK2ShCoD7Ey32eGBvpce25CQMpM -ul && \
-	anchor test --skip-local-validator; \
-	e=$$?; \
-	kill $$pid \ 
-	exit $$e
+	pnpm jest --preset ts-jest tests/unit/merkle.test.ts; exit $$?
 
 build-test-swap-program:
 	@cd ../solana-extensions && anchor build -p ext_swap
 	@cp -f ../solana-extensions/target/deploy/ext_swap.so tests/programs/ext_swap.so
 	@cp -f ../solana-extensions/target/idl/ext_swap.json tests/programs/ext_swap.json
 	@cp -f ../solana-extensions/target/types/ext_swap.ts tests/programs/ext_swap.ts
+
+build-test-earn-programs:
+	anchor build -p earn -- --features testing --no-default-features
+	@mv target/deploy/earn.so target/deploy/earn_new_test.so
+	@mv target/idl/earn.json target/idl/earn_new_test.json
+	@mv target/types/earn.ts target/types/earn_new_test.ts
+	anchor build -p earn -- --features migrate,testing --no-default-features
+	@mv target/deploy/earn.so target/deploy/earn_migrate_test.so
+	@mv target/idl/earn.json target/idl/earn_migrate_test.json
+	@mv target/types/earn.ts target/types/earn_migrate_test.ts
+
+test-earn:
+	cd tests && pnpm jest --preset ts-jest tests/unit/earn.test.ts; exit $$?
 
 #
 # Devnet commands

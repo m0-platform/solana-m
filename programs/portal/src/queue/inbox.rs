@@ -17,6 +17,7 @@ pub struct InboxItem {
     pub index_update: u64,
     pub earners_root_update: Option<[u8; 32]>,
     pub source: Source,
+    pub destination_mint: Pubkey,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, InitSpace, Default)]

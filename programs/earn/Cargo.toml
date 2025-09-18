@@ -1,7 +1,7 @@
 [package]
 name = "earn"
-version = "0.1.0"
-description = "Created with Anchor"
+version = "0.2.0"
+description = "Earner management and yield distribution program for M"
 edition = "2021"
 rust-version = "1.75"
 
@@ -20,6 +20,7 @@ release = []
 testing = []
 mainnet = []
 devnet = []
+migrate = []
 
 [dependencies]
 anchor-lang = { workspace = true, features = [

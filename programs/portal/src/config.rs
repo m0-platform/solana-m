@@ -60,7 +60,8 @@ pub struct Config {
     pub release_inbound_remaining_accounts: [RemainingAccount; 2],
     /// destination token addresses
     pub evm_token: [u8; 32],
-    pub evm_wrapped_token: [u8; 32],
+    /// lut for resolve_execute
+    pub resolve_lut: Pubkey,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]

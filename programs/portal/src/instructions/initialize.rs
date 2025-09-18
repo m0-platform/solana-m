@@ -1,16 +1,20 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{associated_token::AssociatedToken, token_interface};
+use executor_account_resolver_svm::{
+    RESOLVER_RESULT_ACCOUNT_INIT_SIZE, RESOLVER_RESULT_ACCOUNT_SEED,
+};
 
 use crate::{
     bitmap::Bitmap,
     config::{Config, RemainingAccount},
     error::NTTError,
+    instructions::ExecutorAccountResolverResult,
     ntt_messages::{BpfLoaderUpgradeable, ChainId, Mode},
     queue::{outbox::OutboxRateLimit, rate_limit::RateLimitState},
-    spl_multisig::SplMultisig,
 };
 
 #[derive(Accounts)]
+#[instruction(args: InitializeArgs)]
 pub struct Initialize<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
@@ -27,15 +31,16 @@ pub struct Initialize<'info> {
 
     #[account(
         init,
-        space = 8 + crate::config::Config::INIT_SPACE,
+        space = 8 + Config::INIT_SPACE,
         payer = payer,
-        seeds = [crate::config::Config::SEED_PREFIX],
+        seeds = [Config::SEED_PREFIX],
         bump
     )]
-    pub config: Box<Account<'info, crate::config::Config>>,
+    pub config: Box<Account<'info, Config>>,
 
-    // NOTE: this account is unconstrained and is the responsibility of the
-    // handler to constrain it
+    #[account(
+        constraint = mint.mint_authority.unwrap() == token_authority.key() @ NTTError::InvalidMintAuthority
+    )]
     pub mint: Box<InterfaceAccount<'info, token_interface::Mint>>,
 
     #[account(
@@ -74,7 +79,7 @@ pub struct Initialize<'info> {
 
     /// CHECK: checked to be the appropriate token program when initialising the
     /// associated token account for the given mint.
-    pub token_program: Interface<'info, token_interface::TokenInterface>,
+    pub token_program: Program<'info, token_interface::Token2022>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     bpf_loader_upgradeable_program: Program<'info, BpfLoaderUpgradeable>,
 
@@ -86,44 +91,24 @@ pub struct InitializeArgs {
     pub chain_id: u16,
     pub limit: u64,
     pub mode: Mode,
+    pub evm_token: [u8; 32],
 }
 
-#[derive(Accounts)]
-#[instruction(args: InitializeArgs)]
-pub struct InitializeMultisig<'info> {
-    #[account(
-        constraint =
-            args.mode == Mode::Locking
-            || common.mint.mint_authority.unwrap() == multisig.key()
-            @ NTTError::InvalidMintAuthority,
-    )]
-    pub common: Initialize<'info>,
-
-    #[account(
-        constraint =
-            multisig.m == 1 && multisig.signers.contains(&common.token_authority.key())
-            @ NTTError::InvalidMultisig,
-    )]
-    pub multisig: InterfaceAccount<'info, SplMultisig>,
-}
-
-pub fn initialize_multisig(ctx: Context<InitializeMultisig>, args: InitializeArgs) -> Result<()> {
-    let common = &mut ctx.accounts.common;
-
-    common.config.set_inner(crate::config::Config {
-        bump: ctx.bumps.common.config,
-        mint: common.mint.key(),
-        token_program: common.token_program.key(),
+pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> {
+    ctx.accounts.config.set_inner(crate::config::Config {
+        bump: ctx.bumps.config,
+        mint: ctx.accounts.mint.key(),
+        token_program: ctx.accounts.token_program.key(),
         mode: args.mode,
         chain_id: ChainId { id: args.chain_id },
-        owner: common.deployer.key(),
+        owner: ctx.accounts.deployer.key(),
         pending_owner: None,
         paused: false,
         next_transceiver_id: 0,
-        // NOTE: can't be changed for now
+        // NOTE: can be changed via `set_threshold` ix
         threshold: 1,
         enabled_transceivers: Bitmap::new(),
-        custody: common.custody.key(),
+        custody: ctx.accounts.custody.key(),
         release_inbound_remaining_accounts: [
             RemainingAccount::new(earn::ID, false),
             RemainingAccount::new(
@@ -131,11 +116,11 @@ pub fn initialize_multisig(ctx: Context<InitializeMultisig>, args: InitializeArg
                 true,
             ),
         ],
-        evm_token: [0; 32],
-        evm_wrapped_token: [0; 32],
+        evm_token: args.evm_token,
+        resolve_lut: Pubkey::default(),
     });
 
-    common.rate_limit.set_inner(OutboxRateLimit {
+    ctx.accounts.rate_limit.set_inner(OutboxRateLimit {
         rate_limit: RateLimitState::new(args.limit),
     });
 
@@ -143,25 +128,33 @@ pub fn initialize_multisig(ctx: Context<InitializeMultisig>, args: InitializeArg
 }
 
 #[derive(Accounts)]
-pub struct SetDestinationAddresses<'info> {
+pub struct InitializeResolverAccounts<'info> {
+    #[account(mut)]
     pub owner: Signer<'info>,
 
     #[account(
         mut,
         has_one = owner,
-        seeds = [Config::SEED_PREFIX],
+    )]
+    pub config: Account<'info, Config>,
+
+    #[account(
+        init_if_needed,
+        payer = owner,
+        space = 8 + RESOLVER_RESULT_ACCOUNT_INIT_SIZE,
+        seeds = [RESOLVER_RESULT_ACCOUNT_SEED],
         bump
     )]
-    pub config: Box<Account<'info, Config>>,
+    pub result_account: Account<'info, ExecutorAccountResolverResult>,
+
+    system_program: Program<'info, System>,
 }
 
-pub fn set_destination_addresses(
-    ctx: Context<SetDestinationAddresses>,
-    evm_token: [u8; 32],
-    evm_wrapped_token: [u8; 32],
+pub fn initialize_resolver_accounts(
+    ctx: Context<InitializeResolverAccounts>,
+    additional_lut: Option<Pubkey>,
 ) -> Result<()> {
-    ctx.accounts.config.evm_token = evm_token;
-    ctx.accounts.config.evm_wrapped_token = evm_wrapped_token;
+    ctx.accounts.config.resolve_lut = additional_lut.unwrap_or_default();
 
     Ok(())
 }

@@ -1,73 +1,47 @@
 import { Connection, TransactionInstruction, PublicKey } from '@solana/web3.js';
-import { PublicClient } from 'viem';
-import { getApiClient, EXT_GLOBAL_ACCOUNT, EXT_PROGRAM_ID, GLOBAL_ACCOUNT, PROGRAM_ID, TransactionBuilder } from '.';
+import { getApiClient, TransactionBuilder } from '.';
 import { Earner } from './earner';
 import { EarnManager } from './earn_manager';
 import { GlobalAccountData, loadGlobal } from './accounts';
 import * as spl from '@solana/spl-token';
 import { BN, Program } from '@coral-xyz/anchor';
-import { getProgramFromID, MProgram } from './idl';
-import { Earn } from './idl/earn';
-import { ExtEarn } from './idl/ext_earn';
 import { MockLogger, Logger } from './logger';
 import { getBalanceAt } from './tokenBalance';
 import { MExt } from './idl/m_ext';
+import { getProgram } from './idl';
 
 export class EarnAuthority {
   private logger: Logger;
   private connection: Connection;
   private builder: TransactionBuilder;
-  private evmClient: PublicClient;
-  private program: MProgram;
+  private program: Program<MExt>;
   private global: GlobalAccountData;
-  private earnGlobal: GlobalAccountData;
   private managerCache: Map<PublicKey, EarnManager> = new Map();
-  private mintAuth: PublicKey;
-
-  programID: PublicKey;
 
   private constructor(
     connection: Connection,
-    evmClient: PublicClient,
     global: GlobalAccountData,
-    earnGlobal: GlobalAccountData,
-    mintAuth: PublicKey,
-    program = PROGRAM_ID,
+    program: PublicKey,
     logger: Logger = new MockLogger(),
   ) {
     this.logger = logger;
     this.connection = connection;
     this.builder = new TransactionBuilder(connection);
-    this.evmClient = evmClient;
-    this.programID = program;
-    this.program = getProgramFromID(connection, program);
+    this.program = getProgram(connection, program);
     this.global = global;
-    this.earnGlobal = earnGlobal;
-    this.mintAuth = mintAuth;
   }
 
   static async load(
     connection: Connection,
-    evmClient: PublicClient,
-    program = PROGRAM_ID,
+    program: PublicKey,
     logger: Logger = new MockLogger(),
   ): Promise<EarnAuthority> {
     let global = await loadGlobal(connection, program);
-    let earnGlobal = global;
-
-    // load earn global if not the earn program
-    if (!program.equals(PROGRAM_ID)) {
-      earnGlobal = await loadGlobal(connection, PROGRAM_ID);
-    }
-
-    // get mint multisig
-    const mint = await spl.getMint(connection, global.mint, connection.commitment, spl.TOKEN_2022_PROGRAM_ID);
-
-    return new EarnAuthority(connection, evmClient, global, earnGlobal!, mint.mintAuthority!, program, logger);
+    return new EarnAuthority(connection, global, program, logger);
   }
 
   async refresh(): Promise<void> {
-    const updated = await EarnAuthority.load(this.connection, this.evmClient, this.programID, this.logger);
+    const updated = await EarnAuthority.load(this.connection, this.program.programId, this.logger);
     Object.assign(this, updated);
   }
 
@@ -80,42 +54,12 @@ export class EarnAuthority {
   }
 
   async getAllEarners(): Promise<Earner[]> {
-    // extensions do not have earners
-    if (!this.programID.equals(PROGRAM_ID) && !this.programID.equals(EXT_PROGRAM_ID)) {
-      return [];
-    }
-
     const accounts = await this.program.account.earner.all();
-    return accounts.map((a) => new Earner(this.connection, this.evmClient, a.publicKey, a.account, this.global.mint));
-  }
-
-  async buildCompleteClaimCycleInstruction(): Promise<TransactionInstruction | null> {
-    // only valid for $M
-    if (!this.programID.equals(PROGRAM_ID)) {
-      return null;
-    }
-
-    if (this.global.claimComplete) {
-      this.logger.error('No active claim cycle');
-      return null;
-    }
-
-    return await (this.program as Program<Earn>).methods
-      .completeClaims()
-      .accounts({
-        earnAuthority: new PublicKey(this.global.earnAuthority!),
-        globalAccount: PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAM_ID)[0],
-      })
-      .instruction();
+    return accounts.map((a) => new Earner(this.connection, a.publicKey, a.account, this.program.programId));
   }
 
   async buildClaimInstruction(earner: Earner): Promise<TransactionInstruction | null> {
-    if (this.global.claimComplete) {
-      this.logger.error('No active claim cycle');
-      return null;
-    }
-
-    if (earner.data.lastClaimIndex.gte(this.earnGlobal.index!)) {
+    if (earner.data.lastClaimIndex.gte(this.global.index!)) {
       this.logger.warn('Earner already claimed', {
         earner: earner.pubkey.toBase58(),
         tokenAccount: earner.data.userTokenAccount.toBase58(),
@@ -126,7 +70,7 @@ export class EarnAuthority {
     // get the index updates from the earner's last claim to the current index
     const { updates: steps } = await getApiClient().events.indexUpdates({
       fromTime: earner.data.lastClaimTimestamp.toNumber(),
-      toTime: this.earnGlobal.timestamp!.toNumber() + 1, // include current index
+      toTime: this.global.timestamp!.toNumber() + 1, // include current index
     });
 
     // iterate through the steps and calculate the pending yield for the earner
@@ -142,7 +86,7 @@ export class EarnAuthority {
         throw new Error('Invalid index or timestamp');
       }
 
-      const indexBalance = await getBalanceAt(earner.data.userTokenAccount, this.global.mint, current.ts);
+      const indexBalance = await getBalanceAt(earner.data.userTokenAccount, this.global.extMint, current.ts);
 
       // iterative calculation
       // y_n = (y_(n-1) + b) * I_n / I_(n-1) - b
@@ -156,7 +100,7 @@ export class EarnAuthority {
     // b* = y / ((I_n / I_l) - 1) = y * I_l / (I_n - I_l)
     const claimBalance = claimYield
       .mul(earner.data.lastClaimIndex)
-      .div(this.earnGlobal.index!.sub(earner.data.lastClaimIndex));
+      .div(this.global.index!.sub(earner.data.lastClaimIndex));
 
     if (claimBalance.lte(new BN(0))) {
       this.logger.info('No yield to claim', {
@@ -169,72 +113,43 @@ export class EarnAuthority {
     // PDAs
     const [earnerAccount] = PublicKey.findProgramAddressSync(
       [Buffer.from('earner'), earner.data.userTokenAccount.toBuffer()],
-      this.programID,
+      this.program.programId,
     );
 
-    if (this.programID.equals(EXT_PROGRAM_ID)) {
-      // get manager (manager fee token account)
-      let manager = this.managerCache.get(earner.data.earnManager!);
-      if (!manager) {
-        manager = await EarnManager.fromManagerAddress(this.connection, this.evmClient, earner.data.earnManager!);
-        this.managerCache.set(earner.data.earnManager!, manager);
-      }
-
-      const earnManagerTokenAccount = manager.data.feeTokenAccount;
-      const earnManagerAccount = PublicKey.findProgramAddressSync(
-        [Buffer.from('earn_manager'), earner.data.earnManager!.toBytes()],
-        this.programID,
-      )[0];
-
-      // vault PDAs
-      const [mVaultAccount] = PublicKey.findProgramAddressSync([Buffer.from('m_vault')], this.programID);
-      const vaultMTokenAccount = spl.getAssociatedTokenAddressSync(
-        this.global.underlyingMint!,
-        mVaultAccount,
-        true,
-        spl.TOKEN_2022_PROGRAM_ID,
-      );
-
-      return (this.program as Program<ExtEarn>).methods
-        .claimFor(claimBalance)
-        .accountsPartial({
-          earnAuthority: this.global.earnAuthority,
-          globalAccount: EXT_GLOBAL_ACCOUNT,
-          extMint: this.global.mint,
-          extMintAuthority: this.mintAuth,
-          mVaultAccount,
-          vaultMTokenAccount,
-          userTokenAccount: earner.data.recipientTokenAccount ?? earner.data.userTokenAccount,
-          earnerAccount,
-          earnManagerAccount,
-          earnManagerTokenAccount,
-          token2022: spl.TOKEN_2022_PROGRAM_ID,
-        })
-        .instruction();
-    } else {
-      const [tokenAuthorityAccount] = PublicKey.findProgramAddressSync([Buffer.from('token_authority')], PROGRAM_ID);
-
-      return (this.program as Program<Earn>).methods
-        .claimFor(claimBalance)
-        .accountsPartial({
-          earnAuthority: new PublicKey(this.global.earnAuthority!),
-          globalAccount: GLOBAL_ACCOUNT,
-          mint: new PublicKey(this.global.mint),
-          tokenAuthorityAccount,
-          userTokenAccount: earner.data.userTokenAccount,
-          earnerAccount,
-          tokenProgram: spl.TOKEN_2022_PROGRAM_ID,
-          mintMultisig: this.mintAuth,
-        })
-        .instruction();
+    // get manager (manager fee token account)
+    let manager = this.managerCache.get(earner.data.earnManager!);
+    if (!manager) {
+      manager = await EarnManager.fromManagerAddress(this.connection, this.program.programId, earner.data.earnManager!);
+      this.managerCache.set(earner.data.earnManager!, manager);
     }
+
+    const earnManagerTokenAccount = manager.data.feeTokenAccount;
+    const earnManagerAccount = PublicKey.findProgramAddressSync(
+      [Buffer.from('earn_manager'), earner.data.earnManager!.toBytes()],
+      this.program.programId,
+    )[0];
+
+    // vault PDAs
+    const [mVaultAccount] = PublicKey.findProgramAddressSync([Buffer.from('m_vault')], this.program.programId);
+    const vaultMTokenAccount = spl.getAssociatedTokenAddressSync(
+      this.global.mMint!,
+      mVaultAccount,
+      true,
+      spl.TOKEN_2022_PROGRAM_ID,
+    );
+
+    return this.program.methods
+      .claimFor(claimBalance)
+      .accounts({
+        earnAuthority: this.global.earnAuthority,
+        userTokenAccount: earner.data.recipientTokenAccount ?? earner.data.userTokenAccount,
+        earnManagerTokenAccount,
+        extTokenProgram: spl.TOKEN_2022_PROGRAM_ID,
+      })
+      .instruction();
   }
 
   async simulateAndValidateClaimIxs(ixs: TransactionInstruction[]): Promise<BN> {
-    if (this.global.claimComplete) {
-      throw new Error('No active claim cycle');
-    }
-
     const feePayer = new PublicKey(this.global.earnAuthority!);
     const txn = await this.builder.buildTransaction([...ixs], feePayer, 250_000);
 
@@ -262,94 +177,47 @@ export class EarnAuthority {
       totalRewards = totalRewards.add(reward.user).add(reward.fee);
     }
 
-    // validate rewards is not higher than max claimable rewards
-    if (this.programID.equals(PROGRAM_ID)) {
-      if (totalRewards.gt(this.global.maxYield!)) {
-        this.logger.error('Error simulating claims', {
-          error: 'Claim amount exceeds max claimable rewards',
-          totalRewards: totalRewards.toString(),
-          maxYield: this.global.maxYield!.toString(),
-        });
-        throw new Error('Claim amount exceeds max claimable rewards');
-      }
-    } else if (this.programID.equals(EXT_PROGRAM_ID)) {
-      // total supply
-      const mint = await spl.getMint(
-        this.connection,
-        this.global.mint,
-        this.connection.commitment,
-        spl.TOKEN_2022_PROGRAM_ID,
-      );
+    // total supply
+    const mint = await spl.getMint(
+      this.connection,
+      this.global.extMint,
+      this.connection.commitment,
+      spl.TOKEN_2022_PROGRAM_ID,
+    );
 
-      // vault balance
-      const vaultMTokenAccount = spl.getAssociatedTokenAddressSync(
-        this.global.underlyingMint!,
-        PublicKey.findProgramAddressSync([Buffer.from('m_vault')], this.programID)[0],
-        true,
-        spl.TOKEN_2022_PROGRAM_ID,
-      );
-      const tokenAccountInfo = await spl.getAccount(
-        this.connection,
-        vaultMTokenAccount,
-        this.connection.commitment,
-        spl.TOKEN_2022_PROGRAM_ID,
-      );
-      const collateral = new BN(tokenAccountInfo.amount.toString());
+    // vault balance
+    const vaultMTokenAccount = spl.getAssociatedTokenAddressSync(
+      this.global.mMint!,
+      PublicKey.findProgramAddressSync([Buffer.from('m_vault')], this.program.programId)[0],
+      true,
+      spl.TOKEN_2022_PROGRAM_ID,
+    );
+    const tokenAccountInfo = await spl.getAccount(
+      this.connection,
+      vaultMTokenAccount,
+      this.connection.commitment,
+      spl.TOKEN_2022_PROGRAM_ID,
+    );
+    const collateral = new BN(tokenAccountInfo.amount.toString());
 
-      if (new BN(mint.supply.toString()).add(totalRewards).gt(collateral)) {
-        this.logger.error('error simulating claims', {
-          error: 'Claim amount exceeds max claimable rewards',
-          mintSupply: mint.supply.toString(),
-          totalRewards: totalRewards.toString(),
-          collateral: collateral.toString(),
-        });
-        throw new Error('Claim amount exceeds max claimable rewards');
-      }
+    if (new BN(mint.supply.toString()).add(totalRewards).gt(collateral)) {
+      this.logger.error('error simulating claims', {
+        error: 'Claim amount exceeds max claimable rewards',
+        mintSupply: mint.supply.toString(),
+        totalRewards: totalRewards.toString(),
+        collateral: collateral.toString(),
+      });
+      throw new Error('Claim amount exceeds max claimable rewards');
     }
 
     return totalRewards;
   }
 
   async buildIndexSyncInstruction(): Promise<TransactionInstruction | null> {
-    if (this.programID.equals(PROGRAM_ID)) {
-      return null;
-    }
-
-    if (this.programID.equals(EXT_PROGRAM_ID)) {
-      return (this.program as Program<ExtEarn>).methods
-        .sync()
-        .accounts({ earnAuthority: this.global.earnAuthority! })
-        .instruction();
-    }
-
-    const [mVault] = PublicKey.findProgramAddressSync([Buffer.from('m_vault')], this.programID);
-    const vaultMTokenAccount = spl.getAssociatedTokenAddressSync(
-      this.global.underlyingMint!,
-      mVault,
-      true,
-      spl.TOKEN_2022_PROGRAM_ID,
-    );
-    const [mEarnerAccount] = PublicKey.findProgramAddressSync(
-      [Buffer.from('earner'), vaultMTokenAccount.toBuffer()],
-      PROGRAM_ID,
-    );
-    const [mEarnGlobalAccount] = PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAM_ID);
-    const [globalAccount] = PublicKey.findProgramAddressSync([Buffer.from('global')], this.programID);
-
-    // Note: this is specific to ScaledUi extensions. We will need to update
-    // if there is an extension that uses the crank variant.
     return (this.program as Program<MExt>).methods
       .sync()
       .accounts({
-        globalAccount,
-        mEarnGlobalAccount,
-        mVault,
-        vaultMTokenAccount,
-        mEarnerAccount,
-        extMint: this.global.mint,
-        extMintAuthority: this.mintAuth,
-        mTokenProgram: spl.TOKEN_2022_PROGRAM_ID,
-        extTokenProgram: spl.TOKEN_2022_PROGRAM_ID,
+        earnAuthority: this.global.admin,
       })
       .instruction();
   }

@@ -1,6 +1,7 @@
 #![allow(unexpected_cfgs)]
 
 use anchor_lang::prelude::*;
+use executor_account_resolver_svm::{InstructionGroups, Resolver, RESOLVER_EXECUTE_VAA_V1};
 
 pub mod bitmap;
 pub mod clock;
@@ -14,12 +15,10 @@ pub mod peer;
 pub mod pending_token_authority;
 pub mod queue;
 pub mod registered_transceiver;
-pub mod spl_multisig;
 pub mod transceivers;
 
-use transceivers::wormhole::instructions::*;
-
 use instructions::*;
+use transceivers::wormhole::instructions::*;
 
 #[cfg(not(feature = "no-entrypoint"))]
 solana_security_txt::security_txt! {
@@ -68,19 +67,8 @@ pub const VERSION: &str = "3.0.0";
 pub mod portal {
     use super::*;
 
-    pub fn initialize_multisig(
-        ctx: Context<InitializeMultisig>,
-        args: InitializeArgs,
-    ) -> Result<()> {
-        instructions::initialize_multisig(ctx, args)
-    }
-
-    pub fn set_destination_addresses(
-        ctx: Context<SetDestinationAddresses>,
-        evm_token: [u8; 32],
-        evm_wrapped_token: [u8; 32],
-    ) -> Result<()> {
-        instructions::set_destination_addresses(ctx, evm_token, evm_wrapped_token)
+    pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> {
+        instructions::initialize(ctx, args)
     }
 
     pub fn initialize_lut(ctx: Context<InitializeLUT>, recent_slot: u64) -> Result<()> {
@@ -98,15 +86,44 @@ pub mod portal {
         instructions::transfer_burn(ctx, args)
     }
 
+    pub fn transfer_extension_burn<'info>(
+        ctx: Context<'_, '_, '_, 'info, TransferExtensionBurn<'info>>,
+        args: TransferArgs,
+        destination_token: [u8; 32],
+    ) -> Result<()> {
+        instructions::transfer_extension_burn(ctx, args, destination_token)
+    }
+
     pub fn redeem(ctx: Context<Redeem>, args: RedeemArgs) -> Result<()> {
         instructions::redeem(ctx, args)
     }
 
-    pub fn release_inbound_mint_multisig<'info>(
-        ctx: Context<'_, '_, '_, 'info, ReleaseInboundMintMultisig<'info>>,
+    pub fn release_inbound_mint<'info>(
+        ctx: Context<'_, '_, '_, 'info, ReleaseInboundMint<'info>>,
         args: ReleaseInboundArgs,
     ) -> Result<()> {
-        instructions::release_inbound_mint_multisig(ctx, args)
+        instructions::release_inbound_mint(ctx, args)
+    }
+
+    pub fn release_inbound_mint_extension<'info>(
+        ctx: Context<'_, '_, '_, 'info, ReleaseInboundMintExtension<'info>>,
+    ) -> Result<()> {
+        instructions::release_inbound_mint_extension(ctx)
+    }
+
+    #[instruction(discriminator = &RESOLVER_EXECUTE_VAA_V1)]
+    pub fn resolve_execute_vaa_v1<'a>(
+        ctx: Context<'_, '_, 'a, 'a, ResolveExecuteVaaV1>,
+        vaa_body: Vec<u8>,
+    ) -> Result<Resolver<InstructionGroups>> {
+        instructions::resolve_execute_vaa_v1(ctx, vaa_body)
+    }
+
+    pub fn initialize_resolver_accounts(
+        ctx: Context<InitializeResolverAccounts>,
+        additional_lut: Option<Pubkey>,
+    ) -> Result<()> {
+        instructions::initialize_resolver_accounts(ctx, additional_lut)
     }
 
     pub fn transfer_ownership(ctx: Context<TransferOwnership>) -> Result<()> {
@@ -143,6 +160,10 @@ pub mod portal {
         instructions::claim_token_authority(ctx)
     }
 
+    pub fn set_mint(ctx: Context<SetMint>) -> Result<()> {
+        instructions::set_mint(ctx)
+    }
+
     pub fn set_paused(ctx: Context<SetPaused>, pause: bool) -> Result<()> {
         instructions::set_paused(ctx, pause)
     }
@@ -153,6 +174,10 @@ pub mod portal {
 
     pub fn register_transceiver(ctx: Context<RegisterTransceiver>) -> Result<()> {
         instructions::register_transceiver(ctx)
+    }
+
+    pub fn deregister_transceiver(ctx: Context<DeregisterTransceiver>) -> Result<()> {
+        instructions::deregister_transceiver(ctx)
     }
 
     pub fn set_outbound_limit(
@@ -167,6 +192,10 @@ pub mod portal {
         args: SetInboundLimitArgs,
     ) -> Result<()> {
         instructions::set_inbound_limit(ctx, args)
+    }
+
+    pub fn set_threshold(ctx: Context<SetThreshold>, threshold: u8) -> Result<()> {
+        instructions::set_threshold(ctx, threshold)
     }
 
     // standalone transceiver stuff

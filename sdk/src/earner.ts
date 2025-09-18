@@ -1,88 +1,52 @@
 import { Connection, PublicKey } from '@solana/web3.js';
-import { PublicClient } from 'viem';
 import BN from 'bn.js';
-import { EXT_MINT, EXT_PROGRAM_ID, getApiClient, MINT } from '.';
-import { EarnerData } from './accounts';
-import { getExtProgram, getProgram } from './idl';
+import { getApiClient } from '.';
+import { EarnerData, loadGlobal } from './accounts';
+import { getProgram } from './idl';
 import { EarnManager } from './earn_manager';
 import { getBalanceAt } from './tokenBalance';
 import { M0SolanaApi } from '@m0-foundation/solana-m-api-sdk';
+import { Program } from '@coral-xyz/anchor';
+import { MExt } from './idl/m_ext';
 
 export class Earner {
   private connection: Connection;
-  private evmClient: PublicClient;
+  private program: Program<MExt>;
 
   pubkey: PublicKey;
   data: EarnerData;
-  mint: PublicKey;
 
-  constructor(connection: Connection, evmClient: PublicClient, pubkey: PublicKey, data: EarnerData, mint: PublicKey) {
+  constructor(connection: Connection, pubkey: PublicKey, data: EarnerData, programId: PublicKey) {
     this.connection = connection;
-    this.evmClient = evmClient;
+    this.program = getProgram(connection, programId);
     this.pubkey = pubkey;
     this.data = data;
-    this.mint = mint;
   }
 
   static async fromTokenAccount(
     connection: Connection,
-    evmClient: PublicClient,
     tokenAccount: PublicKey,
-    program = EXT_PROGRAM_ID,
+    programId: PublicKey,
   ): Promise<Earner> {
-    const [earnerAccount] = PublicKey.findProgramAddressSync([Buffer.from('earner'), tokenAccount.toBytes()], program);
+    const [earnerAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from('earner'), tokenAccount.toBytes()],
+      programId,
+    );
 
-    if (program.equals(EXT_PROGRAM_ID)) {
-      const data = await getExtProgram(connection).account.earner.fetch(earnerAccount);
-      return new Earner(connection, evmClient, earnerAccount, data, EXT_MINT);
-    } else {
-      const data = await getProgram(connection).account.earner.fetch(earnerAccount);
-      return new Earner(
-        connection,
-        evmClient,
-        earnerAccount,
-        {
-          ...data,
-          earnManager: null,
-          recipientTokenAccount: null,
-        },
-        MINT,
-      );
-    }
+    const data = await getProgram(connection, programId).account.earner.fetch(earnerAccount);
+    return new Earner(connection, earnerAccount, data, programId);
   }
 
-  static async fromUserAddress(
-    connection: Connection,
-    evmClient: PublicClient,
-    user: PublicKey,
-    program = EXT_PROGRAM_ID,
-  ): Promise<Earner[]> {
+  static async fromUserAddress(connection: Connection, user: PublicKey, programId: PublicKey): Promise<Earner[]> {
     const filter = [{ memcmp: { offset: 25, bytes: user.toBase58() } }];
 
-    if (program.equals(EXT_PROGRAM_ID)) {
-      const accounts = await getExtProgram(connection).account.earner.all(filter);
-      return accounts.map((a) => new Earner(connection, evmClient, a.publicKey, a.account, EXT_MINT));
-    } else {
-      const accounts = await getProgram(connection).account.earner.all(filter);
-      return accounts.map(
-        (a) =>
-          new Earner(
-            connection,
-            evmClient,
-            a.publicKey,
-            {
-              ...a.account,
-              earnManager: null,
-              recipientTokenAccount: null,
-            },
-            MINT,
-          ),
-      );
-    }
+    const accounts = await getProgram(connection, programId).account.earner.all(filter);
+    return accounts.map((a) => new Earner(connection, a.publicKey, a.account, programId));
   }
 
   async getHistoricalClaims(): Promise<M0SolanaApi.Claims> {
-    return await getApiClient().tokenAccount.claims(this.data.userTokenAccount.toBase58(), this.mint.toBase58());
+    const global = await loadGlobal(this.connection, this.program.programId);
+    return await getApiClient().tokenAccount.claims(this.data.userTokenAccount.toBase58(), global.extMint.toBase58());
   }
 
   async getClaimedYield(): Promise<BN> {
@@ -97,6 +61,7 @@ export class Earner {
     // - Using our usual yield calculation formula for yield claims, but adding another index update with the current index
 
     const { ethereum } = await getApiClient().events.currentIndex();
+    const global = await loadGlobal(this.connection, this.program.programId);
 
     // Get the index updates b/w the user's last claim index and current index
     const { updates } = await getApiClient().events.indexUpdates({
@@ -124,7 +89,7 @@ export class Earner {
         throw new Error('Invalid index or timestamp');
       }
 
-      const indexBalance = await getBalanceAt(this.data.userTokenAccount, this.mint, current.ts);
+      const indexBalance = await getBalanceAt(this.data.userTokenAccount, global.extMint, current.ts);
 
       // iterative calculation
       // y_n = (y_(n-1) + b) * (I_n / I_(n-1) - b
@@ -141,7 +106,11 @@ export class Earner {
     // If so, check if the earn manager has a fee
     // If so, calculate the fee and subtract it from the pending yield
     if (this.data.earnManager) {
-      const earnManager = await EarnManager.fromManagerAddress(this.connection, this.evmClient, this.data.earnManager);
+      const earnManager = await EarnManager.fromManagerAddress(
+        this.connection,
+        this.program.programId,
+        this.data.earnManager,
+      );
 
       if (earnManager.data.feeBps > new BN(0)) {
         const fee = pendingYield.mul(earnManager.data.feeBps).div(new BN(10000));

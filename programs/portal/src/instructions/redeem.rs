@@ -113,7 +113,6 @@ pub fn redeem(ctx: Context<Redeem>, _args: RedeemArgs) -> Result<()> {
         )?;
 
     let message: NttManagerMessage<Payload> = transceiver_message.message.ntt_manager_payload;
-    let mut amount = 0;
 
     if !accs.inbox_item.init {
         let mut inbox_item = InboxItem {
@@ -128,12 +127,13 @@ pub fn redeem(ctx: Context<Redeem>, _args: RedeemArgs) -> Result<()> {
                 chain: transceiver_message.from_chain,
                 from: message.sender,
             },
+            destination_mint: Pubkey::default(),
         };
 
         match &message.payload {
             Payload::NativeTokenTransfer(ntt) => {
                 // all transfers will have a recipient and amount
-                amount = ntt
+                let amount = ntt
                     .amount
                     .untrim(accs.mint.decimals)
                     .map_err(NTTError::from)?;
@@ -144,7 +144,7 @@ pub fn redeem(ctx: Context<Redeem>, _args: RedeemArgs) -> Result<()> {
                         Pubkey::try_from(ntt.to).map_err(|_| NTTError::InvalidRecipientAddress)?;
                 }
 
-                // payloads from L2s might have an index update
+                // payload has index updates, merkle updates, destination mint
                 let payload = &ntt.additional_payload;
                 inbox_item.index_update = payload.index;
 
@@ -152,6 +152,10 @@ pub fn redeem(ctx: Context<Redeem>, _args: RedeemArgs) -> Result<()> {
                 if payload.earner_root.is_some() {
                     inbox_item.earners_root_update = Some(payload.earner_root.unwrap());
                 }
+
+                // bridging directly to extensions
+                inbox_item.destination_mint = Pubkey::try_from(payload.destination_token)
+                    .map_err(|_| NTTError::InvalidRecipientAddress)?;
             }
         };
 
@@ -169,6 +173,8 @@ pub fn redeem(ctx: Context<Redeem>, _args: RedeemArgs) -> Result<()> {
     {
         return Ok(());
     }
+
+    let amount = accs.inbox_item.transfer.amount;
 
     let release_timestamp = match accs.inbox_rate_limit.rate_limit.consume_or_delay(amount) {
         RateLimitResult::Consumed(now) => {

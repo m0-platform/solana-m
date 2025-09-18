@@ -1,12 +1,18 @@
 import path from 'path';
 import {
+  AddressLookupTableAccount,
   Commitment,
   Connection,
   GetAccountInfoConfig,
   Keypair,
+  Message,
   PublicKey,
+  RpcResponseAndContext,
   SendOptions,
   Signer,
+  SimulatedTransactionResponse,
+  SimulateTransactionConfig,
+  SystemProgram,
   Transaction,
   TransactionConfirmationStrategy,
   TransactionInstruction,
@@ -17,11 +23,26 @@ import { LiteSVMProvider } from 'anchor-litesvm';
 import { FailedTransactionMetadata, LiteSVM, TransactionMetadata } from 'litesvm';
 import { bs58 } from '@coral-xyz/anchor/dist/cjs/utils/bytes';
 import { Wallet } from '@coral-xyz/anchor';
-import { ChainAddress, sha256, UniversalAddress } from '@wormhole-foundation/sdk-definitions';
-import { NTT } from '@wormhole-foundation/sdk-solana-ntt';
-import { SolanaWormholeCore } from '@wormhole-foundation/sdk-solana-core';
-import { SolanaPlatform } from '@wormhole-foundation/sdk-solana';
-import { Wormhole, encoding } from '@wormhole-foundation/sdk';
+import {
+  createInitializeMintInstruction,
+  createInitializeScaledUiAmountConfigInstruction,
+  createInitializeDefaultAccountStateInstruction,
+  createInitializePermanentDelegateInstruction,
+  ExtensionType,
+  getMintLen,
+  getScaledUiAmountConfig,
+  TOKEN_2022_PROGRAM_ID,
+  unpackMint,
+  AccountState,
+  getAssociatedTokenAddressSync,
+  createAssociatedTokenAccountInstruction,
+  createMintToInstruction,
+  createUpdateDefaultAccountStateInstruction,
+  createSetAuthorityInstruction,
+  AuthorityType,
+} from '@solana/spl-token';
+import { struct, u8, f64 } from '@solana/buffer-layout';
+import { publicKey, u64 } from '@solana/buffer-layout-utils';
 
 export function loadKeypair(filePath: string): Keypair {
   const fullPath = path.resolve(filePath);
@@ -85,6 +106,14 @@ export class LiteSVMProviderExt extends LiteSVMProvider {
       return signature;
     };
 
+    // so the SDK can build transactions without throwing an error
+    this.connection.getAddressLookupTable = async (
+      accountKey: PublicKey,
+      _?: GetAccountInfoConfig | undefined,
+    ): Promise<RpcResponseAndContext<AddressLookupTableAccount | null>> => {
+      return { context: { slot: 0 }, value: null };
+    };
+
     // these are expected to return null and not throw an error if uninitialized
     this.connection.getAccountInfo = async (pk: PublicKey, _?: Commitment | GetAccountInfoConfig) => {
       const accountInfoBytes = this.client.getAccount(pk);
@@ -105,45 +134,148 @@ export class LiteSVMProviderExt extends LiteSVMProvider {
   }
 }
 
-export function createSetEvmAddresses(pid: PublicKey, admin: PublicKey, M: string, wM: string) {
-  return new TransactionInstruction({
-    programId: pid,
-    keys: [
-      {
-        pubkey: admin,
-        isSigner: true,
-        isWritable: true,
-      },
-      {
-        pubkey: NTT.pdas(pid).configAccount(),
-        isSigner: false,
-        isWritable: true,
-      },
-    ],
-    data: Buffer.concat([
-      sha256('global:set_destination_addresses').slice(0, 8),
-      Buffer.from(M.slice(2).padStart(64, '0'), 'hex'),
-      Buffer.from(wM.slice(2).padStart(64, '0'), 'hex'),
-    ]),
-  });
+export async function createMintInstruction(
+  connection: Connection,
+  payer: Keypair,
+  mintAuth: PublicKey,
+  extensionAuth: PublicKey,
+  mint: PublicKey,
+  defaultAccountState = AccountState.Initialized,
+  vault?: PublicKey,
+  mintTokens = false,
+  decimals = 6,
+) {
+  // mint size with extensions
+  const mintLen = getMintLen([
+    ExtensionType.ScaledUiAmountConfig,
+    ExtensionType.DefaultAccountState,
+    ExtensionType.PermanentDelegate,
+  ]);
+
+  const lamports = await connection.getMinimumBalanceForRentExemption(mintLen);
+
+  const instructions = [
+    SystemProgram.createAccount({
+      fromPubkey: payer.publicKey,
+      newAccountPubkey: mint,
+      space: mintLen,
+      lamports,
+      programId: TOKEN_2022_PROGRAM_ID,
+    }),
+    createInitializeScaledUiAmountConfigInstruction(mint, extensionAuth, 1.0, TOKEN_2022_PROGRAM_ID),
+    createInitializeDefaultAccountStateInstruction(mint, AccountState.Initialized, TOKEN_2022_PROGRAM_ID),
+    createInitializePermanentDelegateInstruction(mint, extensionAuth, TOKEN_2022_PROGRAM_ID),
+    createInitializeMintInstruction(mint, decimals, payer.publicKey, payer.publicKey, TOKEN_2022_PROGRAM_ID),
+  ];
+
+  const tokenAccount = getAssociatedTokenAddressSync(mint, payer.publicKey, false, TOKEN_2022_PROGRAM_ID);
+
+  if (vault) {
+    const vaultAccount = getAssociatedTokenAddressSync(mint, vault, true, TOKEN_2022_PROGRAM_ID);
+    const ix = createAssociatedTokenAccountInstruction(
+      payer.publicKey,
+      vaultAccount,
+      vault,
+      mint,
+      TOKEN_2022_PROGRAM_ID,
+    );
+    instructions.push(ix);
+  }
+
+  // Mint tokens to payer
+  if (mintTokens) {
+    instructions.push(
+      createAssociatedTokenAccountInstruction(
+        payer.publicKey,
+        tokenAccount,
+        payer.publicKey,
+        mint,
+        TOKEN_2022_PROGRAM_ID,
+      ),
+      createMintToInstruction(mint, tokenAccount, payer.publicKey, 10_000_000n, undefined, TOKEN_2022_PROGRAM_ID),
+    );
+  }
+
+  if (defaultAccountState === AccountState.Frozen) {
+    instructions.push(
+      createUpdateDefaultAccountStateInstruction(
+        mint,
+        AccountState.Frozen,
+        payer.publicKey,
+        undefined,
+        TOKEN_2022_PROGRAM_ID,
+      ),
+    );
+  }
+
+  // Set authorities
+  instructions.push(
+    createSetAuthorityInstruction(
+      mint,
+      payer.publicKey,
+      AuthorityType.FreezeAccount,
+      extensionAuth,
+      undefined,
+      TOKEN_2022_PROGRAM_ID,
+    ),
+    createSetAuthorityInstruction(
+      mint,
+      payer.publicKey,
+      AuthorityType.MintTokens,
+      mintAuth,
+      undefined,
+      TOKEN_2022_PROGRAM_ID,
+    ),
+  );
+
+  return instructions;
 }
 
-export function getWormholeContext(connection: Connection) {
-  const w = new Wormhole('Devnet', [SolanaPlatform], {
-    chains: { Solana: { contracts: { coreBridge: 'worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth' } } },
-  });
-  const remoteXcvr: ChainAddress = {
-    chain: 'Ethereum',
-    address: new UniversalAddress(encoding.bytes.encode('transceiver'.padStart(32, '\0'))),
-  };
-  const remoteMgr: ChainAddress = {
-    chain: 'Ethereum',
-    address: new UniversalAddress(encoding.bytes.encode('nttManager'.padStart(32, '\0'))),
-  };
-  const ctx = w.getPlatform('Solana').getChain('Solana', connection);
+export async function getScaledUIMult(connection: Connection, mint: PublicKey) {
+  const accountInfo = await connection.getAccountInfo(mint);
+  const unpackedMint = unpackMint(mint, accountInfo, TOKEN_2022_PROGRAM_ID);
+  const extensionData = getScaledUiAmountConfig(unpackedMint);
 
-  const coreBridge = new SolanaWormholeCore('Devnet', 'Solana', connection, {
-    coreBridge: 'worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth',
-  });
-  return { ctx, coreBridge, remoteXcvr, remoteMgr };
+  if (!extensionData) {
+    return 1.0;
+  }
+
+  return extensionData.multiplier;
+}
+
+// Scaled UI Amount Config Extension Types and Functions since not supported in spl-token library yet
+interface InitializeScaledUiAmountConfigData {
+  instruction: 43;
+  scaledUiAmountInstruction: 0;
+  authority: PublicKey | null;
+  multiplier: number;
+}
+
+export const InitializeScaledUiAmountConfigInstructionData = struct<InitializeScaledUiAmountConfigData>([
+  u8('instruction'),
+  u8('scaledUiAmountInstruction'),
+  publicKey('authority'),
+  f64('multiplier'),
+]);
+
+export interface ScaledUiAmountConfig {
+  authority: PublicKey;
+  multiplier: number;
+  newMultiplierEffectiveTimestamp: bigint;
+  newMultiplier: number;
+}
+
+export const ScaledUiAmountConfigLayout = struct<ScaledUiAmountConfig>([
+  publicKey('authority'),
+  f64('multiplier'),
+  u64('newMultiplierEffectiveTimestamp'),
+  f64('newMultiplier'),
+]);
+
+export enum Comparison {
+  Equal,
+  GreaterThan,
+  GreaterThanOrEqual,
+  LessThan,
+  LessThanOrEqual,
 }

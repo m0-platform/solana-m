@@ -1,11 +1,13 @@
 import { Command } from 'commander';
 import { getContract } from 'viem';
-import { GLOBAL_ACCOUNT, WinstonLogger } from '@m0-foundation/solana-m-sdk';
+import { WinstonLogger } from '@m0-foundation/solana-m-sdk';
 import { sendSlackMessage, SlackMessage } from 'shared/slack';
 import { logBlockchainBalance } from 'shared/balances';
 import LokiTransport from 'winston-loki';
 import winston from 'winston';
 import { EnvOptions, getEnv } from 'shared/environment';
+import { Connection, PublicKey } from '@solana/web3.js';
+import { getScaledUiAmountConfig, TOKEN_2022_PROGRAM_ID, unpackMint } from '@solana/spl-token';
 
 export const HUB_PORTAL: `0x${string}` = '0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd';
 
@@ -22,9 +24,10 @@ if (process.env.LOKI_URL) {
 let slackMessage: SlackMessage;
 
 interface ParsedOptions extends EnvOptions {
-  threshold: bigint;
+  threshold: number;
   force: boolean;
   dryRun: boolean;
+  mMint: PublicKey;
   walletAddess: `0x${string}`;
 }
 
@@ -38,7 +41,8 @@ export async function indexCLI() {
     .option('-t, --threshold [SECONDS]', 'Staleness threshold in seconds', '86400')
     .option('-f, --force', 'Force push the index even if it is not stale', false)
     .option('--dryRun', 'Do not send transactions', false)
-    .action(async ({ threshold, force, dryRun }) => {
+    .option('-m, --mint', 'M mint address', 'mzerojk9tg56ebsrEAhfkyc9VgKjTW2zDqp6C5mhjzH')
+    .action(async ({ threshold, force, dryRun, mint }) => {
       const env = getEnv();
 
       if (!env.evmWalletClient) {
@@ -54,9 +58,10 @@ export async function indexCLI() {
 
       const options: ParsedOptions = {
         ...env,
-        threshold: BigInt(threshold),
+        threshold: Number(threshold),
         force,
         dryRun,
+        mMint: new PublicKey(mint),
         walletAddess: env.evmWalletClient!.account!.address as `0x${string}`,
       };
 
@@ -98,37 +103,21 @@ async function pushIndex(options: ParsedOptions) {
 }
 
 async function isIndexStale(options: ParsedOptions) {
-  // Get the current index from the Solana program
-  const globalAccount = await options.connection.getAccountInfo(GLOBAL_ACCOUNT);
-  if (!globalAccount) {
-    throw new Error('Global account not found');
-  }
-
-  const lastUpdateTimestamp = globalAccount.data.readBigUInt64LE(8 + 32 * 3 + 8); // timestamp is after discriminator, 3 pubkeys, and the index
-  const currentTimestamp = BigInt(Math.floor(Date.now() / 1000)); // current timestamp in seconds
+  const scaledUiConfig = await getScaledUIMult(options.connection, options.mMint);
+  const isStale = Number(scaledUiConfig.newMultiplierEffectiveTimestamp) < Date.now() / 1000 - options.threshold;
 
   if (options.dryRun) {
     logger.debug('Checking index staleness', {
-      lastUpdateTimestamp: lastUpdateTimestamp.toString(),
-      currentTimestamp: currentTimestamp.toString(),
-      threshold: options.threshold.toString(),
-      stale: currentTimestamp - lastUpdateTimestamp > options.threshold,
+      lastUpdateTimestamp: scaledUiConfig.newMultiplierEffectiveTimestamp.toString(),
+      multiplier: scaledUiConfig.newMultiplier,
+      stale: isStale,
     });
   }
 
-  return currentTimestamp - lastUpdateTimestamp > options.threshold;
+  return isStale;
 }
 
 async function sendIndexUpdate(options: ParsedOptions) {
-  // function sendMTokenIndex(
-  //     uint16 destinationChainId_,
-  //     bytes32 refundAddress_
-  // ) external payable returns (bytes32 messageId_)
-  //
-  // function quoteDeliveryPrice(
-  //     uint16 recipientChain,
-  //     bytes memory transceiverInstructions
-  // ) public view returns (uint256[] memory, uint256) {
   const abi = [
     {
       inputs: [
@@ -195,6 +184,12 @@ async function sendIndexUpdate(options: ParsedOptions) {
   }
 
   return '';
+}
+
+export async function getScaledUIMult(connection: Connection, mint: PublicKey) {
+  const accountInfo = await connection.getAccountInfo(mint);
+  const unpackedMint = unpackMint(mint, accountInfo, TOKEN_2022_PROGRAM_ID);
+  return getScaledUiAmountConfig(unpackedMint)!;
 }
 
 function getLokiTransport(host: string, logger: winston.Logger) {

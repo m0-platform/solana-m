@@ -109,36 +109,17 @@ impl TransferArgs {
 }
 
 #[derive(Accounts)]
-#[instruction(args: TransferArgs)]
 pub struct TransferBurn<'info> {
     #[account(
         constraint = common.config.mode == Mode::Burning @ NTTError::InvalidMode,
     )]
     pub common: Transfer<'info>,
 
-    #[account(
-        mut,
-        seeds = [InboxRateLimit::SEED_PREFIX, args.recipient_chain.id.to_be_bytes().as_ref()],
-        bump = inbox_rate_limit.bump,
-    )]
-    // NOTE: it would be nice to put these into `common`, but that way we don't
-    // have access to the instruction args
+    #[account(mut)]
     pub inbox_rate_limit: Account<'info, InboxRateLimit>,
 
-    #[account(
-        seeds = [NttManagerPeer::SEED_PREFIX, args.recipient_chain.id.to_be_bytes().as_ref()],
-        bump = peer.bump,
-    )]
     pub peer: Account<'info, NttManagerPeer>,
 
-    #[account(
-        seeds = [
-            crate::SESSION_AUTHORITY_SEED,
-            common.from.owner.as_ref(),
-            args.keccak256().as_ref()
-        ],
-        bump,
-    )]
     /// CHECK: The seeds constraint enforces that this is the correct account.
     /// See [`crate::SESSION_AUTHORITY_SEED`] for an explanation of the flow.
     pub session_authority: UncheckedAccount<'info>,
@@ -151,22 +132,87 @@ pub struct TransferBurn<'info> {
     pub token_authority: UncheckedAccount<'info>,
 }
 
+impl<'info> TransferBurn<'info> {
+    // Manually validate accounts instead of using anchor constraints
+    // so that the context can be shared (nested contexts do not support instruction args)
+    pub fn validate_accounts(&self, args: &TransferArgs) -> Result<u8> {
+        let inbox_rate_limit = Pubkey::create_program_address(
+            &[
+                InboxRateLimit::SEED_PREFIX,
+                args.recipient_chain.id.to_be_bytes().as_ref(),
+                &[self.inbox_rate_limit.bump],
+            ],
+            &crate::ID,
+        );
+        if inbox_rate_limit.is_err() || !self.inbox_rate_limit.key().eq(&inbox_rate_limit.unwrap())
+        {
+            return err!(ErrorCode::ConstraintAddress);
+        }
+
+        let peer = Pubkey::create_program_address(
+            &[
+                NttManagerPeer::SEED_PREFIX,
+                args.recipient_chain.id.to_be_bytes().as_ref(),
+                &[self.peer.bump],
+            ],
+            &crate::ID,
+        );
+        if peer.is_err() || !self.peer.key().eq(&peer.unwrap()) {
+            return err!(ErrorCode::ConstraintAddress);
+        }
+
+        let (session_authority, session_authority_bump) = Pubkey::find_program_address(
+            &[
+                crate::SESSION_AUTHORITY_SEED,
+                self.common.from.owner.as_ref(),
+                args.keccak256().as_ref(),
+            ],
+            &crate::ID,
+        );
+        if !self.session_authority.key().eq(&session_authority) {
+            return err!(ErrorCode::ConstraintAddress);
+        }
+
+        Ok(session_authority_bump)
+    }
+}
+
 pub fn transfer_burn<'info>(
     ctx: Context<'_, '_, '_, 'info, TransferBurn<'info>>,
     args: TransferArgs,
 ) -> Result<()> {
+    let amount = args.amount;
+    transfer_burn_common(ctx, args, amount)
+}
+
+pub fn transfer_burn_common<'info>(
+    ctx: Context<'_, '_, '_, 'info, TransferBurn<'info>>,
+    args: TransferArgs,
+    principal_amount_m: u64,
+) -> Result<()> {
+    let session_authority_bump = ctx.accounts.validate_accounts(&args)?;
+
     let accs = ctx.accounts;
 
     let TransferArgs {
-        mut amount,
         recipient_chain,
         recipient_address,
         should_queue,
+        ..
     } = args;
 
-    // TODO: should we revert if we have dust?
+    // The provided "amount" is the principal amount of M to bridge.
+    // We scale this up to M units using the scaled UI config multiplier.
+    let scaled_ui_config = earn::utils::conversion::get_scaled_ui_config(&accs.common.mint)?;
+
+    // Get the amount of M tokens to transfer using the multiplier
+    let mut m_amount = earn::utils::conversion::principal_to_amount_down(
+        principal_amount_m,
+        scaled_ui_config.new_multiplier.into(),
+    )?;
+
     let trimmed_amount = TrimmedAmount::remove_dust(
-        &mut amount,
+        &mut m_amount,
         accs.common.mint.decimals,
         accs.peer.token_decimals,
     )
@@ -197,13 +243,13 @@ pub fn transfer_burn<'info>(
         accs.common.custody.to_account_info(),
         accs.session_authority.to_account_info(),
         ctx.remaining_accounts,
-        amount,
+        principal_amount_m,
         accs.common.mint.decimals,
         &[&[
             crate::SESSION_AUTHORITY_SEED,
             accs.common.from.owner.as_ref(),
             args.keccak256().as_ref(),
-            &[ctx.bumps.session_authority],
+            &[session_authority_bump],
         ]],
     )?;
 
@@ -218,7 +264,7 @@ pub fn transfer_burn<'info>(
             },
             &[&[crate::TOKEN_AUTHORITY_SEED, &[ctx.bumps.token_authority]]],
         ),
-        amount,
+        principal_amount_m,
     )?;
 
     accs.common.custody.reload()?;
@@ -243,7 +289,7 @@ pub fn transfer_burn<'info>(
     insert_into_outbox(
         &mut accs.common,
         &mut accs.inbox_rate_limit,
-        amount,
+        m_amount,
         trimmed_amount,
         recipient_chain,
         recipient_ntt_manager,
@@ -254,7 +300,7 @@ pub fn transfer_burn<'info>(
     accs.common.mint.reload()?;
 
     emit!(BridgeEvent {
-        amount: -(amount as i64),
+        amount: -(m_amount as i64),
         token_supply: accs.common.mint.supply,
         to: recipient_address,
         from: accs.common.from.owner.to_bytes(),

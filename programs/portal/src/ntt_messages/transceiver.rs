@@ -138,7 +138,7 @@ where
         if prefix != E::PREFIX {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                "Invalid prefix for TransceiverMessage",
+                format!("Invalid prefix for TransceiverMessage ({:?})", prefix,),
             ));
         }
 

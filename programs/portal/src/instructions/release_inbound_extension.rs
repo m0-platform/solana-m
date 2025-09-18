@@ -4,6 +4,7 @@ use earn::state::GLOBAL_SEED;
 use ext_swap::accounts::SwapGlobal;
 use ext_swap::program::ExtSwap;
 
+use crate::error::NTTError;
 use crate::instructions::{ext_swap, release_inbound_mint_common};
 use crate::instructions::{ReleaseInboundArgs, ReleaseInboundMint};
 use crate::ReleaseInboundMintBumps;
@@ -112,6 +113,22 @@ pub fn release_inbound_mint_extension<'info>(
     )?;
 
     ctx.accounts.common.recipient.reload()?;
+
+    // Ensure target extensions is correct
+    // (only validate if we know the extension exists)
+    let target_mint = &ctx.accounts.common.inbox_item.destination_mint;
+    if ctx
+        .accounts
+        .swap_global
+        .whitelisted_extensions
+        .iter()
+        .find(|ext| ext.mint.eq(target_mint))
+        .is_some()
+    {
+        if !ctx.accounts.ext_mint.key().eq(target_mint) {
+            return err!(NTTError::InvalidMint);
+        }
+    }
 
     let wrap_amount = ctx
         .accounts

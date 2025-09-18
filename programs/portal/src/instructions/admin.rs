@@ -9,6 +9,7 @@ use anchor_spl::{
     },
     token_interface,
 };
+use earn::state::{EarnGlobal, GLOBAL_SEED};
 
 use crate::{
     config::Config,
@@ -529,11 +530,14 @@ pub fn deregister_transceiver(ctx: Context<DeregisterTransceiver>) -> Result<()>
         .enabled_transceivers
         .set(ctx.accounts.registered_transceiver.id, false)?;
 
-    // decrement threshold if too high
     let num_enabled_transceivers = ctx.accounts.config.enabled_transceivers.len();
+    // at least one transceiver should be enabled
+    if num_enabled_transceivers == 0 {
+        return Err(NTTError::ZeroThreshold.into());
+    }
+    // decrement threshold if too high
     if num_enabled_transceivers < ctx.accounts.config.threshold {
-        // threshold should be at least 1
-        ctx.accounts.config.threshold = num_enabled_transceivers.max(1);
+        ctx.accounts.config.threshold = num_enabled_transceivers;
     }
     Ok(())
 }
@@ -663,9 +667,20 @@ pub struct SetMint<'info> {
         associated_token::token_program = Token2022::id(),
     )]
     pub custody: InterfaceAccount<'info, token_interface::TokenAccount>,
+
+    #[account(
+        seeds = [GLOBAL_SEED],
+        seeds::program = earn::ID,
+        bump = m_global.bump,
+    )]
+    pub m_global: Box<Account<'info, EarnGlobal>>,
 }
 
 pub fn set_mint(ctx: Context<SetMint>) -> Result<()> {
+    if ctx.accounts.mint.key() != ctx.accounts.m_global.m_mint {
+        return err!(NTTError::InvalidMint);
+    }
+
     // Validate the mint authority of the mint is the portal's token authority
     if ctx.accounts.mint.mint_authority != Some(ctx.accounts.token_authority.key()).into() {
         return Err(NTTError::InvalidMintAuthority.into());

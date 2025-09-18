@@ -1,6 +1,12 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    token_2022::{spl_token_2022::instruction::AuthorityType, Token2022},
+    token_2022::{
+        spl_token_2022::{
+            state::AccountState,
+            instruction::AuthorityType
+        },
+        Token2022
+    },
     token_interface,
 };
 use earn::state::{EarnGlobal, GLOBAL_SEED};
@@ -673,6 +679,16 @@ pub struct SetMint<'info> {
 pub fn set_mint(ctx: Context<SetMint>) -> Result<()> {
     if ctx.accounts.mint.key() != ctx.accounts.m_global.m_mint {
         return err!(NTTError::InvalidMint);
+    }
+
+    // Validate the mint authority of the mint is the portal's token authority
+    if ctx.accounts.mint.mint_authority != Some(ctx.accounts.token_authority.key()).into() {
+        return Err(NTTError::InvalidMintAuthority.into());
+    }
+
+    // Validate the custody account is initialized (i.e. not frozen)
+    if ctx.accounts.custody.state != AccountState::Initialized {
+        return Err(NTTError::InvalidTokenAccountState.into());
     }
 
     ctx.accounts.config.mint = ctx.accounts.mint.key();

@@ -113,7 +113,6 @@ pub fn redeem(ctx: Context<Redeem>, _args: RedeemArgs) -> Result<()> {
         )?;
 
     let message: NttManagerMessage<Payload> = transceiver_message.message.ntt_manager_payload;
-    let mut amount = 0;
 
     if !accs.inbox_item.init {
         let mut inbox_item = InboxItem {
@@ -134,7 +133,7 @@ pub fn redeem(ctx: Context<Redeem>, _args: RedeemArgs) -> Result<()> {
         match &message.payload {
             Payload::NativeTokenTransfer(ntt) => {
                 // all transfers will have a recipient and amount
-                amount = ntt
+                let amount = ntt
                     .amount
                     .untrim(accs.mint.decimals)
                     .map_err(NTTError::from)?;
@@ -174,6 +173,8 @@ pub fn redeem(ctx: Context<Redeem>, _args: RedeemArgs) -> Result<()> {
     {
         return Ok(());
     }
+
+    let amount = accs.inbox_item.transfer.amount;
 
     let release_timestamp = match accs.inbox_rate_limit.rate_limit.consume_or_delay(amount) {
         RateLimitResult::Consumed(now) => {

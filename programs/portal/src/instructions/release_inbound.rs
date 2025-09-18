@@ -75,12 +75,21 @@ pub fn release_inbound_mint<'info>(
     ctx: Context<'_, '_, '_, 'info, ReleaseInboundMint<'info>>,
     args: ReleaseInboundArgs,
 ) -> Result<()> {
+    release_inbound_mint_common(ctx, args, false)
+}
+
+pub fn release_inbound_mint_common<'info>(
+    ctx: Context<'_, '_, '_, 'info, ReleaseInboundMint<'info>>,
+    args: ReleaseInboundArgs,
+    release_extension: bool,
+) -> Result<()> {
     let inbox_item = &mut ctx.accounts.inbox_item;
 
     // Validate token account depending on call context
     validate_recipient_token_account(
         &ctx.accounts.recipient.key(),
         &inbox_item,
+        release_extension,
         &ctx.accounts.token_authority.key(),
         &ctx.accounts.mint.key(),
         &ctx.accounts.token_program.key(),
@@ -179,13 +188,14 @@ pub fn release_inbound_mint<'info>(
 fn validate_recipient_token_account(
     recipient: &Pubkey,
     inbox_item: &InboxItem,
+    is_extension: bool,
     token_authority: &Pubkey,
     m_mint: &Pubkey,
     token_program: &Pubkey,
 ) -> Result<()> {
     let expected = get_inbox_recipient_token_account(
         &inbox_item.transfer.recipient,
-        &inbox_item.destination_mint,
+        is_extension,
         inbox_item.transfer.amount,
         token_authority,
         m_mint,
@@ -201,7 +211,7 @@ fn validate_recipient_token_account(
 
 pub fn get_inbox_recipient_token_account(
     recipient: &Pubkey,
-    destination_mint: &Pubkey,
+    is_extension: bool,
     amount: u64,
     token_authority: &Pubkey,
     m_mint: &Pubkey,
@@ -212,18 +222,16 @@ pub fn get_inbox_recipient_token_account(
         return None;
     }
 
-    // Bridging to extension, require intermediate portal token account
-    if !destination_mint.eq(m_mint) {
-        return Some(get_associated_token_address_with_program_id(
-            token_authority,
-            m_mint,
-            token_program,
-        ));
-    }
+    let authority = if is_extension {
+        // Bridging to extension, require intermediate portal token account
+        token_authority
+    } else {
+        // Bridging $M, require user token account
+        recipient
+    };
 
-    // Bridging $M, require user token account
     Some(get_associated_token_address_with_program_id(
-        &recipient,
+        &authority,
         m_mint,
         token_program,
     ))

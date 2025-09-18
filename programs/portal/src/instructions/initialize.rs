@@ -79,7 +79,7 @@ pub struct Initialize<'info> {
 
     /// CHECK: checked to be the appropriate token program when initialising the
     /// associated token account for the given mint.
-    pub token_program: Interface<'info, token_interface::TokenInterface>,
+    pub token_program: Program<'info, token_interface::Token2022>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     bpf_loader_upgradeable_program: Program<'info, BpfLoaderUpgradeable>,
 

@@ -17,10 +17,8 @@ pub mod queue;
 pub mod registered_transceiver;
 pub mod transceivers;
 
-use crate::ntt_messages::ChainId;
-use transceivers::wormhole::instructions::*;
-
 use instructions::*;
+use transceivers::wormhole::instructions::*;
 
 #[cfg(not(feature = "no-entrypoint"))]
 solana_security_txt::security_txt! {
@@ -90,20 +88,10 @@ pub mod portal {
 
     pub fn transfer_extension_burn<'info>(
         ctx: Context<'_, '_, '_, 'info, TransferExtensionBurn<'info>>,
-        ext_principal: u64,
-        recipient_chain: ChainId,
-        recipient_address: [u8; 32],
+        args: TransferArgs,
         destination_token: [u8; 32],
-        should_queue: bool,
     ) -> Result<()> {
-        instructions::transfer_extension_burn(
-            ctx,
-            ext_principal,
-            recipient_chain,
-            recipient_address,
-            destination_token,
-            should_queue,
-        )
+        instructions::transfer_extension_burn(ctx, args, destination_token)
     }
 
     pub fn redeem(ctx: Context<Redeem>, args: RedeemArgs) -> Result<()> {
@@ -170,6 +158,10 @@ pub mod portal {
 
     pub fn claim_token_authority(ctx: Context<ClaimTokenAuthority>) -> Result<()> {
         instructions::claim_token_authority(ctx)
+    }
+
+    pub fn set_mint(ctx: Context<SetMint>) -> Result<()> {
+        instructions::set_mint(ctx)
     }
 
     pub fn set_paused(ctx: Context<SetPaused>, pause: bool) -> Result<()> {

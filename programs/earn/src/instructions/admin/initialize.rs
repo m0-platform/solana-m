@@ -17,16 +17,17 @@ use spl_token_2022::extension::{
 
 // local dependencies
 use crate::{
-    constants::{ANCHOR_DISCRIMINATOR_SIZE, PORTAL_PROGRAM},
+    constants::{ANCHOR_DISCRIMINATOR_SIZE, PORTAL_PROGRAM, INDEX_SCALE_F64},
     errors::EarnError,
     state::{EarnGlobal, GLOBAL_SEED, TOKEN_AUTHORITY_SEED},
-    utils::{conversion::update_multiplier, token::thaw_token_account},
+    utils::{conversion::{update_multiplier, index_to_multiplier}, token::thaw_token_account},
 };
 
 cfg_if::cfg_if!(
     if #[cfg(feature = "migrate")] {
         declare_program!(old_earn);
         use old_earn::{accounts::Global as OldGlobal, ID as OLD_EARN_PROGRAM_ID};
+        use crate::utils::conversion::{get_scaled_ui_config, principal_to_amount_up};
     }
 );
 
@@ -57,9 +58,17 @@ pub struct Initialize<'info> {
 
     #[account(
         mut,
-        mint::token_program = token_program
+        mint::token_program = token_program,
+        mint::decimals = 6, // Must be 6 decimals
     )]
     pub m_mint: InterfaceAccount<'info, Mint>,
+
+    #[cfg(feature = "migrate")]
+    #[account(
+        address = old_global_account.mint @ EarnError::InvalidMint,
+        mint::decimals = m_mint.decimals 
+    )]
+    pub old_m_mint: InterfaceAccount<'info, Mint>,
 
     /// CHECK: This account is validated by its seeds
     #[account(
@@ -103,7 +112,7 @@ pub struct Initialize<'info> {
 }
 
 impl Initialize<'_> {
-    fn validate(&self) -> Result<()> {
+    fn validate(&self, _current_index: u64) -> Result<()> {
         // Get the mint account data once and reuse it
         let account_info = self.m_mint.to_account_info();
         let mint_data = account_info.try_borrow_data()?;
@@ -120,6 +129,23 @@ impl Initialize<'_> {
 
         let scaled_ui_config = mint_ext_data.get_extension::<ScaledUiAmountConfig>()?;
         if scaled_ui_config.authority != OptionalNonZeroPubkey(*global_key) {
+            return err!(EarnError::InvalidMint);
+        }
+
+        // Verify that the new multiplier is less than or equal to the current index (if migrating) or provided index (if not migrating)
+        // This is required because the call to our update_multiplier fn will fail silently if the multiplier on the mint is greater.
+        // That behavior is desired except when initializing the program. Therefore, we catch the error here.
+        let current_multiplier: f64;
+        let mint_multiplier: f64 = scaled_ui_config.new_multiplier.into();
+        cfg_if! {
+            if #[cfg(feature = "migrate")] {
+                current_multiplier = self.old_global_account.index as f64 / INDEX_SCALE_F64;
+
+            } else {
+                current_multiplier = _current_index as f64 / INDEX_SCALE_F64;
+            }
+        }
+        if mint_multiplier > current_multiplier {
             return err!(EarnError::InvalidMint);
         }
 
@@ -158,7 +184,7 @@ impl Initialize<'_> {
         Ok(())
     }
 
-    #[access_control(ctx.accounts.validate())]
+    #[access_control(ctx.accounts.validate(_current_index))]
     pub fn handler(ctx: Context<Initialize>, _current_index: u64) -> Result<()> {
         // Set global state
         ctx.accounts.global_account.set_inner(EarnGlobal {
@@ -177,20 +203,28 @@ impl Initialize<'_> {
 
                 // Set the multiplier on the m_mint to the current index and timestamp on the old earn program
                 update_multiplier(
-                    &mut ctx.accounts.m_mint,                         // mint
-                    &ctx.accounts.global_account.to_account_info(),   // authority
-                    &[&[GLOBAL_SEED, &[ctx.bumps.global_account]]],   // authority seeds
-                    &ctx.accounts.token_program,                      // token program
-                    ctx.accounts.old_global_account.index,            // index
-                    ctx.accounts.old_global_account.timestamp as i64, // timestamp
+                    &mut ctx.accounts.m_mint,                                       // mint
+                    &ctx.accounts.global_account.to_account_info(),                 // authority
+                    &[&[GLOBAL_SEED, &[ctx.bumps.global_account]]],                 // authority seeds
+                    &ctx.accounts.token_program,                                    // token program
+                    index_to_multiplier(ctx.accounts.old_global_account.index)?,    // index
+                    ctx.accounts.old_global_account.timestamp as i64,               // timestamp
                 )?;
+
+                // Check that the supply of the new mint (adjusted for the multiplier) is not greater than the supply of the old m mint
+                let scaled_ui_config = get_scaled_ui_config(&ctx.accounts.m_mint)?;
+                let new_supply_amount = principal_to_amount_up(ctx.accounts.m_mint.supply, scaled_ui_config.new_multiplier.into())?; 
+
+                if new_supply_amount > ctx.accounts.old_m_mint.supply {
+                    return err!(EarnError::InvalidMint);
+                }
             } else {
                 update_multiplier(
                     &mut ctx.accounts.m_mint,                       // mint
                     &ctx.accounts.global_account.to_account_info(), // authority
                     &[&[GLOBAL_SEED, &[ctx.bumps.global_account]]], // authority seeds
                     &ctx.accounts.token_program,                    // token program
-                    _current_index,                                 // index
+                    index_to_multiplier(_current_index)?,            // index
                     Clock::get()?.unix_timestamp,                   // timestamp
                 )?;
             }

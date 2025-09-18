@@ -39,8 +39,6 @@ pub struct AddRegistrarEarner<'info> {
     )]
     pub user_token_account: InterfaceAccount<'info, TokenAccount>,
 
-    pub system_program: Program<'info, System>,
-
     pub token_program: Program<'info, Token2022>,
 }
 

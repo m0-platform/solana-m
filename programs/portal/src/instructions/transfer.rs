@@ -135,7 +135,7 @@ pub struct TransferBurn<'info> {
 impl<'info> TransferBurn<'info> {
     // Manually validate accounts instead of using anchor constraints
     // so that the context can be shared (nested contexts do not support instruction args)
-    pub fn validate_accounts(&self, args: &TransferArgs) -> Result<(Pubkey, u8)> {
+    pub fn validate_accounts(&self, args: &TransferArgs) -> Result<u8> {
         let inbox_rate_limit = Pubkey::create_program_address(
             &[
                 InboxRateLimit::SEED_PREFIX,
@@ -161,18 +161,10 @@ impl<'info> TransferBurn<'info> {
             return err!(ErrorCode::ConstraintAddress);
         }
 
-        // Owner of the $M token account depends on whether this function
-        // was called directly or by tranfer_extension_burn.
-        let session_owner_seed = if self.common.from.owner.eq(self.token_authority.key) {
-            self.common.payer.key()
-        } else {
-            self.common.from.owner.key()
-        };
-
         let (session_authority, session_authority_bump) = Pubkey::find_program_address(
             &[
                 crate::SESSION_AUTHORITY_SEED,
-                session_owner_seed.as_ref(),
+                self.common.from.owner.as_ref(),
                 args.keccak256().as_ref(),
             ],
             &crate::ID,
@@ -181,7 +173,7 @@ impl<'info> TransferBurn<'info> {
             return err!(ErrorCode::ConstraintAddress);
         }
 
-        Ok((session_owner_seed, session_authority_bump))
+        Ok(session_authority_bump)
     }
 }
 
@@ -189,23 +181,33 @@ pub fn transfer_burn<'info>(
     ctx: Context<'_, '_, '_, 'info, TransferBurn<'info>>,
     args: TransferArgs,
 ) -> Result<()> {
-    let (session_owner_seed, session_authority_bump) = ctx.accounts.validate_accounts(&args)?;
+    let amount = args.amount;
+    transfer_burn_common(ctx, args, amount)
+}
+
+pub fn transfer_burn_common<'info>(
+    ctx: Context<'_, '_, '_, 'info, TransferBurn<'info>>,
+    args: TransferArgs,
+    principal_amount_m: u64,
+) -> Result<()> {
+    let session_authority_bump = ctx.accounts.validate_accounts(&args)?;
 
     let accs = ctx.accounts;
 
     let TransferArgs {
-        amount: principal,
         recipient_chain,
         recipient_address,
         should_queue,
+        ..
     } = args;
 
     // The provided "amount" is the principal amount of M to bridge.
     // We scale this up to M units using the scaled UI config multiplier.
     let scaled_ui_config = earn::utils::conversion::get_scaled_ui_config(&accs.common.mint)?;
+
     // Get the amount of M tokens to transfer using the multiplier
     let mut m_amount = earn::utils::conversion::principal_to_amount_down(
-        principal,
+        principal_amount_m,
         scaled_ui_config.new_multiplier.into(),
     )?;
 
@@ -241,11 +243,11 @@ pub fn transfer_burn<'info>(
         accs.common.custody.to_account_info(),
         accs.session_authority.to_account_info(),
         ctx.remaining_accounts,
-        principal,
+        principal_amount_m,
         accs.common.mint.decimals,
         &[&[
             crate::SESSION_AUTHORITY_SEED,
-            session_owner_seed.as_ref(),
+            accs.common.from.owner.as_ref(),
             args.keccak256().as_ref(),
             &[session_authority_bump],
         ]],
@@ -262,7 +264,7 @@ pub fn transfer_burn<'info>(
             },
             &[&[crate::TOKEN_AUTHORITY_SEED, &[ctx.bumps.token_authority]]],
         ),
-        principal,
+        principal_amount_m,
     )?;
 
     accs.common.custody.reload()?;

@@ -31,6 +31,8 @@ pub enum NTTError {
     InvalidMode,
     #[msg("InvalidMintAuthority")]
     InvalidMintAuthority,
+    #[msg("InvalidMint")]
+    InvalidMint,
     #[msg("TransferExceedsRateLimit")]
     TransferExceedsRateLimit,
     #[msg("Paused")]
@@ -69,6 +71,10 @@ pub enum NTTError {
     InvalidReturnAccount,
     #[msg("Missing payer account")]
     MissingPayerAccount,
+    #[msg("No whitelisted extensions in swap global")]
+    NoWhitelistedExtensions,
+    #[msg("Invalid token account state")]
+    InvalidTokenAccountState,
 }
 
 impl From<ScalingError> for NTTError {

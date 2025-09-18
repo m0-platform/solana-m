@@ -4,6 +4,7 @@
     "@coral-xyz/anchor": "catalog:",
     "@fireblocks/ts-sdk": "~10.0.2",
     "@m0-foundation/solana-m-sdk": "workspace:",
+    "@noble/hashes": "^1.8.0",
     "@solana/buffer-layout": "^4.0.1",
     "@solana/buffer-layout-utils": "^0.2.0",
     "@solana/spl-token": "catalog:",

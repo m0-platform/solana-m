@@ -3194,8 +3194,8 @@ dependencies = [
 
 [[package]]
 name = "substreams-solana-utils"
-version = "0.1.5"
-source = "git+https://github.com/jedhu0/substreams-solana-utils?tag=v0.1.5#2dd928022088c39421b72fd166da3dae67fed90e"
+version = "0.1.4"
+source = "git+https://github.com/m0-foundation/substreams-solana-utils#c07e37270764314f1adbe76da4cb488a4ce55e49"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

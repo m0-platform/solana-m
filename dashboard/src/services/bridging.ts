@@ -98,7 +98,7 @@ export async function transferSolanaExtension<N extends Network, C extends Solan
     const vaaReqBytes = Buffer.concat([
       Buffer.from('ERV1'), // type
       new BN(chainToChainId(ntt.chain)).toArrayLike(Buffer, 'be', 2), // emitter chain
-      ntt.program.programId.toBuffer(), // emitter address
+      emitter.toBuffer(), // emitter address
       sequence.toArrayLike(Buffer, 'be', 8), // sequence
     ]);
 

@@ -81,11 +81,6 @@ export async function transferSolanaExtension<N extends Network, C extends Solan
 
   // use exector framework
   if (quote) {
-    const nttPeer = PublicKey.findProgramAddressSync(
-      [Buffer.from('peer'), new BN(chainToChainId(recipient.chain as any)).toArrayLike(Buffer, 'le', 2)],
-      ntt.program.programId,
-    )[0];
-
     const emitter = PublicKey.findProgramAddressSync([Buffer.from('emitter')], ntt.program.programId)[0];
     const bridgeSequence = PublicKey.findProgramAddressSync(
       [Buffer.from('Sequence'), emitter.toBytes()],
@@ -130,7 +125,7 @@ export async function transferSolanaExtension<N extends Network, C extends Solan
           Buffer.from(sha256('global:request_for_execution').subarray(0, 8)), // [109, 107, 87, 37, 151, 192, 119, 115]
           new BN(quote.estimatedCost.toString()).toArrayLike(Buffer, 'le', 8), // amount
           new BN(chainToChainId(recipient.chain as any)).toArrayLike(Buffer, 'le', 2), // dst_chain
-          nttPeer.toBuffer(), // dst_addr
+          ntt.program.programId.toBuffer(), // peer portal address
           sender.toBuffer(), // refund_addr
           new BN(signedQuoteBytes.length).toArrayLike(Buffer, 'le', 4), // vec length
           signedQuoteBytes, // signed_quote_bytes

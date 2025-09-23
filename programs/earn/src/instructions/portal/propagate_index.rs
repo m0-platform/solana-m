@@ -4,10 +4,9 @@ use anchor_spl::token_interface::{Mint, Token2022};
 
 // local dependencies
 use crate::{
-    constants::INDEX_SCALE_F64,
     errors::EarnError,
     state::{EarnGlobal, GLOBAL_SEED},
-    utils::conversion::{get_scaled_ui_config, update_multiplier},
+    utils::conversion::{get_scaled_ui_config, update_multiplier, index_to_multiplier},
 };
 
 #[derive(Accounts)]
@@ -40,10 +39,10 @@ impl PropagateIndex<'_> {
     ) -> Result<()> {
         let scaled_ui_config = get_scaled_ui_config(&ctx.accounts.m_mint)?;
         let current_multiplier: f64 = scaled_ui_config.new_multiplier.into();
-        let current_index = (INDEX_SCALE_F64 * current_multiplier).trunc() as u64;
+        let new_multiplier = index_to_multiplier(new_index)?;
 
-        // Check if the new index is greater than or equal to the previously seen index.
-        if new_index >= current_index {
+        // Check if the new multiplier is greater than or equal to the previously seen multiplier.
+        if new_multiplier >= current_multiplier {
             // If so, update the merkle root if it is non-zero.
             // We don't necessarily need the second check if we know updates only come
             // from mainnet. However, it provides some protection against staleness
@@ -52,8 +51,8 @@ impl PropagateIndex<'_> {
                 ctx.accounts.global_account.earner_merkle_root = earner_merkle_root;
             }
 
-            // If the new index is strictly greater than the current one, update the multiplier.
-            if new_index > current_index {
+            // If the new multiplier is strictly greater than the current one, update the multiplier.
+            if new_multiplier > current_multiplier {
                 let timestamp = Clock::get()?.unix_timestamp;
 
                 update_multiplier(
@@ -61,7 +60,7 @@ impl PropagateIndex<'_> {
                     &ctx.accounts.global_account.to_account_info(),
                     &[&[GLOBAL_SEED, &[ctx.accounts.global_account.bump]]],
                     &ctx.accounts.token_program,
-                    new_index,
+                    new_multiplier,
                     timestamp,
                 )?;
 

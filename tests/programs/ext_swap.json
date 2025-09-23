@@ -265,6 +265,7 @@
         },
         {
           "name": "swap_m_account",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -649,60 +650,7 @@
         },
         {
           "name": "from_token_account",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "signer"
-              },
-              {
-                "kind": "account",
-                "path": "from_token_program"
-              },
-              {
-                "kind": "account",
-                "path": "from_mint"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
+          "writable": true
         },
         {
           "name": "from_m_vault_auth",
@@ -883,29 +831,6 @@
           "name": "ext_program"
         },
         {
-          "name": "ext_global",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108
-                ]
-              }
-            ],
-            "program": {
-              "kind": "account",
-              "path": "ext_program"
-            }
-          }
-        },
-        {
           "name": "ext_mint",
           "writable": true
         }
@@ -1039,60 +964,7 @@
         },
         {
           "name": "m_token_account",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "signer"
-              },
-              {
-                "kind": "account",
-                "path": "m_token_program"
-              },
-              {
-                "kind": "account",
-                "path": "m_mint"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
+          "writable": true
         },
         {
           "name": "to_token_account",

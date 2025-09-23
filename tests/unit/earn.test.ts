@@ -463,6 +463,9 @@ class EarnTest<V extends Variant = Variant.New> {
       this.getEarnGlobalAccount(),
       mint.publicKey,
       AccountState.Frozen,
+      undefined,
+      false,
+      decimals,
     );
 
     let tx = new Transaction();
@@ -849,7 +852,7 @@ class EarnTest<V extends Variant = Variant.New> {
       case Variant.New:
         await this.earn.methods
           .initialize(initialIndex!)
-          .accounts({
+          .accountsPartial({
             admin: this.admin.publicKey,
             mMint: this.mMint.publicKey,
           })
@@ -862,6 +865,7 @@ class EarnTest<V extends Variant = Variant.New> {
           .accounts({
             admin: this.admin.publicKey,
             mMint: this.mMint.publicKey,
+            oldMMint: this.oldMMint!.publicKey,
           })
           .signers([this.admin])
           .rpc();
@@ -979,6 +983,7 @@ for (const variant of VARIANTS) {
               .accounts({
                 admin: $.admin.publicKey,
                 mMint: $.mMint.publicKey,
+                oldMMint: $.oldMMint!.publicKey,
               })
               .signers([$.admin])
               .rpc(),
@@ -987,7 +992,7 @@ for (const variant of VARIANTS) {
           await $.expectSystemError(
             $.earn.methods
               .initialize(initialIndex)
-              .accounts({
+              .accountsPartial({
                 admin: $.admin.publicKey,
                 mMint: $.mMint.publicKey,
               })
@@ -1013,6 +1018,7 @@ for (const variant of VARIANTS) {
                 admin: $.admin.publicKey,
                 mMint: $.mMint.publicKey,
                 globalAccount: wrongGlobalAccount,
+                oldMMint: $.oldMMint!.publicKey,
               })
               .signers([$.admin])
               .rpc(),
@@ -1046,6 +1052,7 @@ for (const variant of VARIANTS) {
               .accountsPartial({
                 admin: $.admin.publicKey,
                 mMint: wrongMint.publicKey,
+                oldMMint: $.oldMMint!.publicKey,
                 tokenProgram: TOKEN_PROGRAM_ID,
               })
               .signers([$.admin])
@@ -1083,6 +1090,7 @@ for (const variant of VARIANTS) {
               .accountsPartial({
                 admin: $.admin.publicKey,
                 mMint: $.mMint.publicKey,
+                oldMMint: $.oldMMint!.publicKey,
                 portalTokenAuthority: wrongPortalAuthority,
               })
               .signers([$.admin])
@@ -1119,6 +1127,7 @@ for (const variant of VARIANTS) {
               .accountsPartial({
                 admin: $.admin.publicKey,
                 mMint: $.mMint.publicKey,
+                oldMMint: $.oldMMint!.publicKey,
                 extSwapGlobal: wrongExtSwapGlobal,
               })
               .signers([$.admin])
@@ -1153,6 +1162,7 @@ for (const variant of VARIANTS) {
               .accountsPartial({
                 admin: $.admin.publicKey,
                 mMint: wrongMint.publicKey,
+                oldMMint: $.oldMMint!.publicKey,
               })
               .signers([$.admin])
               .rpc(),
@@ -1187,6 +1197,7 @@ for (const variant of VARIANTS) {
               .accountsPartial({
                 admin: $.admin.publicKey,
                 mMint: wrongMint.publicKey,
+                oldMMint: $.oldMMint!.publicKey,
               })
               .signers([$.admin])
               .rpc(),
@@ -1220,6 +1231,7 @@ for (const variant of VARIANTS) {
               .accountsPartial({
                 admin: $.admin.publicKey,
                 mMint: mint.publicKey,
+                oldMMint: $.oldMMint!.publicKey,
               })
               .signers([$.admin])
               .rpc(),
@@ -1258,6 +1270,10 @@ for (const variant of VARIANTS) {
       // migrate test cases
       // [X] given the old global account does not match the seed + program ID
       //   [X] it reverts with a constraint seed error
+      // [ ] given the new m mint doesn't have the same decimals as the old one
+      //   [ ] it reverts with a mint decimals error
+      // [ ] given the effective supply of the new mint is greater than than the supply of the old mint
+      //   [ ] it reverts with an invalid mint error
       // [X] given all the accounts are correct
       //   [X] the global account is created
       //     [X] the admin is set to the signer
@@ -1289,7 +1305,42 @@ for (const variant of VARIANTS) {
               .accountsPartial({
                 admin: $.admin.publicKey,
                 mMint: $.mMint.publicKey,
+                oldMMint: $.oldMMint!.publicKey,
                 oldGlobalAccount: wrongGlobalAccount,
+              })
+              .signers([$.admin])
+              .rpc(),
+          );
+        });
+
+        test('New m mint has different decimals - reverts', async () => {
+          const wrongMint = new Keypair();
+          await $.createMMint(wrongMint, $.nonAdmin, 9);
+
+          await $.expectAnchorError(
+            $.earn.methods
+              .initialize()
+              .accountsPartial({
+                admin: $.admin.publicKey,
+                mMint: wrongMint.publicKey,
+                oldMMint: $.oldMMint!.publicKey,
+              })
+              .signers([$.admin])
+              .rpc(),
+            'ConstraintMintDecimals',
+          );
+        });
+
+        test('New m mint supply is too large - reverts', async () => {
+          await $.mintM($.admin.publicKey, new BN(100_000_000)); // mint 100 m tokens to admin
+
+          await $.expectSystemError(
+            $.earn.methods
+              .initialize()
+              .accountsPartial({
+                admin: $.admin.publicKey,
+                mMint: $.mMint.publicKey,
+                oldMMint: $.oldMMint!.publicKey,
               })
               .signers([$.admin])
               .rpc(),
@@ -1310,6 +1361,7 @@ for (const variant of VARIANTS) {
             .accounts({
               admin: $.admin.publicKey,
               mMint: $.mMint.publicKey,
+              oldMMint: $.oldMMint!.publicKey,
             })
             .signers([$.admin])
             .rpc();
@@ -1317,7 +1369,7 @@ for (const variant of VARIANTS) {
           // Create and send the transaction
           await $.earn.methods
             .initialize(initialIndex)
-            .accounts({
+            .accountsPartial({
               admin: $.admin.publicKey,
               mMint: $.mMint.publicKey,
             })

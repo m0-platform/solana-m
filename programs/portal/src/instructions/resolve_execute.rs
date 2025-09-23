@@ -312,7 +312,7 @@ pub fn resolve_execute_vaa_v1<'a>(
 
     let recipient = get_inbox_recipient_token_account(
         &ntt_recipient,
-        &destination_mint,
+        !destination_mint.eq(&config_data.mint),
         amount,
         &token_auth,
         &config_data.mint,
@@ -407,6 +407,12 @@ pub fn resolve_execute_vaa_v1<'a>(
     }
 
     // Find the extension program ID based on the destination mint
+    // Handle case where no extensions are whitelisted
+    if swap_global_data.whitelisted_extensions.is_empty() {
+        msg!("Cannot bridge to extension since none are whitelisted");
+        return err!(NTTError::NoWhitelistedExtensions);
+    }
+
     let ext_program = swap_global_data
         .whitelisted_extensions
         .iter()

@@ -1,6 +1,6 @@
 use crate::pubkey::Pubkey;
+use anyhow::{anyhow, Context, Error};
 use borsh::BorshDeserialize;
-use anyhow::{anyhow, Error, Context};
 
 #[derive(Debug, BorshDeserialize)]
 pub struct CreateAccount {
@@ -20,7 +20,7 @@ pub struct Assign {
 
 #[derive(Debug, BorshDeserialize)]
 pub struct Transfer {
-    pub lamports: u64
+    pub lamports: u64,
 }
 
 #[derive(Debug, BorshDeserialize)]
@@ -205,14 +205,15 @@ impl SystemInstruction {
             10 => AssignWithSeed::unpack(data).map(Self::AssignWithSeed),
             11 => TransferWithSeed::unpack(data).map(Self::TransferWithSeed),
             12 => Ok(Self::UpgradeNonceAccount),
-            _ => Err(anyhow!("Failed to unpack System instruction."))
+            _ => Err(anyhow!("Failed to unpack System instruction.")),
         }
     }
 }
 
 impl CreateAccount {
     pub fn unpack(data: &[u8]) -> Result<Self, Error> {
-        Self::deserialize(&mut &data[..]).context("Failed to unpack CreateAccount System instruction")
+        Self::deserialize(&mut &data[..])
+            .context("Failed to unpack CreateAccount System instruction")
     }
 }
 
@@ -230,13 +231,15 @@ impl Transfer {
 
 impl TransferWithSeed {
     pub fn unpack(data: &[u8]) -> Result<Self, Error> {
-        Self::deserialize(&mut &data[..]).context("Failed to unpack TransferWithSeed System instruction")
+        Self::deserialize(&mut &data[..])
+            .context("Failed to unpack TransferWithSeed System instruction")
     }
 }
 
 impl CreateAccountWithSeed {
     pub fn unpack(data: &[u8]) -> Result<Self, Error> {
-        Self::deserialize(&mut &data[..]).context("Failed to unpack CreateAccountWithSeed System instruction")
+        Self::deserialize(&mut &data[..])
+            .context("Failed to unpack CreateAccountWithSeed System instruction")
     }
 }
 
@@ -248,22 +251,29 @@ impl Allocate {
 
 impl AllocateWithSeed {
     pub fn unpack(data: &[u8]) -> Result<Self, Error> {
-        Self::deserialize(&mut &data[..]).context("Failed to unpack AllocateWithSeed System instruction")
+        Self::deserialize(&mut &data[..])
+            .context("Failed to unpack AllocateWithSeed System instruction")
     }
 }
 
 impl AssignWithSeed {
     pub fn unpack(data: &[u8]) -> Result<Self, Error> {
-        Self::deserialize(&mut &data[..]).context("Failed to unpack AssignWithSeed System instruction")
+        Self::deserialize(&mut &data[..])
+            .context("Failed to unpack AssignWithSeed System instruction")
     }
 }
 
 trait Unpack {
-    fn unpack(data: &[u8]) -> Result<Self, Error> where Self: Sized;
+    fn unpack(data: &[u8]) -> Result<Self, Error>
+    where
+        Self: Sized;
 }
 
 impl Unpack for u64 {
-    fn unpack(data: &[u8]) -> Result<Self, Error> where Self: Sized {
+    fn unpack(data: &[u8]) -> Result<Self, Error>
+    where
+        Self: Sized,
+    {
         Ok(u64::from_le_bytes(data.try_into()?))
     }
 }
@@ -280,8 +290,9 @@ impl BorshDeserialize for Seed {
         let mut string_bytes = vec![0u8; length];
         reader.read_exact(&mut string_bytes)?;
 
-        let seed_string = String::from_utf8(string_bytes)
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid UTF-8 sequence"))?;
+        let seed_string = String::from_utf8(string_bytes).map_err(|_| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid UTF-8 sequence")
+        })?;
 
         Ok(Seed(seed_string))
     }

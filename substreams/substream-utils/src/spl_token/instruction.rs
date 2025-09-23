@@ -1,7 +1,7 @@
 //! Instruction types
 
-use std::convert::TryInto;
 use crate::pubkey::Pubkey;
+use std::convert::TryInto;
 // use substreams_solana_program_instructions::pubkey::Pubkey;
 
 /// Minimum number of multisignature signers (min N)

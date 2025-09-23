@@ -1,15 +1,15 @@
 #![allow(deprecated)]
 
-use regex;
 use base64;
+use regex;
 
 #[derive(Debug)]
 pub enum Log<'a> {
-    Invoke(InvokeLog<'a>), // "Program {} invoke [{}]",
-    Success(SuccessLog<'a>), // Program {} success
-    Return(ReturnLog<'a>), // "Program return: {} {}"
-    Data(DataLog<'a>), //  "Program data: {}"
-    Program(ProgramLog<'a>), // "Program log: {}"
+    Invoke(InvokeLog<'a>),       // "Program {} invoke [{}]",
+    Success(SuccessLog<'a>),     // Program {} success
+    Return(ReturnLog<'a>),       // "Program return: {} {}"
+    Data(DataLog<'a>),           //  "Program data: {}"
+    Program(ProgramLog<'a>),     // "Program log: {}"
     Truncated(TruncatedLog<'a>), // "Log truncated"
     Unknown(UnknownLog<'a>),
 }
@@ -25,14 +25,20 @@ impl<'a> Log<'a> {
         if log.starts_with("Program return: ") {
             return Self::Return(ReturnLog::new(log));
         }
-        if log.split_whitespace().count() == 4 && log.starts_with("Program") && log.split_whitespace().nth(2) == Some("invoke") {
+        if log.split_whitespace().count() == 4
+            && log.starts_with("Program")
+            && log.split_whitespace().nth(2) == Some("invoke")
+        {
             return Self::Invoke(InvokeLog::new(log));
         }
-        if log.split_whitespace().count() == 3 && log.starts_with("Program") && log.ends_with("success") {
-            return Self::Success(SuccessLog::new(log))
+        if log.split_whitespace().count() == 3
+            && log.starts_with("Program")
+            && log.ends_with("success")
+        {
+            return Self::Success(SuccessLog::new(log));
         }
         if log == "Log truncated" {
-            return Self::Truncated(TruncatedLog::new(log))
+            return Self::Truncated(TruncatedLog::new(log));
         }
         Self::Unknown(UnknownLog::new(log))
     }

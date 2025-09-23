@@ -45,7 +45,7 @@ pub struct Instruction {
     pub program_id: ::prost::alloc::string::String,
     #[prost(string, optional, tag="2")]
     pub instruction: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(oneof="instruction::Update", tags="10, 11, 12")]
+    #[prost(oneof="instruction::Update", tags="10, 11, 12, 13")]
     pub update: ::core::option::Option<instruction::Update>,
 }
 /// Nested message and enum types in `Instruction`.
@@ -59,6 +59,8 @@ pub mod instruction {
         Claim(super::Claim),
         #[prost(message, tag="12")]
         BridgeEvent(super::BridgeEvent),
+        #[prost(message, tag="13")]
+        IndexUpdateV2(super::IndexUpdateV2),
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -72,6 +74,20 @@ pub struct IndexUpdate {
     pub token_supply: u64,
     #[prost(uint64, tag="4")]
     pub max_yield: u64,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct IndexUpdateV2 {
+    #[prost(uint64, tag="1")]
+    pub index: u64,
+    #[prost(uint64, tag="2")]
+    pub ts: u64,
+    #[prost(uint64, tag="3")]
+    pub token_supply: u64,
+    #[prost(double, tag="4")]
+    pub current_multiplier: f64,
+    #[prost(double, tag="5")]
+    pub new_multiplier: f64,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

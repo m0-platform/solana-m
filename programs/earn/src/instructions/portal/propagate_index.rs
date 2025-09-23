@@ -64,9 +64,15 @@ impl PropagateIndex<'_> {
                     timestamp,
                 )?;
 
-                emit!(IndexUpdate {
+                // Mint gets reloaded on update_multiplier
+                let scaled_ui_config = get_scaled_ui_config(&ctx.accounts.m_mint)?;
+
+                emit!(IndexUpdateV2 {
                     index: new_index,
                     ts: timestamp,
+                    supply: ctx.accounts.m_mint.supply,
+                    current_multiplier,
+                    new_multiplier: scaled_ui_config.new_multiplier.into(),
                 });
             }
         }
@@ -76,7 +82,10 @@ impl PropagateIndex<'_> {
 }
 
 #[event]
-pub struct IndexUpdate {
+pub struct IndexUpdateV2 {
     pub index: u64,
     pub ts: i64,
+    pub supply: u64,
+    pub current_multiplier: f64,
+    pub new_multiplier: f64,
 }

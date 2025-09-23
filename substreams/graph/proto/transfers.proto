@@ -32,6 +32,7 @@ message Instruction {
     IndexUpdate index_update = 10;
     Claim claim = 11;
     BridgeEvent bridge_event = 12;
+    IndexUpdateV2 index_update_v2 = 13;
   }
 }
 
@@ -40,6 +41,14 @@ message IndexUpdate {
   uint64 ts = 2;
   uint64 token_supply = 3;
   uint64 max_yield = 4;
+}
+
+message IndexUpdateV2 {
+  uint64 index = 1;
+  uint64 ts = 2;
+  uint64 token_supply = 3;
+  double current_multiplier = 4;
+  double new_multiplier = 5;
 }
 
 message Claim {

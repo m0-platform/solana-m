@@ -3,6 +3,7 @@ module substream-tooling
 go 1.24.0
 
 require (
+	github.com/streamingfast/bstream v0.0.2-0.20250221181559-fb0809660f91
 	github.com/streamingfast/substreams-sink v0.5.2
 	github.com/streamingfast/substreams-sink-mongodb v1.0.1-0.20241129192855-fd2965de08c2
 	github.com/urfave/cli/v3 v3.3.3
@@ -94,7 +95,6 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.15.0 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
-	github.com/streamingfast/bstream v0.0.2-0.20250221181559-fb0809660f91 // indirect
 	github.com/streamingfast/cli v0.0.4-0.20241119021815-815afa473375 // indirect
 	github.com/streamingfast/dbin v0.9.1-0.20231117225723-59790c798e2c // indirect
 	github.com/streamingfast/derr v0.0.0-20250321151415-6b4fbbcb1bb5 // indirect

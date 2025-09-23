@@ -1,6 +1,8 @@
-use crate::pb::transfers::v1::{self, instruction::Update};
+use crate::{
+    events::{BridgeEvent, IndexUpdate, IndexUpdateV2, DISCRIMINATOR_SIZE},
+    pb::transfers::v1::{self, instruction::Update},
+};
 use anchor_lang::{prelude::*, Discriminator};
-use earn::instructions::{claim_for::RewardsClaim, portal::IndexUpdate};
 use regex::Regex;
 use std::collections::HashMap;
 use substreams_solana::pb::sf::solana::r#type::v1::ConfirmedTransaction;
@@ -9,17 +11,6 @@ use substreams_solana_utils::{
     pubkey::{Pubkey, PubkeyRef},
     spl_token::TokenAccount,
 };
-
-const DISCRIMINATOR_SIZE: usize = 8;
-
-#[event]
-pub struct BridgeEvent {
-    pub amount: i64,
-    pub token_supply: u64,
-    pub from: [u8; 32],
-    pub to: [u8; 32],
-    pub wormhole_chain_id: u16,
-}
 
 pub fn parse_logs_for_events(logs: Option<&Vec<Log>>) -> Option<Update> {
     if logs.is_none() {
@@ -77,17 +68,17 @@ pub fn parse_log_for_events(log: &DataLog) -> Option<Update> {
             max_yield: update.max_yield,
         }));
     }
-    if RewardsClaim::DISCRIMINATOR == discriminator {
-        let claim = match RewardsClaim::try_from_slice(buffer) {
-            Ok(claim) => claim,
+    if IndexUpdateV2::DISCRIMINATOR == discriminator {
+        let update = match IndexUpdateV2::try_from_slice(buffer) {
+            Ok(update) => update,
             Err(_) => return None,
         };
-        return Some(Update::Claim(v1::Claim {
-            amount: claim.amount,
-            token_account: claim.token_account.to_string(),
-            recipient_token_account: claim.recipient_token_account.to_string(),
-            manager_fee: claim.fee,
-            index: claim.index,
+        return Some(Update::IndexUpdateV2(v1::IndexUpdateV2 {
+            index: update.index,
+            ts: update.ts as u64,
+            token_supply: update.supply,
+            current_multiplier: update.current_multiplier,
+            new_multiplier: update.new_multiplier,
         }));
     }
     if BridgeEvent::DISCRIMINATOR == discriminator {

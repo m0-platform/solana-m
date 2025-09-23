@@ -19,7 +19,7 @@ func LoadCursor(ctx context.Context, logger *zap.Logger, mongoDNS string) (strin
 
 	cursor, err := db.GetCursor(ctx, hash)
 	if err != nil {
-		return "", nil, fmt.Errorf("error getting cursor: %w", err)
+		return "", nil, fmt.Errorf("error getting cursor (%s): %w", hash, err)
 	}
 
 	return hash, cursor, nil
@@ -31,13 +31,18 @@ func WriteCursor(
 	mongoDNS string,
 	latestBlockNum uint64,
 	latestBlockHash string,
+	targetHash string,
 ) (string, *sink.Cursor, error) {
 	db, hash, err := loadConnection(ctx, logger, mongoDNS)
 	if err != nil {
 		return "", nil, fmt.Errorf("error loading module hash: %w", err)
 	}
 
-	cursor, err := db.GetCursor(ctx, hash)
+	if targetHash == "" {
+		targetHash = hash
+	}
+
+	cursor, err := db.GetCursor(ctx, targetHash)
 	if err != nil {
 		return "", nil, fmt.Errorf("error getting cursor: %w", err)
 	}
@@ -54,7 +59,7 @@ func WriteCursor(
 	return hash, cursor, nil
 }
 
-func loadConnection(ctx context.Context, logger *zap.Logger, mongoDNS string) (*mongo.Loader, string, error) {
+func loadConnection(_ context.Context, logger *zap.Logger, mongoDNS string) (*mongo.Loader, string, error) {
 	// Read manifest details to get the output module hash
 	_, _, outputModuleHash, _, err := sink.ReadManifestAndModuleAndBlockRange(
 		"../db/m-token-transactions.spkg",

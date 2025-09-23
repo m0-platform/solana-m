@@ -86,6 +86,22 @@ export async function transferSolanaExtension<N extends Network, C extends Solan
       ntt.program.programId,
     )[0];
 
+    const emitter = PublicKey.findProgramAddressSync([Buffer.from('emitter')], ntt.program.programId)[0];
+    const bridgeSequence = PublicKey.findProgramAddressSync(
+      [Buffer.from('Sequence'), emitter.toBytes()],
+      new PublicKey(ntt.contracts.coreBridge!),
+    )[0];
+
+    const info = await ntt.connection.getAccountInfo(bridgeSequence);
+    const sequence = new BN(info!.data, 'le');
+
+    const vaaReqBytes = Buffer.concat([
+      Buffer.from('ERV1'), // type
+      new BN(chainToChainId(ntt.chain)).toArrayLike(Buffer, 'be', 2), // emitter chain
+      ntt.program.programId.toBuffer(), // emitter address
+      sequence.toArrayLike(Buffer, 'be', 8), // sequence
+    ]);
+
     const signedQuoteBytes = Buffer.from(quote.signedQuote);
     const relayInstructions = Buffer.from(quote.relayInstructions);
 
@@ -104,42 +120,24 @@ export async function transferSolanaExtension<N extends Network, C extends Solan
             isWritable: true,
           },
           {
-            // ntt_program_id
-            pubkey: ntt.program.programId,
-            isSigner: false,
-            isWritable: false,
-          },
-          {
-            pubkey: nttPeer,
-            isSigner: false,
-            isWritable: false,
-          },
-          {
-            // ntt_message
-            pubkey: outboxItem.publicKey,
-            isSigner: false,
-            isWritable: false,
-          },
-          {
-            // executor_program
-            pubkey: new PublicKey('execXUrAsMnqMmTHj5m7N1YQgsDz3cwGLYCYyuDRciV'),
-            isSigner: false,
-            isWritable: false,
-          },
-          {
             pubkey: SystemProgram.programId,
             isSigner: false,
             isWritable: false,
           },
         ],
-        programId: new PublicKey('nex1gkSWtRBheEJuQZMqHhbMG5A45qPU76KqnCZNVHR'),
+        programId: new PublicKey('execXUrAsMnqMmTHj5m7N1YQgsDz3cwGLYCYyuDRciV'),
         data: Buffer.concat([
-          Buffer.from(sha256('global:relay_ntt_mesage').subarray(0, 8)),
-          new BN(chainToChainId(recipient.chain as any)).toArrayLike(Buffer, 'le', 2), // recipient_chain
+          Buffer.from(sha256('global:request_for_execution').subarray(0, 8)), // [109, 107, 87, 37, 151, 192, 119, 115]
+          new BN(quote.estimatedCost.toString()).toArrayLike(Buffer, 'le', 8), // amount
+          new BN(chainToChainId(recipient.chain as any)).toArrayLike(Buffer, 'le', 2), // dst_chain
+          nttPeer.toBuffer(), // dst_addr
+          sender.toBuffer(), // refund_addr
           new BN(signedQuoteBytes.length).toArrayLike(Buffer, 'le', 4), // vec length
-          Buffer.from(signedQuoteBytes), // signed_quote_bytes
+          signedQuoteBytes, // signed_quote_bytes
+          new BN(vaaReqBytes.length).toArrayLike(Buffer, 'le', 4), // vec length
+          vaaReqBytes, // request_bytes
           new BN(relayInstructions.length).toArrayLike(Buffer, 'le', 4), // vec length
-          Buffer.from(relayInstructions), // relay_instructions
+          relayInstructions, // relay_instructions
         ]),
       }),
     );
@@ -279,14 +277,17 @@ function getTransferExtensionBurnIx<N extends Network, C extends SolanaChains>(
       },
       {
         // session auth
-        pubkey: ntt.pdas.sessionAuthority(payer, {
-          amount: new BN(amount.toString()),
-          recipientChain: {
-            id: chainToChainId(recipient.chain as any),
+        pubkey: ntt.pdas.sessionAuthority(
+          PublicKey.findProgramAddressSync([Buffer.from('token_authority')], ntt.program.programId)[0],
+          {
+            amount: new BN(amount.toString()),
+            recipientChain: {
+              id: chainToChainId(recipient.chain as any),
+            },
+            recipientAddress: Array.from(recipientAddress),
+            shouldQueue: shouldQueue,
           },
-          recipientAddress: Array.from(recipientAddress),
-          shouldQueue: shouldQueue,
-        }),
+        ),
         isSigner: false,
         isWritable: false,
       },

@@ -9,7 +9,7 @@ import { UniversalAddress } from '@wormhole-foundation/sdk-definitions';
 import { EvmNtt } from '@wormhole-foundation/sdk-evm-ntt';
 import evm from '@wormhole-foundation/sdk/platforms/evm';
 import solana from '@wormhole-foundation/sdk/platforms/solana';
-import { NttExecutorRoute } from '@wormhole-foundation/sdk-route-ntt';
+import { nttExecutorRoute, NttExecutorRoute } from '@wormhole-foundation/sdk-route-ntt';
 import { SolanaNtt } from '@wormhole-foundation/sdk-solana-ntt';
 import { type Provider } from '@reown/appkit-adapter-solana/react';
 import { Mint, TOKEN_2022_PROGRAM_ID, unpackMint } from '@solana/spl-token';
@@ -24,7 +24,12 @@ import {
 } from '@solana/web3.js';
 import Decimal from 'decimal.js';
 import { JsonRpcProvider } from 'ethers';
-import { getAddressLookupTableAccounts, transferMLike, transferSolanaExtension } from './bridging';
+import {
+  convertToExecutorConfig,
+  getAddressLookupTableAccounts,
+  transferMLike,
+  transferSolanaExtension,
+} from './bridging';
 import { M_EVM, MINTS, PORTAL, SWAP_LUT } from './consts';
 import { NttWithExecutor } from '@wormhole-foundation/sdk-definitions-ntt';
 import { _platform } from '@wormhole-foundation/sdk-evm';
@@ -191,12 +196,19 @@ async function getExecutorQuote(
   const wormholeNetwork = NETWORK === 'devnet' ? 'Testnet' : 'Mainnet';
   const wh = new Wormhole(wormholeNetwork, [solana.Platform, evm.Platform]);
 
-  // @ts-ignore
+  const executorRoute = nttExecutorRoute(convertToExecutorConfig());
   const routeInstance = new executorRoute(wh);
 
+  const resolveM = (chain: Chain) => {
+    if (chain === 'Solana' || chain === 'Fogo') {
+      return MINTS.M.toBase58();
+    }
+    return M_EVM;
+  };
+
   const tr = (await routes.RouteTransferRequest.create(wh, {
-    source: Wormhole.tokenId(fromChain as Chain, M_EVM),
-    destination: Wormhole.tokenId(toChain as Chain, MINTS.M.toBase58()),
+    source: Wormhole.tokenId(fromChain, resolveM(fromChain)),
+    destination: Wormhole.tokenId(toChain, resolveM(toChain)),
   })) as any;
 
   const validated = await routeInstance.validate(tr, { amount: amount.toString() });

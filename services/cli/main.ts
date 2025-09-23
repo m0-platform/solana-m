@@ -50,7 +50,7 @@ import {
 } from '../../sdk/src';
 import { createInitializeConfidentialTransferMintInstruction } from './confidential-transfers';
 import { Program, BN } from '@coral-xyz/anchor';
-import { anchorProvider, keysFromEnv, NttManager, updatePortalMint } from './utils';
+import { anchorProvider, initResolverAccount, keysFromEnv, NttManager, updatePortalMint } from './utils';
 import { MerkleTree } from '../../sdk/src/merkle';
 import { bs58 } from '@coral-xyz/anchor/dist/cjs/utils/bytes';
 import { sha256 } from '@noble/hashes/sha2';
@@ -335,8 +335,9 @@ async function main() {
 
   program
     .command('initialize-portal')
+    .option('-i, --id', 'Chain id', '1')
     .description('Initialize the portal program')
-    .action(async () => {
+    .action(async ({ chainId }) => {
       const [owner, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
 
       const { ctx, ntt, sender, signer } = NttManager(connection, owner, mint.publicKey);
@@ -356,8 +357,15 @@ async function main() {
         Buffer.from(PROGRAMS.evmToken.slice(2).padStart(64, '0'), 'hex'),
       ]);
 
-      await signSendWait(ctx, initTxs, signer);
-      console.log(`Portal initialized: ${PROGRAMS.portal.toBase58()}`);
+      // override chain id
+      tx.instructions[0].data.writeUInt16LE(parseInt(chainId), 8);
+
+      let sig = await sendAndConfirmTransaction(connection, tx, [owner]);
+      console.log(`Portal initialized: ${PROGRAMS.portal.toBase58()} (${sig})`);
+
+      const initResolver = initResolverAccount(owner.publicKey, ntt.pdas.configAccount());
+      sig = await sendAndConfirmTransaction(connection, new Transaction().add(initResolver), [owner]);
+      console.log(`Resolver initialized: ${PROGRAMS.portal.toBase58()} (${sig})`);
 
       const initLUT = ntt.initializeOrUpdateLUT({ payer: owner.publicKey });
       await signSendWait(ctx, initLUT, signer);
@@ -403,7 +411,7 @@ async function main() {
       const currentIndex = await evmCaller.getCurrentIndex();
 
       const tx = await earn.methods
-        .initialize()
+        .initialize(currentIndex)
         .accounts({
           admin,
           mMint: mint.publicKey,
@@ -476,7 +484,7 @@ async function main() {
           chain,
           address: new UniversalAddress(PROGRAMS.evmPeer),
         };
-        const setPeerTxs = ntt.setPeer(remoteMgr, 9, RATE_LIMITS_24.inbound, sender);
+        const setPeerTxs = ntt.setPeer(remoteMgr, 6, RATE_LIMITS_24.inbound, sender);
         await signSendWait(ctx, setPeerTxs, signer);
       }
 
@@ -527,31 +535,6 @@ async function main() {
       console.log(`Paused: ${sig}`);
     }
   });
-
-  program
-    .command('pause-bridging')
-    .option('-u, --unpause', 'Unpause if already paused')
-    .action(async ({ unpause }) => {
-      const [payer, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
-      const { ntt, sender } = NttManager(connection, payer, mint.publicKey);
-
-      const pauseTxn = (
-        unpause ? (await ntt.unpause(sender).next()).value : (await ntt.pause(sender).next()).value
-      ) as SolanaUnsignedTransaction<'Mainnet', 'Solana'>;
-
-      const tx = pauseTxn.transaction.transaction as Transaction;
-
-      if (process.env.SQUADS_VAULT) {
-        const b = tx.serialize({ verifySignatures: false });
-        console.log('Transaction:', {
-          b64: b.toString('base64'),
-          b58: bs58.encode(b),
-        });
-      } else {
-        const sig = await connection.sendTransaction(tx, [payer]);
-        console.log(`Paused ${!unpause}: ${sig}`);
-      }
-    });
 
   program
     .command('add-registrar-earner')

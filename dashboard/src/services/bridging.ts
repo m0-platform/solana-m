@@ -532,11 +532,13 @@ export function convertToExecutorConfig(): NttExecutorRoute.Config {
       feeDbps: 0n,
       perTokenOverrides: {
         Solana: {
-          mzeroZRGCah3j5xEWp2Nih3GDejSBbH1rbHoxDg8By6: {
-            msgValue: 20_000_000n,
+          [MINTS.M.toBase58()]: {
+            msgValue: 15_000_000n,
           },
-          mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo: {
-            msgValue: 20_000_000n,
+        },
+        Fogo: {
+          [MINTS.M.toBase58()]: {
+            msgValue: 15_000_000n,
           },
         },
       },

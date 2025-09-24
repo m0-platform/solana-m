@@ -1052,6 +1052,12 @@ describe('Portal unit tests', () => {
           isSigner: false,
           isWritable: false,
         },
+        {
+          // ext token account is expected
+          pubkey: getAssociatedTokenAddressSync(extMint.publicKey, payer.publicKey, true, TOKEN_PROGRAM),
+          isSigner: false,
+          isWritable: false,
+        },
       );
 
       tx = new Transaction().add(resolveIx);

@@ -11,9 +11,9 @@
     "@solana/spl-token-metadata": "~0.1.6",
     "@solana/web3.js": "catalog:",
     "@sqds/multisig": "catalog:",
-    "@wormhole-foundation/sdk": "catalog:",
-    "@wormhole-foundation/sdk-solana": "catalog:",
-    "@wormhole-foundation/sdk-solana-ntt": "catalog:",
+    "@wormhole-foundation/sdk": "~3.6.0",
+    "@wormhole-foundation/sdk-solana": "~3.6.0",
+    "@wormhole-foundation/sdk-solana-ntt": "^3.0.0",
     "bn.js": "catalog:",
     "commander": "catalog:"
   }

@@ -7,7 +7,6 @@ import {
   sendAndConfirmTransaction,
   SystemProgram,
   Transaction,
-  TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
 } from '@solana/web3.js';
@@ -49,11 +48,10 @@ import {
   EvmCaller,
 } from '../../sdk/src';
 import { createInitializeConfidentialTransferMintInstruction } from './confidential-transfers';
-import { Program, BN } from '@coral-xyz/anchor';
-import { anchorProvider, initResolverAccount, keysFromEnv, NttManager, updatePortalMint } from './utils';
+import { Program } from '@coral-xyz/anchor';
+import { anchorProvider, initResolverAccount, isEVM, keysFromEnv, NttManager, updatePortalMint } from './utils';
 import { MerkleTree } from '../../sdk/src/merkle';
 import { bs58 } from '@coral-xyz/anchor/dist/cjs/utils/bytes';
-import { sha256 } from '@noble/hashes/sha2';
 import { SolanaUnsignedTransaction } from '@wormhole-foundation/sdk-solana/dist/cjs';
 import { Earn } from '../../target/types/earn';
 const EARN_IDL = require('../../target/idl/earn.json');
@@ -63,6 +61,7 @@ const PROGRAMS = {
   portal: new PublicKey('mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY'),
   earn: new PublicKey('mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z'),
   swap: new PublicKey('MSwapi3WhNKMUGm9YrxGhypgUEt7wYQH3ZgG32XoWzH'),
+  svmPeer: new PublicKey('J1bVGcwG3nPsAJsi3GFNqC9NZmKatSuoutPbaKMiT7Bm'),
   // addresses the same across L2s
   evmTransiever: '0x0763196A091575adF99e2306E5e90E0Be5154841',
   evmPeer: '0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd',
@@ -367,7 +366,7 @@ async function main() {
       sig = await sendAndConfirmTransaction(connection, new Transaction().add(initResolver), [owner]);
       console.log(`Resolver initialized: ${PROGRAMS.portal.toBase58()} (${sig})`);
 
-      const initLUT = ntt.initializeOrUpdateLUT({ payer: owner.publicKey });
+      const initLUT = ntt.initializeOrUpdateLUT({ payer: owner.publicKey, owner: owner.publicKey });
       await signSendWait(ctx, initLUT, signer);
       console.log(`LUT initialized: ${ntt.pdas.lutAccount().toBase58()}`);
     });
@@ -441,7 +440,7 @@ async function main() {
       const [owner, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
       const { ctx, ntt, signer } = NttManager(connection, owner, mint.publicKey);
 
-      const lutTxn = ntt.initializeOrUpdateLUT({ payer: owner.publicKey });
+      const lutTxn = ntt.initializeOrUpdateLUT({ payer: owner.publicKey, owner: owner.publicKey });
       await signSendWait(ctx, lutTxn, signer);
       console.log('LUT updated');
     });
@@ -461,10 +460,13 @@ async function main() {
       });
       await signSendWait(ctx, registerTxs, signer);
 
+      // infer other svm network peer
+      const svmOther = process.env.NETWORK!.includes('fogo') ? 'Solana' : 'Fogo';
+
       const chains = (
-        process.env.NETWORK === 'mainnet'
-          ? ['Ethereum', 'Arbitrum', 'Optimism']
-          : ['Sepolia', 'ArbitrumSepolia', 'OptimismSepolia']
+        process.env.NETWORK!.includes('mainnet')
+          ? ['Ethereum', 'Arbitrum', 'Optimism', svmOther]
+          : ['Sepolia', 'ArbitrumSepolia', 'OptimismSepolia', svmOther]
       ) as Chain[];
 
       for (let chain of chains) {
@@ -474,7 +476,9 @@ async function main() {
         // set wormhole xcvr peer
         const remoteXcvr: ChainAddress = {
           chain,
-          address: new UniversalAddress(PROGRAMS.evmTransiever),
+          address: isEVM(chain)
+            ? new UniversalAddress(PROGRAMS.evmTransiever, 'hex')
+            : new UniversalAddress(PROGRAMS.svmPeer.toBase58(), 'base58'),
         };
         const setXcvrPeerTxs = ntt.setWormholeTransceiverPeer(remoteXcvr, sender);
         await signSendWait(ctx, setXcvrPeerTxs, signer);
@@ -482,7 +486,9 @@ async function main() {
         // set manager peer
         const remoteMgr: ChainAddress = {
           chain,
-          address: new UniversalAddress(PROGRAMS.evmPeer),
+          address: isEVM(chain)
+            ? new UniversalAddress(PROGRAMS.evmPeer, 'hex')
+            : new UniversalAddress(PROGRAMS.portal.toBase58(), 'base58'),
         };
         const setPeerTxs = ntt.setPeer(remoteMgr, 6, RATE_LIMITS_24.inbound, sender);
         await signSendWait(ctx, setPeerTxs, signer);
@@ -503,10 +509,13 @@ async function main() {
       const sigs = await signSendWait(ctx, updateTxns, signer);
       console.log('Updated outbound limit:', sigs[0].txid);
 
+      // infer other svm network peer
+      const svmOther = process.env.NETWORK!.includes('fogo') ? 'Solana' : 'Fogo';
+
       const chains = (
-        process.env.NETWORK === 'mainnet'
-          ? ['Ethereum', 'Arbitrum', 'Optimism']
-          : ['Sepolia', 'ArbitrumSepolia', 'OptimismSepolia']
+        process.env.NETWORK!.includes('mainnet')
+          ? ['Ethereum', 'Arbitrum', 'Optimism', svmOther]
+          : ['Sepolia', 'ArbitrumSepolia', 'OptimismSepolia', svmOther]
       ) as Chain[];
 
       // inbound

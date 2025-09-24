@@ -1,9 +1,10 @@
 import { Keypair, Connection, PublicKey, TransactionInstruction, SystemProgram } from '@solana/web3.js';
 import { SolanaNtt } from '@wormhole-foundation/sdk-solana-ntt';
-import { SolanaPlatform, SolanaSendSigner } from '@wormhole-foundation/sdk-solana';
-import { AccountAddress, sha256, Wormhole } from '@wormhole-foundation/sdk';
+import { SolanaSendSigner } from '@wormhole-foundation/sdk-solana';
+import { AccountAddress, Chain, Network, sha256, Signer, Wormhole } from '@wormhole-foundation/sdk';
 import { AnchorProvider, BN, Wallet } from '@coral-xyz/anchor';
 import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
+import solana from '@wormhole-foundation/sdk/platforms/solana';
 
 const PORTAL = new PublicKey('mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY');
 
@@ -11,16 +12,20 @@ export function keysFromEnv(keys: string[]) {
   return keys.map((key) => Keypair.fromSecretKey(Buffer.from(JSON.parse(process.env[key] ?? '[]'))));
 }
 
+export function isEVM(chain: Chain) {
+  return !['Solana', 'Fogo'].includes(chain);
+}
+
 export function NttManager(connection: Connection, owner: Keypair, mint: PublicKey) {
-  const signer = new SolanaSendSigner(connection, 'Solana', owner, false, { min: 300_000 });
+  const signer = new SolanaSendSigner(connection, 'Solana', owner, false, { min: 300_000 }) as Signer<Network, Chain>;
   const sender = Wormhole.parseAddress('Solana', signer.address()) as AccountAddress<'Solana'>;
 
-  const wormholeNetwork = process.env.NETWORK === 'devnet' ? 'Testnet' : 'Mainnet';
-  const wh = new Wormhole(wormholeNetwork, [SolanaPlatform]);
+  const wormholeNetwork = process.env.NETWORK?.includes('devnet') ? 'Testnet' : 'Mainnet';
+  const wh = new Wormhole(wormholeNetwork, [solana.Platform]);
   const ctx = wh.getChain('Solana');
 
   const contracts = ctx.config.contracts;
-  if (process.env.RPC_URL?.includes('fogo')) {
+  if (process.env.NETWORK!.includes('fogo')) {
     contracts.coreBridge = 'BhnQyKoQQgpuRTRo6D8Emz93PvXCYfVgHhnrR4T3qhw4';
   }
 

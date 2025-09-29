@@ -16,7 +16,7 @@ pub struct SetTransceiverPeer<'info> {
     pub payer: Signer<'info>,
 
     #[account(
-        init_if_needed,
+        init,
         space = 8 + TransceiverPeer::INIT_SPACE,
         payer = payer,
         seeds = [TransceiverPeer::SEED_PREFIX, args.chain_id.id.to_be_bytes().as_ref()],

@@ -7,7 +7,8 @@ use anchor_lang::{
     InstructionData,
 };
 use anchor_spl::{
-    associated_token::get_associated_token_address_with_program_id, token_2022,
+    associated_token::{self, get_associated_token_address_with_program_id},
+    token_2022,
     token_interface::Mint,
 };
 use earn::{instructions::ext_swap, state::GLOBAL_SEED};
@@ -518,9 +519,65 @@ pub fn resolve_execute_vaa_v1<'a>(
         }
     };
 
+    let mut ixs = vec![receive_message, redeem, release_inbound_mint];
+
+    // Need to check if the destination ATA exists
+    match find_account(ctx.remaining_accounts, ext_token_account) {
+        Some(acc_info) => {
+            if acc_info.data_is_empty() {
+                // Create token account
+                ixs.insert(
+                    2,
+                    SerializableInstruction {
+                        program_id: associated_token::ID,
+                        data: vec![0],
+                        accounts: vec![
+                            SerializableAccountMeta {
+                                pubkey: RESOLVER_PUBKEY_PAYER,
+                                is_writable: true,
+                                is_signer: true,
+                            },
+                            SerializableAccountMeta {
+                                pubkey: ext_token_account,
+                                is_writable: true,
+                                is_signer: false,
+                            },
+                            SerializableAccountMeta {
+                                pubkey: ntt_recipient,
+                                is_writable: false,
+                                is_signer: false,
+                            },
+                            SerializableAccountMeta {
+                                pubkey: destination_mint,
+                                is_writable: false,
+                                is_signer: false,
+                            },
+                            SerializableAccountMeta {
+                                pubkey: System::id(),
+                                is_writable: false,
+                                is_signer: false,
+                            },
+                            SerializableAccountMeta {
+                                pubkey: ext_token_program,
+                                is_writable: false,
+                                is_signer: false,
+                            },
+                        ],
+                    },
+                );
+            }
+        }
+        None => {
+            return Ok(Resolver::Missing(MissingAccounts {
+                accounts: vec![ext_token_account],
+                address_lookup_tables: Vec::new(),
+            }));
+        }
+    }
+
     ret.set_inner(ExecutorAccountResolverResult(Resolver::Resolved(
         InstructionGroups(vec![InstructionGroup {
-            instructions: vec![receive_message, redeem, release_inbound_mint],
+            instructions: ixs,
             address_lookup_tables,
         }]),
     )));

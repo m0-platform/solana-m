@@ -15,6 +15,7 @@ use substreams_solana_utils::{
 use utils::{parse_logs_for_events, parse_logs_for_instruction_name, token_accounts};
 
 mod consts;
+mod events;
 mod pb;
 mod utils;
 
@@ -239,6 +240,18 @@ fn map_transfer_events_to_db(block: Block) -> DatabaseChanges {
                         new_field("ts", update.ts),
                         new_field("token_supply", update.token_supply),
                         new_field("max_yield", update.max_yield),
+                    ]);
+                }
+                Update::IndexUpdateV2(update) => {
+                    event.pk = format!("{}-index_update_v2", event.pk);
+
+                    event.fields.extend(vec![
+                        new_field("event", "index_update_v2"),
+                        new_field("index", update.index),
+                        new_field("ts", update.ts),
+                        new_field("token_supply", update.token_supply),
+                        new_field("current_multiplier", update.current_multiplier),
+                        new_field("new_multiplier", update.new_multiplier),
                     ]);
                 }
                 Update::Claim(claim) => {

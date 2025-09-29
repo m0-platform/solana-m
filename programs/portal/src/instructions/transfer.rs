@@ -161,18 +161,10 @@ impl<'info> TransferBurn<'info> {
             return err!(ErrorCode::ConstraintAddress);
         }
 
-        // Owner of the $M token account depends on whether this function
-        // was called directly or by tranfer_extension_burn.
-        let session_owner_seed = if self.common.from.owner.eq(self.token_authority.key) {
-            self.common.payer.key()
-        } else {
-            self.common.from.owner.key()
-        };
-
         let (session_authority, session_authority_bump) = Pubkey::find_program_address(
             &[
                 crate::SESSION_AUTHORITY_SEED,
-                session_owner_seed.as_ref(),
+                self.common.from.owner.as_ref(),
                 args.keccak256().as_ref(),
             ],
             &crate::ID,
@@ -255,7 +247,7 @@ pub fn transfer_burn_common<'info>(
         accs.common.mint.decimals,
         &[&[
             crate::SESSION_AUTHORITY_SEED,
-            accs.common.payer.key.as_ref(),
+            accs.common.from.owner.as_ref(),
             args.keccak256().as_ref(),
             &[session_authority_bump],
         ]],

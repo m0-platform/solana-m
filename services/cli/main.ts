@@ -183,6 +183,8 @@ async function main() {
       const responseOld = await fetch(process.env.RPC_URL!, createRequest(oldMint));
       const responseNew = await fetch(process.env.RPC_URL!, createRequest(mint.publicKey.toBase58()));
 
+      const multiplier = 1.059788849855; // index at time of migration
+
       const dataOld = await responseOld.json();
       const dataNew = await responseNew.json();
 
@@ -200,7 +202,10 @@ async function main() {
         tableData.push({
           owner,
           'old balance': amount,
-          'new balance': newBalance,
+          'expected ui amount': amount,
+          'expected principal': Math.floor(amount / multiplier),
+          'new principal': newBalance,
+          'new ui amount': Math.floor(newBalance * multiplier),
           equal: amount === newBalance,
         });
       }

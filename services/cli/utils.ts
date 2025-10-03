@@ -91,6 +91,14 @@ export function updatePortalMint(owner: PublicKey, config: PublicKey, mMint: Pub
         isSigner: false,
         isWritable: false,
       },
+      {
+        pubkey: PublicKey.findProgramAddressSync(
+          [Buffer.from('global')],
+          new PublicKey('mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z'),
+        )[0],
+        isSigner: false,
+        isWritable: false,
+      },
     ],
     data: Buffer.concat([Buffer.from(sha256('global:set_mint').subarray(0, 8))]),
   });

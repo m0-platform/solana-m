@@ -8,8 +8,16 @@ import winston from 'winston';
 import { EnvOptions, getEnv } from 'shared/environment';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { getScaledUiAmountConfig, TOKEN_2022_PROGRAM_ID, unpackMint } from '@solana/spl-token';
+import { nttExecutorRoute, NttExecutorRoute, NttRoute } from '@wormhole-foundation/sdk-route-ntt';
+import { Wormhole, routes, Network, Chain } from '@wormhole-foundation/sdk-connect';
+import evm from '@wormhole-foundation/sdk/platforms/evm';
+import solana from '@wormhole-foundation/sdk/platforms/solana';
 
-export const HUB_PORTAL: `0x${string}` = '0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd';
+const HUB_PORTAL: `0x${string}` = '0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd';
+const TRANSCEIVER = '0x0763196A091575adF99e2306E5e90E0Be5154841';
+const M_MINT: `0x${string}` = '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b';
+const M_MINT_SVM = 'mzerojk9tg56ebsrEAhfkyc9VgKjTW2zDqp6C5mhjzH';
+const SVM_PORTAL = 'mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY';
 
 // logger used by bot and passed to SDK
 const logger = new WinstonLogger('index-bot', { imageBuild: process.env.BUILD_TIME ?? '', mint: 'M' }, true);
@@ -121,25 +129,58 @@ async function sendIndexUpdate(options: ParsedOptions) {
   const abi = [
     {
       inputs: [
-        { internalType: 'uint16', name: 'destinationChainId_', type: 'uint16' },
-        { internalType: 'bytes32', name: 'refundAddress_', type: 'bytes32' },
+        {
+          internalType: 'uint16',
+          name: 'destinationChainId',
+          type: 'uint16',
+        },
+        {
+          internalType: 'bytes32',
+          name: 'refundAddress',
+          type: 'bytes32',
+        },
+        {
+          components: [
+            {
+              internalType: 'uint256',
+              name: 'value',
+              type: 'uint256',
+            },
+            {
+              internalType: 'address',
+              name: 'refundAddress',
+              type: 'address',
+            },
+            {
+              internalType: 'bytes',
+              name: 'signedQuote',
+              type: 'bytes',
+            },
+            {
+              internalType: 'bytes',
+              name: 'instructions',
+              type: 'bytes',
+            },
+          ],
+          internalType: 'struct ExecutorArgs',
+          name: 'executorArgs',
+          type: 'tuple',
+        },
+        {
+          internalType: 'bytes',
+          name: 'transceiverInstructions',
+          type: 'bytes',
+        },
       ],
       name: 'sendMTokenIndex',
-      outputs: [{ internalType: 'bytes32', name: 'messageId_', type: 'bytes32' }],
-      stateMutability: 'payable',
-      type: 'function',
-    },
-    {
-      inputs: [
-        { internalType: 'uint16', name: 'recipientChain', type: 'uint16' },
-        { internalType: 'bytes', name: 'transceiverInstructions', type: 'bytes' },
-      ],
-      name: 'quoteDeliveryPrice',
       outputs: [
-        { internalType: 'uint256[]', name: '', type: 'uint256[]' },
-        { internalType: 'uint256', name: '', type: 'uint256' },
+        {
+          internalType: 'uint64',
+          name: 'sequence',
+          type: 'uint64',
+        },
       ],
-      stateMutability: 'view',
+      stateMutability: 'payable',
       type: 'function',
     },
   ] as const;
@@ -150,30 +191,50 @@ async function sendIndexUpdate(options: ParsedOptions) {
     client: options.evmWalletClient!,
   });
 
-  // Get bridge price quote
-  // an empty bytes string of length 1 was taken from the scripts in the m-portal repo
-  const [, quote] = await portal.read.quoteDeliveryPrice([
-    1,
-    ('0x' + Buffer.from([0]).toString('hex')) as `0x${string}`,
-  ]);
+  // Get quote for executor
+  const quote = await getExecutorQuote(options.isDevnet ? 'Testnet' : 'Mainnet', 'Solana', 1n);
+
+  const executorArgs = {
+    value: quote.estimatedCost,
+    refundAddress: options.evmWalletClient!.account!.address,
+    signedQuote: Buffer.from(quote.signedQuote).toString('hex') as `0x${string}`,
+    instructions: Buffer.from(quote.relayInstructions).toString('hex') as `0x${string}`,
+  };
 
   // Send index update transaction
   const refundAddress = ('0x' + options.evmWalletClient!.account!.address.slice(2).padStart(64, '0')) as `0x${string}`;
 
-  const params = {
-    wormholeDestinationChainId: 1,
-    refundAddress,
-    ethereumAccount: options.walletAddess,
-    ethereumChain: options.evmWalletClient!.chain!,
-    value: quote.toString(),
-  };
+  const callArgs = [1, refundAddress, executorArgs, '0x01000101'] as const;
+
   if (options.dryRun) {
-    logger.debug('Bridge transaction params: ', params);
+    // simulate the transaction
+    try {
+      const simulationResult = await options.evmClient.simulateContract({
+        address: HUB_PORTAL,
+        abi,
+        functionName: 'sendMTokenIndex',
+        args: callArgs,
+        account: options.evmWalletClient!.account!,
+        value: quote.estimatedCost,
+      });
+
+      logger.info('Transaction simulation successful', {
+        result: simulationResult.result,
+      });
+
+      slackMessage.messages.push('Transaction simulation successful');
+    } catch (error) {
+      logger.error('Transaction simulation failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      slackMessage.messages.push(`Transaction simulation failed: ${error}`);
+    }
   } else {
-    const tx = await portal.write.sendMTokenIndex([1, refundAddress], {
+    const tx = await portal.write.sendMTokenIndex(callArgs, {
       account: options.evmWalletClient!.account!,
       chain: options.evmWalletClient!.chain!,
-      value: quote,
+      value: quote.estimatedCost,
     });
 
     logger.info('Transaction sent', {
@@ -205,6 +266,81 @@ function getLokiTransport(host: string, logger: winston.Logger) {
       logger.error('Loki connection error:', { error: `${error}` });
     },
   });
+}
+
+async function getExecutorQuote(network: Network, destinationChain: 'Solana' | 'Fogo', amount: bigint) {
+  const wh = new Wormhole(network, [solana.Platform, evm.Platform]);
+  const executorRoute = nttExecutorRoute(getExecutorConfig(network));
+  const routeInstance = new executorRoute(wh);
+
+  const transferRequest = await routes.RouteTransferRequest.create(wh, {
+    source: Wormhole.tokenId('Ethereum', M_MINT),
+    destination: Wormhole.tokenId(destinationChain, M_MINT_SVM),
+  });
+
+  const validated = await routeInstance.validate(transferRequest, {
+    amount: amount.toString(),
+  });
+  if (!validated.valid) {
+    throw new Error(`Validation failed: ${validated.error.message}`);
+  }
+
+  return await routeInstance.fetchExecutorQuote(transferRequest, validated.params as NttExecutorRoute.ValidatedParams);
+}
+
+function getExecutorConfig(network: Network = 'Mainnet'): NttExecutorRoute.Config {
+  const svmChains: Chain[] = ['Solana', 'Fogo'];
+  const evmChains: Chain[] =
+    network === 'Mainnet' ? ['Ethereum', 'Optimism', 'Arbitrum'] : ['Sepolia', 'ArbitrumSepolia', 'OptimismSepolia'];
+
+  return {
+    ntt: {
+      tokens: {
+        M0: [
+          ...svmChains.map((chain) => ({
+            chain,
+            token: M_MINT_SVM,
+            manager: SVM_PORTAL,
+            transceiver: [
+              {
+                type: 'wormhole' as NttRoute.TransceiverType,
+                address: SVM_PORTAL,
+              },
+            ],
+            quoter: 'Nqd6XqA8LbsCuG8MLWWuP865NV6jR1MbXeKxD4HLKDJ',
+          })),
+          ...evmChains.map((chain) => ({
+            chain,
+            token: M_MINT,
+            manager: HUB_PORTAL,
+            transceiver: [
+              {
+                type: 'wormhole' as NttRoute.TransceiverType,
+                address: TRANSCEIVER,
+              },
+            ],
+          })),
+        ],
+      },
+    },
+    referrerFee: {
+      feeDbps: 0n,
+      perTokenOverrides: {
+        // SVM chains require extra compute when receiving messages
+        // so we need to override the gas cost
+        Solana: {
+          mzerojk9tg56ebsrEAhfkyc9VgKjTW2zDqp6C5mhjzH: {
+            msgValue: 15_000_000n,
+          },
+        },
+        Fogo: {
+          mzerojk9tg56ebsrEAhfkyc9VgKjTW2zDqp6C5mhjzH: {
+            msgValue: 15_000_000n,
+          },
+        },
+      },
+    },
+  };
 }
 
 // do not run the cli if this is being imported by jest

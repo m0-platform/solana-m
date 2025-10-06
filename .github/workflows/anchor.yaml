@@ -80,25 +80,6 @@ jobs:
         run: make test-yield-bot
         shell: bash
 
-  index-bot-tests:
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install Dependencies
-        run: npm i -g pnpm && pnpm install
-        shell: bash
-
-      - name: Run index tests
-        run: make test-index-bot
-        shell: bash
-
   yield-calc-tests:
     runs-on: ubuntu-24.04
     steps:

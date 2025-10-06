@@ -6,7 +6,7 @@ import LokiTransport from 'winston-loki';
 import { EnvOptions, getEnv } from 'shared/environment';
 import { PublicKey } from '@solana/web3.js';
 import winston from 'winston';
-import { type M0LiquidityApi, M0LiquidityApiClient, M0LiquidityApiEnvironment } from '@m0-foundation/liquidity-sdk';
+import { M0LiquidityApiClient, M0LiquidityApiEnvironment } from '@m0-foundation/liquidity-sdk';
 
 // logger used by bot and passed to SDK
 const logger = new WinstonLogger('index-bot', { imageBuild: process.env.BUILD_TIME ?? '', mint: 'M' }, true);

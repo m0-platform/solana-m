@@ -501,7 +501,7 @@ importers:
   services/yield-bot:
     dependencies:
       '@m0-foundation/solana-m-sdk':
-        specifier: 'workspace:'
+        specifier: workspace:^
         version: link:../../sdk
       '@solana/web3.js':
         specifier: 'catalog:'

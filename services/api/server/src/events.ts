@@ -57,7 +57,7 @@ export const events = new EventsService({
     const cursor = database.collection('events').aggregate([
       {
         $match: {
-          event: 'index_update',
+          event: 'index_update_v2',
         },
       },
       {
@@ -99,10 +99,40 @@ export const events = new EventsService({
   },
 
   currentIndex: async (req, res, next) => {
+    const cursor = database.collection('events').aggregate([
+      {
+        $match: {
+          event: 'index_update_v2',
+        },
+      },
+      {
+        $lookup: {
+          from: 'transactions',
+          localField: 'signature',
+          foreignField: 'signature',
+          as: 'transaction',
+        },
+      },
+      {
+        $unwind: {
+          path: '$transaction',
+        },
+      },
+      {
+        $sort: {
+          'transaction.block_height': -1,
+        },
+      },
+      {
+        $limit: 1,
+      },
+    ]);
+
+    const result = await cursor.toArray();
+
     const [solana, ethereum] = await Promise.all([
       new Promise<IndexValue>(async (resolve, _) => {
         const coll = database.collection('index_updates');
-        const result = await coll.find({}, { limit: 1 }).toArray();
         resolve({ index: result[0].index, ts: result[0].transaction.block_time });
       }),
       new Promise<IndexValue>(async (resolve, _) => {

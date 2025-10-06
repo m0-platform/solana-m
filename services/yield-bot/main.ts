@@ -44,17 +44,8 @@ export interface ParsedOptions extends EnvOptions {
   tip: number;
 }
 
-// all programs and extensions that require yield distribution
-const programsMainnet = [
-  new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'), // wM
-  new PublicKey('extMahs9bUFMYcviKCvnSRaXgs5PcqmMzcnHRtTqE85'), // USDKY
-];
-
-const programsDevnet = [
-  new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko'), // wM
-  new PublicKey('3PskKTHgboCbUSQPMcCAZdZNFHbNvSoZ8zEFYANCdob7'), // USDKY
-  new PublicKey('extUkDFf3HLekkxbcZ3XRUizMjbxMJgKBay3p9xGVmg'), // Fuse USD
-];
+// crank extensions (other extension auto-sync)
+const wM = new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko');
 
 // entrypoint for the yield bot command
 export async function yieldCLI() {
@@ -80,7 +71,7 @@ export async function yieldCLI() {
         if (!options.isDevnet) await validation(options);
 
         // distribute yield for each program
-        for (const pid of env.isDevnet ? programsDevnet : programsMainnet) {
+        for (const pid of [wM]) {
           logger.addMetaField('programId', pid.toBase58());
           slackMessage.messages.push(`Distributing yield for program ${pid.toBase58()}`);
 
@@ -103,7 +94,7 @@ export async function yieldCLI() {
 }
 
 async function validation(opt: ParsedOptions) {
-  const auth = await EarnAuthority.load(opt.connection, programsMainnet[0], logger);
+  const auth = await EarnAuthority.load(opt.connection, wM, logger);
   await validateDatabaseData(auth, opt.apiEnvornment);
 }
 

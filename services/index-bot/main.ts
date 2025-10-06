@@ -90,7 +90,7 @@ async function pushIndex(options: ParsedOptions) {
         address: 'mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp',
       },
     },
-    amountIn: '1', // 0 invalid so send 1
+    amountIn: '2', // 0 invalid and 1 causes rounding issues
     recipient: options.recipient,
     sender,
     maxNumQuotes: 1,

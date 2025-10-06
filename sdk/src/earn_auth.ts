@@ -110,12 +110,6 @@ export class EarnAuthority {
       return null;
     }
 
-    // PDAs
-    const [earnerAccount] = PublicKey.findProgramAddressSync(
-      [Buffer.from('earner'), earner.data.userTokenAccount.toBuffer()],
-      this.program.programId,
-    );
-
     // get manager (manager fee token account)
     let manager = this.managerCache.get(earner.data.earnManager!);
     if (!manager) {
@@ -123,28 +117,14 @@ export class EarnAuthority {
       this.managerCache.set(earner.data.earnManager!, manager);
     }
 
-    const earnManagerTokenAccount = manager.data.feeTokenAccount;
-    const earnManagerAccount = PublicKey.findProgramAddressSync(
-      [Buffer.from('earn_manager'), earner.data.earnManager!.toBytes()],
-      this.program.programId,
-    )[0];
-
-    // vault PDAs
-    const [mVaultAccount] = PublicKey.findProgramAddressSync([Buffer.from('m_vault')], this.program.programId);
-    const vaultMTokenAccount = spl.getAssociatedTokenAddressSync(
-      this.global.mMint!,
-      mVaultAccount,
-      true,
-      spl.TOKEN_2022_PROGRAM_ID,
-    );
-
     return this.program.methods
       .claimFor(claimBalance)
-      .accounts({
+      .accountsPartial({
         earnAuthority: this.global.earnAuthority,
         userTokenAccount: earner.data.recipientTokenAccount ?? earner.data.userTokenAccount,
-        earnManagerTokenAccount,
+        earnManagerTokenAccount: manager.data.feeTokenAccount,
         extTokenProgram: spl.TOKEN_2022_PROGRAM_ID,
+        earnerAccount: earner.pubkey,
       })
       .instruction();
   }
@@ -198,7 +178,13 @@ export class EarnAuthority {
       this.connection.commitment,
       spl.TOKEN_2022_PROGRAM_ID,
     );
-    const collateral = new BN(tokenAccountInfo.amount.toString());
+
+    const { solana: dbIndex } = await getApiClient().events.currentIndex();
+
+    // adjust $M collateral by multiplier
+    const collateral = new BN(tokenAccountInfo.amount.toString())
+      .mul(new BN(dbIndex.index))
+      .div(new BN(1_000_000_000_000));
 
     if (new BN(mint.supply.toString()).add(totalRewards).gt(collateral)) {
       this.logger.error('error simulating claims', {
@@ -217,7 +203,7 @@ export class EarnAuthority {
     return (this.program as Program<MExt>).methods
       .sync()
       .accounts({
-        earnAuthority: this.global.admin,
+        earnAuthority: this.global.earnAuthority,
       })
       .instruction();
   }

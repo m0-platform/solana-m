@@ -24,6 +24,7 @@ interface ParsedOptions extends EnvOptions {
   dryRun: boolean;
   mMint: PublicKey;
   walletAddess: `0x${string}`;
+  recipient: string;
 }
 
 // entrypoint for the index bot command
@@ -35,7 +36,8 @@ export async function indexCLI() {
     .description('Push the latest index from Ethereum to Solana')
     .option('--dryRun', 'Do not send transactions', false)
     .option('-m, --mint', 'M mint address', 'mzerojk9tg56ebsrEAhfkyc9VgKjTW2zDqp6C5mhjzH')
-    .action(async ({ dryRun, mint }) => {
+    .option('-r, --recipient', 'SVM bridge recipient', 'D76ySoHPwD8U2nnTTDqXeUJQg5UkD9UD1PUE1rnvPAGm')
+    .action(async ({ dryRun, mint, recipient }) => {
       const env = getEnv();
 
       if (!env.evmWalletClient) {
@@ -54,6 +56,7 @@ export async function indexCLI() {
         dryRun,
         mMint: new PublicKey(mint),
         walletAddess: env.evmWalletClient!.account!.address as `0x${string}`,
+        recipient,
       };
 
       slackMessage = {
@@ -88,7 +91,9 @@ async function pushIndex(options: ParsedOptions) {
       },
     },
     amountIn: '1', // 0 invalid so send 1
+    recipient: options.recipient,
     sender,
+    maxNumQuotes: 1,
   });
 
   // route should be direct (approved amount should be sufficiently high already)
@@ -96,7 +101,7 @@ async function pushIndex(options: ParsedOptions) {
     throw new Error(`Invalid quote response: quotes: ${quotes.length}`);
   }
 
-  logger.info('Fetched quote', { quote: quotes[0].payloads.map((p) => p.annotation ?? '') });
+  logger.info('Fetched quote', { quote: quotes[0].payloads[0].annotation ?? '' });
 
   // grab and convert EVM payload
   const evmPayloads: { to: `0x${string}`; value: bigint | undefined; data: `0x${string}` }[] = [];

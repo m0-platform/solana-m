@@ -16,7 +16,6 @@ import LokiTransport from 'winston-loki';
 import winston from 'winston';
 import { validateDatabaseData } from 'shared/validation';
 import { EnvOptions, getEnv } from 'shared/environment';
-import { persistDevnetIndex } from './devnet';
 
 // logger used by bot and passed to SDK
 const logger = new WinstonLogger('yield-bot', { imageBuild: process.env.BUILD_TIME ?? '' }, true);
@@ -44,8 +43,9 @@ export interface ParsedOptions extends EnvOptions {
   tip: number;
 }
 
-// crank extensions (other extension auto-sync)
+// extensions
 const wM = new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko');
+const USDKY = new PublicKey('extMahs9bUFMYcviKCvnSRaXgs5PcqmMzcnHRtTqE85');
 
 // entrypoint for the yield bot command
 export async function yieldCLI() {
@@ -68,20 +68,14 @@ export async function yieldCLI() {
           tip: Number.parseInt(tip, 10),
         };
 
-        if (!options.isDevnet) await validation(options);
+        await validation(options);
 
         // distribute yield for each program
-        for (const pid of [wM]) {
+        for (const pid of [wM, USDKY]) {
           logger.addMetaField('programId', pid.toBase58());
           slackMessage.messages.push(`Distributing yield for program ${pid.toBase58()}`);
 
-          // fetch latest index based on last claims
-          if (options.isDevnet) await persistDevnetIndex(options, logger, pid);
-
           await distributeYield(options, pid);
-
-          // wait interval to ensure transactions from previous steps have landed
-          await new Promise((resolve) => setTimeout(resolve, 5000));
         }
       } catch (error: any) {
         logger.error(error);
@@ -100,49 +94,37 @@ async function validation(opt: ParsedOptions) {
 
 async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promise<void> {
   const auth = await EarnAuthority.load(opt.connection, programID, logger);
-
-  if (auth['global'].claimComplete) {
-    logger.info('claim cycle already complete');
-    return;
-  }
-
   const ixs: TransactionInstruction[] = [];
 
   // sync index if applicable
-  const syncIndexIx = await auth.buildIndexSyncInstruction();
-  if (syncIndexIx) {
-    ixs.push(syncIndexIx);
-    slackMessage.messages.push('Syncing index');
+  ixs.push(await auth.buildIndexSyncInstruction());
+  slackMessage.messages.push('Syncing index');
+
+  if (auth.global.variant === 'Crank') {
+    // build claim instructions if there are any earners
+    for (const earner of await auth.getAllEarners()) {
+      // throttle requests
+      await limiter.removeTokens(1);
+
+      const ix = await auth.buildClaimInstruction(earner);
+      if (ix) ixs.push(ix);
+    }
+
+    const claimIxs = ixs.length - 1;
+
+    // simulate claims if there are any
+    if (claimIxs > 0) {
+      const distributed = await auth.simulateAndValidateClaimIxs(ixs);
+
+      const amountDec = distributed.toNumber() / 1e6;
+      slackMessage.messages.push(`Distributed ${distributed} ($${amountDec.toFixed(0)}) to ${claimIxs} earners`);
+
+      logger.info('distributing yield', {
+        amount: distributed.toNumber(),
+        amountDec: amountDec.toFixed(2),
+      });
+    }
   }
-
-  // build claim instructions if there are any earners
-  for (const earner of await auth.getAllEarners()) {
-    // throttle requests
-    await limiter.removeTokens(1);
-
-    const ix = await auth.buildClaimInstruction(earner);
-    if (ix) ixs.push(ix);
-  }
-
-  const claimIxs = ixs.length - Number(syncIndexIx !== null);
-
-  // simulate claims if there are any
-  if (claimIxs > 0) {
-    const distributed = await auth.simulateAndValidateClaimIxs(ixs);
-
-    const amountDec = distributed.toNumber() / 1e6;
-    slackMessage.messages.push(`Distributed ${distributed} ($${amountDec.toFixed(0)}) to ${claimIxs} earners`);
-
-    logger.info('distributing yield', {
-      amount: distributed.toNumber(),
-      amountDec: amountDec.toFixed(2),
-    });
-  }
-
-  logger.info('distribution instructions', {
-    claimIxs,
-    hasSync: !!syncIndexIx,
-  });
 
   // send transaction
   const signature = await buildAndSendTransaction(opt, ixs);

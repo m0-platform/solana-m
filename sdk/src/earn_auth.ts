@@ -11,11 +11,12 @@ import { MExt } from './idl/m_ext';
 import { getProgram } from './idl';
 
 export class EarnAuthority {
+  global: GlobalAccountData;
+
   private logger: Logger;
   private connection: Connection;
   private builder: TransactionBuilder;
   private program: Program<MExt>;
-  private global: GlobalAccountData;
   private managerCache: Map<PublicKey, EarnManager> = new Map();
 
   private constructor(
@@ -199,13 +200,63 @@ export class EarnAuthority {
     return totalRewards;
   }
 
-  async buildIndexSyncInstruction(): Promise<TransactionInstruction | null> {
-    return (this.program as Program<MExt>).methods
-      .sync()
-      .accounts({
-        earnAuthority: this.global.earnAuthority,
-      })
-      .instruction();
+  async buildIndexSyncInstruction(): Promise<TransactionInstruction> {
+    switch (this.global.variant) {
+      case 'NoYield':
+        throw new Error('No index to sync for NoYield variant');
+      case 'Crank':
+        return this.program.methods
+          .sync()
+          .accounts({
+            earnAuthority: this.global.earnAuthority,
+          })
+          .instruction();
+      case 'ScaledUi':
+        const vault = PublicKey.findProgramAddressSync([Buffer.from('m_vault')], this.program.programId)[0];
+        return {
+          keys: [
+            {
+              pubkey: PublicKey.findProgramAddressSync([Buffer.from('global')], this.program.programId)[0],
+              isSigner: false,
+              isWritable: true,
+            },
+            {
+              pubkey: this.global.mMint,
+              isSigner: false,
+              isWritable: false,
+            },
+            {
+              pubkey: vault,
+              isSigner: false,
+              isWritable: false,
+            },
+            {
+              pubkey: spl.getAssociatedTokenAddressSync(this.global.mMint, vault, true, spl.TOKEN_2022_PROGRAM_ID),
+              isSigner: false,
+              isWritable: false,
+            },
+            {
+              pubkey: this.global.extMint,
+              isSigner: false,
+              isWritable: true,
+            },
+            {
+              pubkey: PublicKey.findProgramAddressSync([Buffer.from('mint_authority')], this.program.programId)[0],
+              isSigner: false,
+              isWritable: false,
+            },
+            {
+              pubkey: spl.TOKEN_2022_PROGRAM_ID,
+              isSigner: false,
+              isWritable: false,
+            },
+          ],
+          programId: this.program.programId,
+          data: Buffer.from([4, 219, 40, 164, 21, 157, 189, 88]),
+        };
+      default:
+        throw new Error(`Unknown yield variant: ${this.global.variant}`);
+    }
   }
 
   private _getRewardAmounts(logs: string[]) {

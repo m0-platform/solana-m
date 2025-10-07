@@ -40,6 +40,7 @@ export async function loadGlobal(connection: Connection, program: PublicKey): Pr
   // global account will differ depending on the program features
   const globalData = (await connection.getAccountInfo(globalAccount))!.data;
 
+  // assuming no pending admin
   const yieldType = globalData[140];
   const decoder = yieldVariantsDecoder(yieldType);
   const global = decoder.decode('ExtGlobalV2', globalData);
@@ -50,8 +51,8 @@ export async function loadGlobal(connection: Connection, program: PublicKey): Pr
     mMint: global.m_mint,
     variant: Object.keys(global.yield_config.yield_variant)[0] as 'Crank' | 'ScaledUi' | 'NoYield',
     wrapAuthorities: global.wrap_authorities,
-    index: global.yield_config.index,
-    timestamp: global.yield_config.ts,
+    index: global.yield_config.last_ext_index,
+    timestamp: global.yield_config.timestamp,
     earnAuthority: global.yield_config.earn_authority,
   };
 }
@@ -112,11 +113,15 @@ function extensionIDL(variant: number): Idl {
         type: 'pubkey',
       },
       {
-        name: 'index',
+        name: 'last_m_index',
         type: 'u64',
       },
       {
-        name: 'ts',
+        name: 'last_ext_index',
+        type: 'u64',
+      },
+      {
+        name: 'timestamp',
         type: 'u64',
       },
     ],

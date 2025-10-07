@@ -9,13 +9,15 @@ import { MockLogger, Logger } from './logger';
 import { getBalanceAt } from './tokenBalance';
 import { MExt } from './idl/m_ext';
 import { getProgram } from './idl';
+import { M0SolanaApi } from '@m0-foundation/solana-m-api-sdk';
 
 export class EarnAuthority {
+  global: GlobalAccountData;
+
   private logger: Logger;
   private connection: Connection;
   private builder: TransactionBuilder;
   private program: Program<MExt>;
-  private global: GlobalAccountData;
   private managerCache: Map<PublicKey, EarnManager> = new Map();
 
   private constructor(
@@ -58,8 +60,11 @@ export class EarnAuthority {
     return accounts.map((a) => new Earner(this.connection, a.publicKey, a.account, this.program.programId));
   }
 
-  async buildClaimInstruction(earner: Earner): Promise<TransactionInstruction | null> {
-    if (earner.data.lastClaimIndex.gte(this.global.index!)) {
+  async buildClaimInstruction(earner: Earner, pendingSync = false): Promise<TransactionInstruction | null> {
+    const { solana: lastestIndex } = await getApiClient().events.currentIndex();
+    const latestIndex = pendingSync ? new BN(lastestIndex.index) : this.global.index!;
+
+    if (earner.data.lastClaimIndex.gte(latestIndex)) {
       this.logger.warn('Earner already claimed', {
         earner: earner.pubkey.toBase58(),
         tokenAccount: earner.data.userTokenAccount.toBase58(),
@@ -76,6 +81,10 @@ export class EarnAuthority {
     // iterate through the steps and calculate the pending yield for the earner
     let claimYield: BN = new BN(0);
     steps.reverse();
+
+    if (pendingSync) {
+      steps.push({ ts: new Date(), index: lastestIndex.index } as M0SolanaApi.IndexUpdate);
+    }
 
     let last = steps[0];
     for (let i = 1; i < steps.length; i++) {
@@ -98,9 +107,7 @@ export class EarnAuthority {
 
     // calculate the claim "snapshot" balance from the claim yield and indices
     // b* = y / ((I_n / I_l) - 1) = y * I_l / (I_n - I_l)
-    const claimBalance = claimYield
-      .mul(earner.data.lastClaimIndex)
-      .div(this.global.index!.sub(earner.data.lastClaimIndex));
+    const claimBalance = claimYield.mul(earner.data.lastClaimIndex).div(latestIndex.sub(earner.data.lastClaimIndex));
 
     if (claimBalance.lte(new BN(0))) {
       this.logger.info('No yield to claim', {
@@ -110,12 +117,6 @@ export class EarnAuthority {
       return null;
     }
 
-    // PDAs
-    const [earnerAccount] = PublicKey.findProgramAddressSync(
-      [Buffer.from('earner'), earner.data.userTokenAccount.toBuffer()],
-      this.program.programId,
-    );
-
     // get manager (manager fee token account)
     let manager = this.managerCache.get(earner.data.earnManager!);
     if (!manager) {
@@ -123,28 +124,14 @@ export class EarnAuthority {
       this.managerCache.set(earner.data.earnManager!, manager);
     }
 
-    const earnManagerTokenAccount = manager.data.feeTokenAccount;
-    const earnManagerAccount = PublicKey.findProgramAddressSync(
-      [Buffer.from('earn_manager'), earner.data.earnManager!.toBytes()],
-      this.program.programId,
-    )[0];
-
-    // vault PDAs
-    const [mVaultAccount] = PublicKey.findProgramAddressSync([Buffer.from('m_vault')], this.program.programId);
-    const vaultMTokenAccount = spl.getAssociatedTokenAddressSync(
-      this.global.mMint!,
-      mVaultAccount,
-      true,
-      spl.TOKEN_2022_PROGRAM_ID,
-    );
-
     return this.program.methods
       .claimFor(claimBalance)
-      .accounts({
+      .accountsPartial({
         earnAuthority: this.global.earnAuthority,
         userTokenAccount: earner.data.recipientTokenAccount ?? earner.data.userTokenAccount,
-        earnManagerTokenAccount,
+        earnManagerTokenAccount: manager.data.feeTokenAccount,
         extTokenProgram: spl.TOKEN_2022_PROGRAM_ID,
+        earnerAccount: earner.pubkey,
       })
       .instruction();
   }
@@ -198,7 +185,13 @@ export class EarnAuthority {
       this.connection.commitment,
       spl.TOKEN_2022_PROGRAM_ID,
     );
-    const collateral = new BN(tokenAccountInfo.amount.toString());
+
+    const { solana: dbIndex } = await getApiClient().events.currentIndex();
+
+    // adjust $M collateral by multiplier
+    const collateral = new BN(tokenAccountInfo.amount.toString())
+      .mul(new BN(dbIndex.index))
+      .div(new BN(1_000_000_000_000));
 
     if (new BN(mint.supply.toString()).add(totalRewards).gt(collateral)) {
       this.logger.error('error simulating claims', {
@@ -213,13 +206,63 @@ export class EarnAuthority {
     return totalRewards;
   }
 
-  async buildIndexSyncInstruction(): Promise<TransactionInstruction | null> {
-    return (this.program as Program<MExt>).methods
-      .sync()
-      .accounts({
-        earnAuthority: this.global.admin,
-      })
-      .instruction();
+  async buildIndexSyncInstruction(): Promise<TransactionInstruction> {
+    switch (this.global.variant) {
+      case 'NoYield':
+        throw new Error('No index to sync for NoYield variant');
+      case 'Crank':
+        return this.program.methods
+          .sync()
+          .accounts({
+            earnAuthority: this.global.earnAuthority,
+          })
+          .instruction();
+      case 'ScaledUi':
+        const vault = PublicKey.findProgramAddressSync([Buffer.from('m_vault')], this.program.programId)[0];
+        return {
+          keys: [
+            {
+              pubkey: PublicKey.findProgramAddressSync([Buffer.from('global')], this.program.programId)[0],
+              isSigner: false,
+              isWritable: true,
+            },
+            {
+              pubkey: this.global.mMint,
+              isSigner: false,
+              isWritable: false,
+            },
+            {
+              pubkey: vault,
+              isSigner: false,
+              isWritable: false,
+            },
+            {
+              pubkey: spl.getAssociatedTokenAddressSync(this.global.mMint, vault, true, spl.TOKEN_2022_PROGRAM_ID),
+              isSigner: false,
+              isWritable: false,
+            },
+            {
+              pubkey: this.global.extMint,
+              isSigner: false,
+              isWritable: true,
+            },
+            {
+              pubkey: PublicKey.findProgramAddressSync([Buffer.from('mint_authority')], this.program.programId)[0],
+              isSigner: false,
+              isWritable: false,
+            },
+            {
+              pubkey: spl.TOKEN_2022_PROGRAM_ID,
+              isSigner: false,
+              isWritable: false,
+            },
+          ],
+          programId: this.program.programId,
+          data: Buffer.from([4, 219, 40, 164, 21, 157, 189, 88]),
+        };
+      default:
+        throw new Error(`Unknown yield variant: ${this.global.variant}`);
+    }
   }
 
   private _getRewardAmounts(logs: string[]) {

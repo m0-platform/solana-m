@@ -252,6 +252,9 @@ describe('Portal unit tests', () => {
         Buffer.from(config.EVM_M.slice(2).padStart(64, '0'), 'hex'),
       ]);
 
+      // remove optional account we dont have
+      tx.instructions[0].keys = tx.instructions[0].keys.filter((_, i) => i !== 7);
+
       await provider.sendAndConfirm!(tx, [owner]);
 
       // set LUT data
@@ -445,13 +448,7 @@ describe('Portal unit tests', () => {
       const receiver = testing.utils.makeUniversalChainAddress('Ethereum');
 
       const outboxItem = Keypair.generate();
-      const xferTxs = ntt.transfer(
-        sender,
-        amount,
-        receiver,
-        { queue: false, automatic: false, gasDropoff: 0n },
-        outboxItem,
-      );
+      const xferTxs = ntt.transfer(sender, amount, receiver, { queue: false, automatic: false }, outboxItem);
       await ssw(ctx, xferTxs, signer);
 
       // assert that released bitmap has transceiver bits set
@@ -607,7 +604,7 @@ describe('Portal unit tests', () => {
       const rawVaa = guardians.addSignatures(published, [0]);
       vaaBytes = rawVaa.payload as Uint8Array;
       const vaa = deserialize('Ntt:WormholeTransfer', serialize(rawVaa));
-      const redeemTxs = ntt.redeem({ wormhole: vaa }, sender);
+      const redeemTxs = ntt.redeem([vaa], sender);
 
       const pdas = NTT.pdas(config.PORTAL_PROGRAM_ID);
       inboxItem = pdas.inboxItemAccount(vaa.emitterChain as any, vaa.payload.nttManagerPayload);
@@ -618,30 +615,35 @@ describe('Portal unit tests', () => {
         let i = 0;
         for await (const tx of redeemTxs) {
           // grab the calculated VAA key
-          if (i === 2) {
+          if (i === 1) {
             const t = tx.transaction.transaction as Transaction;
             vaaKey = t.instructions[0].keys[3].pubkey;
           }
 
-          if (++i === 4) {
-            if (skipRelease) {
-              continue;
-            }
-
+          if (++i === 3) {
             const t = tx.transaction.transaction as VersionedTransaction;
 
             const ixs = t.message.compiledInstructions.map(
               (ix) =>
                 new TransactionInstruction({
                   programId: t.message.staticAccountKeys[ix.programIdIndex],
-                  keys: ix.accountKeyIndexes.map((idx) => ({
-                    pubkey: t.message.staticAccountKeys[idx],
-                    isSigner: t.message.isAccountSigner(idx),
-                    isWritable: t.message.isAccountWritable(idx),
-                  })),
+                  keys: ix.accountKeyIndexes
+                    .map((idx) => ({
+                      pubkey: t.message.staticAccountKeys[idx],
+                      isSigner: t.message.isAccountSigner(idx),
+                      isWritable: t.message.isAccountWritable(idx),
+                    }))
+                    .filter((k) => !k.pubkey.equals(config.PORTAL_PROGRAM_ID)), // filter optional accounts (multisig accounts we dont have)
                   data: Buffer.from(ix.data),
                 }),
             );
+
+            if (skipRelease) {
+              const receive = new Transaction().add(ixs[0], ixs[1]);
+              receive.feePayer = owner.publicKey;
+              yield ntt.createUnsignedTx({ transaction: receive }, 'Ntt.Receive');
+              continue;
+            }
 
             ixs[ixs.length - 1].keys.push(...additionalAccounts);
 
@@ -734,8 +736,11 @@ describe('Portal unit tests', () => {
         nttMessage: payload,
         recipient: randomUser.publicKey,
         chain: 'Ethereum',
-        revertOnDelay: false,
+        revertWhenNotReady: false,
       });
+
+      // optional key we dont need
+      ix.keys.pop();
 
       // add additional keys required for portal CPI
       ix.keys.push(
@@ -788,8 +793,11 @@ describe('Portal unit tests', () => {
         nttMessage: payload,
         recipient: randomUser.publicKey,
         chain: 'Ethereum',
-        revertOnDelay: false,
+        revertWhenNotReady: false,
       });
+
+      // optional key we dont need
+      ix.keys.pop();
 
       // add additional keys required for portal CPI
       ix.keys.push(
@@ -879,7 +887,7 @@ describe('Portal unit tests', () => {
       const logs = await fetchTransactionLogs(provider, txIds[txIds.length - 1].txid);
 
       // bridge event log exists
-      expect(logs[15].startsWith('Program data: bEUUGiR+')).toBeTruthy();
+      expect(logs[28].startsWith('Program data: bEUUGiR+')).toBeTruthy();
       expect(logs).toContain('Program log: Index update: 1000000000001 | root update: false');
 
       // verify data was propagated (scaled-ui multiplier was updated)
@@ -1139,8 +1147,11 @@ describe('Portal unit tests', () => {
         nttMessage: payload,
         recipient: portalAuth,
         chain: 'Ethereum',
-        revertOnDelay: false,
+        revertWhenNotReady: false,
       });
+
+      // remove optional account
+      ix.keys.pop();
 
       // add additional keys required for portal CPI
       ix.keys.push(

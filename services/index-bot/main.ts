@@ -1,15 +1,12 @@
 import { Command } from 'commander';
-import { getContract } from 'viem';
 import { WinstonLogger } from '@m0-foundation/solana-m-sdk';
 import { sendSlackMessage, SlackMessage } from 'shared/slack';
 import { logBlockchainBalance } from 'shared/balances';
 import LokiTransport from 'winston-loki';
-import winston from 'winston';
 import { EnvOptions, getEnv } from 'shared/environment';
-import { Connection, PublicKey } from '@solana/web3.js';
-import { getScaledUiAmountConfig, TOKEN_2022_PROGRAM_ID, unpackMint } from '@solana/spl-token';
-
-export const HUB_PORTAL: `0x${string}` = '0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd';
+import { PublicKey } from '@solana/web3.js';
+import winston from 'winston';
+import { M0LiquidityApiClient, M0LiquidityApiEnvironment } from '@m0-foundation/liquidity-sdk';
 
 // logger used by bot and passed to SDK
 const logger = new WinstonLogger('index-bot', { imageBuild: process.env.BUILD_TIME ?? '', mint: 'M' }, true);
@@ -24,11 +21,10 @@ if (process.env.LOKI_URL) {
 let slackMessage: SlackMessage;
 
 interface ParsedOptions extends EnvOptions {
-  threshold: number;
-  force: boolean;
   dryRun: boolean;
   mMint: PublicKey;
   walletAddess: `0x${string}`;
+  recipient: string;
 }
 
 // entrypoint for the index bot command
@@ -38,11 +34,10 @@ export async function indexCLI() {
   program
     .command('push')
     .description('Push the latest index from Ethereum to Solana')
-    .option('-t, --threshold [SECONDS]', 'Staleness threshold in seconds', '86400')
-    .option('-f, --force', 'Force push the index even if it is not stale', false)
     .option('--dryRun', 'Do not send transactions', false)
     .option('-m, --mint', 'M mint address', 'mzerojk9tg56ebsrEAhfkyc9VgKjTW2zDqp6C5mhjzH')
-    .action(async ({ threshold, force, dryRun, mint }) => {
+    .option('-r, --recipient', 'SVM bridge recipient', 'D76ySoHPwD8U2nnTTDqXeUJQg5UkD9UD1PUE1rnvPAGm')
+    .action(async ({ dryRun, mint, recipient }) => {
       const env = getEnv();
 
       if (!env.evmWalletClient) {
@@ -58,11 +53,10 @@ export async function indexCLI() {
 
       const options: ParsedOptions = {
         ...env,
-        threshold: Number(threshold),
-        force,
         dryRun,
         mMint: new PublicKey(mint),
         walletAddess: env.evmWalletClient!.account!.address as `0x${string}`,
+        recipient,
       };
 
       slackMessage = {
@@ -79,117 +73,73 @@ export async function indexCLI() {
 }
 
 async function pushIndex(options: ParsedOptions) {
-  if (!options.force) {
-    const isStale = await isIndexStale(options);
-    if (!isStale) {
-      slackMessage.messages.push('Index is not stale, skipping push');
-      logger.info('Index is not stale, skipping push');
-      return;
-    }
-    logger.info('Index is stale, pushing updated index');
-  } else {
-    logger.info('Force pushing index');
-  }
-
-  const tx = await sendIndexUpdate(options);
-
-  if (options.dryRun) {
-    logger.info('Dry run complete, not sending transaction');
-  } else {
-    slackMessage.messages.push('Index updated');
-    slackMessage.explorer = `https://wormholescan.io/#/tx/${tx}`;
-    logger.info('Index pushed successfully');
-  }
-}
-
-async function isIndexStale(options: ParsedOptions) {
-  const scaledUiConfig = await getScaledUIMult(options.connection, options.mMint);
-  const isStale = Number(scaledUiConfig.newMultiplierEffectiveTimestamp) < Date.now() / 1000 - options.threshold;
-
-  if (options.dryRun) {
-    logger.debug('Checking index staleness', {
-      lastUpdateTimestamp: scaledUiConfig.newMultiplierEffectiveTimestamp.toString(),
-      multiplier: scaledUiConfig.newMultiplier,
-      stale: isStale,
-    });
-  }
-
-  return isStale;
-}
-
-async function sendIndexUpdate(options: ParsedOptions) {
-  const abi = [
-    {
-      inputs: [
-        { internalType: 'uint16', name: 'destinationChainId_', type: 'uint16' },
-        { internalType: 'bytes32', name: 'refundAddress_', type: 'bytes32' },
-      ],
-      name: 'sendMTokenIndex',
-      outputs: [{ internalType: 'bytes32', name: 'messageId_', type: 'bytes32' }],
-      stateMutability: 'payable',
-      type: 'function',
-    },
-    {
-      inputs: [
-        { internalType: 'uint16', name: 'recipientChain', type: 'uint16' },
-        { internalType: 'bytes', name: 'transceiverInstructions', type: 'bytes' },
-      ],
-      name: 'quoteDeliveryPrice',
-      outputs: [
-        { internalType: 'uint256[]', name: '', type: 'uint256[]' },
-        { internalType: 'uint256', name: '', type: 'uint256' },
-      ],
-      stateMutability: 'view',
-      type: 'function',
-    },
-  ] as const;
-
-  const portal = getContract({
-    address: HUB_PORTAL,
-    abi,
-    client: options.evmWalletClient!,
+  const client = new M0LiquidityApiClient({
+    environment: options.isDevnet ? M0LiquidityApiEnvironment.Devnet : M0LiquidityApiEnvironment.Mainnet,
   });
 
-  // Get bridge price quote
-  // an empty bytes string of length 1 was taken from the scripts in the m-portal repo
-  const [, quote] = await portal.read.quoteDeliveryPrice([
-    1,
-    ('0x' + Buffer.from([0]).toString('hex')) as `0x${string}`,
-  ]);
+  const sender = options.evmWalletClient!.account!.address;
 
-  // Send index update transaction
-  const refundAddress = ('0x' + options.evmWalletClient!.account!.address.slice(2).padStart(64, '0')) as `0x${string}`;
+  const quotes = await client.quote.quote({
+    route: {
+      source: {
+        chain: options.isDevnet ? 'Sepolia' : 'Ethereum',
+        address: '0x437cc33344a0B27A429f795ff6B469C72698B291',
+      },
+      destination: {
+        chain: 'Solana',
+        address: 'mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp',
+      },
+    },
+    amountIn: '2', // 0 invalid and 1 causes rounding issues
+    recipient: options.recipient,
+    sender,
+    maxNumQuotes: 1,
+  });
 
-  const params = {
-    wormholeDestinationChainId: 1,
-    refundAddress,
-    ethereumAccount: options.walletAddess,
-    ethereumChain: options.evmWalletClient!.chain!,
-    value: quote.toString(),
-  };
-  if (options.dryRun) {
-    logger.debug('Bridge transaction params: ', params);
-  } else {
-    const tx = await portal.write.sendMTokenIndex([1, refundAddress], {
-      account: options.evmWalletClient!.account!,
-      chain: options.evmWalletClient!.chain!,
-      value: quote,
-    });
-
-    logger.info('Transaction sent', {
-      tx: tx,
-    });
-
-    return tx;
+  // route should be direct (approved amount should be sufficiently high already)
+  if (quotes.length === 0 || quotes[0].payloads.length !== 1) {
+    throw new Error(`Invalid quote response: quotes: ${quotes.length}`);
   }
 
-  return '';
-}
+  logger.info('Fetched quote', { quote: quotes[0].payloads[0].annotation ?? '' });
 
-export async function getScaledUIMult(connection: Connection, mint: PublicKey) {
-  const accountInfo = await connection.getAccountInfo(mint);
-  const unpackedMint = unpackMint(mint, accountInfo, TOKEN_2022_PROGRAM_ID);
-  return getScaledUiAmountConfig(unpackedMint)!;
+  // grab and convert EVM payload
+  const evmPayloads: { to: `0x${string}`; value: bigint | undefined; data: `0x${string}` }[] = [];
+  for (const p of quotes[0].payloads) {
+    if (p.data.type === 'evm') {
+      evmPayloads.push({
+        to: p.data.to as `0x${string}`,
+        value: p.data.value ? BigInt(p.data.value) : undefined,
+        data: p.data.data as `0x${string}`,
+      });
+    }
+  }
+
+  const p = quotes[0].payloads[0];
+  if (p.data.type !== 'evm') {
+    throw new Error('Expected EVM payload');
+  }
+
+  if (options.dryRun) {
+    await options.evmClient.simulateCalls({
+      account: sender,
+      calls: evmPayloads,
+    });
+
+    logger.info('Dry run complete, not sending transaction');
+  } else {
+    const tx = await options.evmWalletClient!.sendTransaction({
+      account: options.evmWalletClient!.account!,
+      chain: options.evmWalletClient!.chain!,
+      value: p.data.value ? BigInt(p.data.value) : undefined,
+      to: p.data.to as `0x${string}`,
+      data: p.data.data as `0x${string}`,
+    });
+
+    slackMessage.messages.push(`Index updated: ${tx}`);
+    slackMessage.explorer = `https://wormholescan.io/#/tx/${tx}`;
+    logger.info('Index pushed successfully', { tx });
+  }
 }
 
 function getLokiTransport(host: string, logger: winston.Logger) {

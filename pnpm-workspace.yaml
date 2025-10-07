@@ -10,13 +10,15 @@ catalog:
   '@solana/web3.js': ^1.68.0
   '@types/bn.js': ^5.1.2
   '@types/bs58': ^4.0.1
-  '@wormhole-foundation/sdk': 1.16.1
-  '@wormhole-foundation/sdk-definitions': 1.16.1
-  '@wormhole-foundation/sdk-definitions-ntt': 0.7.0
-  '@wormhole-foundation/sdk-solana': 1.16.1
-  '@wormhole-foundation/sdk-solana-core': 1.16.1
-  '@wormhole-foundation/sdk-solana-ntt': 0.7.0-multi-transceiver-alpha.1
-  '@wormhole-foundation/sdk-evm-ntt': 0.7.0
+  '@wormhole-foundation/sdk': 3.4.7
+  '@wormhole-foundation/sdk-definitions': 3.4.7
+  '@wormhole-foundation/sdk-definitions-ntt': 2.0.5
+  '@wormhole-foundation/sdk-connect': 3.4.7
+  '@wormhole-foundation/sdk-route-ntt': 2.0.5
+  '@wormhole-foundation/sdk-solana': 3.4.7
+  '@wormhole-foundation/sdk-solana-core': 3.4.7
+  '@wormhole-foundation/sdk-solana-ntt': 2.0.5
+  '@wormhole-foundation/sdk-evm-ntt': 2.0.5
   bn.js: ~5.2.1
   bs58: ^4.0.1
   commander: 13.1.0

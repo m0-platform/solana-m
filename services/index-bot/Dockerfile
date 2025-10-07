@@ -19,4 +19,4 @@ ARG now
 ENV NODE_ENV=production
 ENV BUILD_TIME=$now
 
-CMD ["sh", "-c", "ts-node ./services/index-bot/main.ts push --threshold \"$THRESHOLD\" "]
+CMD ["sh", "-c", "ts-node ./services/index-bot/main.ts push"]

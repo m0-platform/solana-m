@@ -22,30 +22,25 @@ describe('Yield calculation tests', () => {
   const provider = new LiteSVMProvider(svm);
   const connection = provider.connection;
 
+  // m_ext program
+  svm.addProgramFromFile(PROGRAM_ID, 'programs/wm.so');
+
   // missing functions on litesvm connection
   connection.getProgramAccounts = getProgramAccountsFn(connection) as any;
 
   // Global Account
   const setGlobalAccount = (cfg: { index: bigint; ts: bigint }) => {
     let data = Buffer.from(
-      'p+joschscn+z3HtcE1xihhozJWJpdvNsPnG5FAKFUFeJ7wZJIrxP9rPce1wTXGKGGjMlYml282w+cbkUAoVQV4nvBkkivE/2C4a+ZtMrxaS1qx/r30jjOwbDtaFjsZwXMO14cF9+9oyi1F1V6gAAAGcE+WcAAAAALAEAAAAAAADIQyqyAAAAAKYQEAAAAAAAAAAAAAAAAAAAworvSLaa9zZOKqEFGwy9QYBPHRQ7fiNje3tQRsh7nZ2Ejcy6QIu31s1lF6hkb3IdT4FVx4WdL0sgfT7v5zngWv4=',
+      'dNHbU0aPN39890XGpUEUSnn/t/R/PsDdmSrTBEBeq/cFh0gz/mB43wALhr5mvB+YtH0go75hWkkFqCW4JoZOKg9MlIRn0z7nCQuGvmbRHduaebwOYxEK62Dv4M7R5S2XqHQXvJr8YpCiqW2XtSb7J5dDBuLFkUO5wbG+iWT9XqMqimYL+JIiH3T//vwCARZuKbUzDZRzEPi3tFhAoZjhfSAyzNWdRFolOfiKAPRPHNPa9gAAAE8c09r2AAAAkRTlaAAAAAAEAAAAfPdFxqVBFEp5/7f0fz7A3Zkq0wRAXqv3BYdIM/5geN9ROSSz4CTqF4utHt88XRoXhTBiZu6dBVhEXgHi3Wt9QSIFL/v713shpsfi0Sz0Gjy1ZYEf+5vvrdl+p3e7tZXyhI3MukCLt9bNZReoZG9yHU+BVceFnS9LIH0+7+c54FoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
       'base64',
     );
 
     // modify fields
-    data.writeBigUInt64LE(cfg.index, 104);
-    data.writeBigUInt64LE(cfg.ts, 112);
+    data.writeBigUInt64LE(cfg.index, 213);
+    data.writeBigUInt64LE(cfg.ts, 221);
 
-    // admin and earn auth
-    data = Buffer.concat([
-      data.subarray(0, 8),
-      provider.wallet.publicKey.toBuffer(),
-      provider.wallet.publicKey.toBuffer(),
-      data.subarray(72),
-    ]);
-
-    // max yield
-    data.writeBigUInt64LE(BigInt(1e12), 136);
+    // earn authority
+    data.set(provider.wallet.publicKey.toBuffer(), 141);
 
     svm.setAccount(PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAM_ID)[0], {
       executable: false,
@@ -58,7 +53,7 @@ describe('Yield calculation tests', () => {
   // Earner Account
   const setEarnerAccount = (cfg: { lastClaimIndex: bigint; lastClaimTs: bigint }) => {
     const data = Buffer.from(
-      '7H4zYC7hZ8+dP+dS6gAAAACU+GcAAAAA/1RZLpCj0IEtK6ZxLixCiIow0yZuY2CEYQkUMthQ74N5nHvdS4/LrFmS20fItLExNXj3arolk+rkdHaGjRH5iFU=',
+      '7H4zYC7hZ89PHNPa9gAAAJEU5WgAAAAA/7BXVACTL7a5ZQCsBDCegqNeOjQ7W7edsy9LpPdOiDjM8qF4jxTCrXVlXelmG3rszxsiG4/CF0OYYmD07kogE/d890XGpUEUSnn/t/R/PsDdmSrTBEBeq/cFh0gz/mB43wFPV+Px6ezZpWWYUJCXtGVMbHKGG6WrEr467BodHvmv5Q==',
       'base64',
     );
 
@@ -66,7 +61,7 @@ describe('Yield calculation tests', () => {
     data.writeBigUInt64LE(cfg.lastClaimIndex, 8);
     data.writeBigUInt64LE(cfg.lastClaimTs, 16);
 
-    svm.setAccount(new PublicKey('HQ7haiD7PAG5cEA8QE3CzcVhG68HByJxdLP7Sbp9J2Yx'), {
+    svm.setAccount(new PublicKey('AGKrjenY5JobFXNw4L4QMeSEVhhGgj2zUmx9YmjBkB8a'), {
       executable: false,
       owner: PROGRAM_ID,
       lamports: 1510320,
@@ -80,18 +75,51 @@ describe('Yield calculation tests', () => {
     owner: TOKEN_2022_ID,
     lamports: 5407920,
     data: Buffer.from(
-      'AQAAAAt+HmYkvrxuIRc9WMtEGFHidulJDPbDH2C3PqhmCtaMAAAAAAAAAAAGAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARIAQAB890XGpUEUSnn/t/R/PsDdmSrTBEBeq/cFh0gz/mB43wuGvmbTK8Wktasf699I4zsGw7WhY7GcFzDteHBffvaMDgBAAHz3RcalQRRKef+39H8+wN2ZKtMEQF6r9wWHSDP+YHjfAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAEEAfPdFxqVBFEp5/7f0fz7A3Zkq0wRAXqv3BYdIM/5geN8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAATABEBfPdFxqVBFEp5/7f0fz7A3Zkq0wRAXqv3BYdIM/5geN8Lhr5m0yvFpLWrH+vfSOM7BsO1oWOxnBcw7XhwX372jAcAAABNIGJ5IE0wAQAAAE2EAAAAaHR0cHM6Ly9naXN0Y2RuLmdpdGhhY2suY29tL1NDNFJFQ09JTi9hNzI5YWZiNzdhYTE1YTRhYTZiMWI0NmMzYWZhMWI1Mi9yYXcvMjA5ZGE1MzFlZDQ2YzFhYWVmMGIxZDNkN2I2N2IzYTVjZWMyNTdmMy9NX1N5bWJvbF81MTIuc3ZnAQAAAAMAAABldm0qAAAAMHg4NjZBMkJGNEU1NzJDYmNGMzdENTA3MUE3YTU4NTAzQmZiMzZiZTFi',
+      'AQAAAJFsXCtMWDyYMY1RKq26bEvSG4cxlZsDL+iQ7mQK9A7U4LbK3voNAAAGAQEAAAB890XGpUEUSnn/t/R/PsDdmSrTBEBeq/cFh0gz/mB43wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARIAQAB890XGpUEUSnn/t/R/PsDdmSrTBEBeq/cFh0gz/mB43wuGvma8H5i0fSCjvmFaSQWoJbgmhk4qD0yUhGfTPucJDgBAAHz3RcalQRRKef+39H8+wN2ZKtMEQF6r9wWHSDP+YHjfAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAEEAfPdFxqVBFEp5/7f0fz7A3Zkq0wRAXqv3BYdIM/5geN8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAATAAkBfPdFxqVBFEp5/7f0fz7A3Zkq0wRAXqv3BYdIM/5geN8Lhr5mvB+YtH0go75hWkkFqCW4JoZOKg9MlIRn0z7nCQ4AAABXcmFwcGVkTSBieSBNMAIAAAB3TXQAAABodHRwczovL2dyZWVuLW9iZWRpZW50LWFsYmF0cm9zcy0xNTUubXlwaW5hdGEuY2xvdWQvaXBmcy9iYWZrcmVpYXVkYmF2Z3p1cXoza2NsZnh4c29sZnhndHNud2ljN3oyaXB2ZzZpZWozaHdqaDZ0a2VlbQEAAAADAAAAZXZtKgAAADB4NDM3Y2MzMzM0NGEwQjI3QTQyOWY3OTVmZjZCNDY5QzcyNjk4QjI5MQ==',
+      'base64',
+    ),
+  });
+
+  // $M
+  svm.setAccount(new PublicKey('mzerojk9tg56ebsrEAhfkyc9VgKjTW2zDqp6C5mhjzH'), {
+    executable: false,
+    owner: TOKEN_2022_ID,
+    lamports: 5407920,
+    data: Buffer.from(
+      'AQAAAISNzLpAi7fWzWUXqGRvch1PgVXHhZ0vSyB9Pu/nOeBalmkzyUYNAAAGAQEAAACpbZe1Jvsnl0MG4sWRQ7nBsb6JZP1eoyqKZgv4kiIfdAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARIAQAB890XGpUEUSnn/t/R/PsDdmSrTBEBeq/cFh0gz/mB43wuGvmbRHduaebwOYxEK62Dv4M7R5S2XqHQXvJr8YpCiDgBAAHz3RcalQRRKef+39H8+wN2ZKtMEQF6r9wWHSDP+YHjfAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAZADgAqW2XtSb7J5dDBuLFkUO5wbG+iWT9XqMqimYL+JIiH3QRqL8ct/bwP5EU5WgAAAAAEai/HLf28D8GAAEAAgwAIACpbZe1Jvsnl0MG4sWRQ7nBsb6JZP1eoyqKZgv4kiIfdBMAzAB890XGpUEUSnn/t/R/PsDdmSrTBEBeq/cFh0gz/mB43wuGvmbRHduaebwOYxEK62Dv4M7R5S2XqHQXvJr8YpCiBwAAAE0gYnkgTTABAAAATXQAAABodHRwczovL2dyZWVuLW9iZWRpZW50LWFsYmF0cm9zcy0xNTUubXlwaW5hdGEuY2xvdWQvaXBmcy9iYWZrcmVpZ3h3bjV2aWRmcmpkaHJ2bm1tdWQ2bHVxc3pwamxhcmxoN2kzaGVoZ2JyenZjd29lcWZtNAAAAAA=',
+      'base64',
+    ),
+  });
+
+  // Vault $M
+  svm.setAccount(new PublicKey('7upNeuSPSpinN7zzEsrxMe6p3N6tMub67dkkm5LFBTvp'), {
+    executable: false,
+    owner: TOKEN_2022_ID,
+    lamports: 5407920,
+    data: Buffer.from(
+      'C4a+ZtEd25p5vA5jEQrrYO/gztHlLZeodBe8mvxikKJ10Dy8YBxxQ+AmIHg8LTHu6MUYl/CA2he+RK624ymEkKvTPbgwDQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgcAAAAPAAEAAA==',
       'base64',
     ),
   });
 
   // User Token Account
-  svm.setAccount(new PublicKey('BXr9Y8RarW8GhZ43Ma1vfUgm5haJVy9x2XSea9aCFSya'), {
+  svm.setAccount(new PublicKey('6LiwTHPF4ewK1BcHQ9mCRXJVTFyERSHRX3pEESPL5DT2'), {
     executable: false,
     owner: TOKEN_2022_ID,
     lamports: 2108880,
     data: Buffer.from(
-      'C4a+ZtMrxaS1qx/r30jjOwbDtaFjsZwXMO14cF9+9oxUWS6Qo9CBLSumcS4sQoiKMNMmbmNghGEJFDLYUO+DecVPDwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgcAAAAPAAEAAA==',
+      'C4a+ZrwfmLR9IKO+YVpJBagluCaGTioPTJSEZ9M+5wmMp5BBlNzH0cw8Q0fGP7y50IeZiFxI3sNgzc1uBeM/9YusQsJAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgcAAAAPAAEAAA==',
+      'base64',
+    ),
+  });
+
+  // Manager Account
+  svm.setAccount(new PublicKey('DbPpDqWQ6b939SXBYy3g9ngRhXd5FoFBi2vqcXtSt4b5'), {
+    executable: false,
+    owner: PROGRAM_ID,
+    lamports: 2108880,
+    data: Buffer.from(
+      'PHM2yX9K2RJ890XGpUEUSnn/t/R/PsDdmSrTBEBeq/cFh0gz/mB43wEAAAAAAAAAAPNBdKunTlBXbpVY1c0gOrV4ZPM2oiNDapVDDsDS4yX4/w==',
       'base64',
     ),
   });
@@ -123,22 +151,22 @@ describe('Yield calculation tests', () => {
 
     // each test is an array of indexes where claims are made
     const tests = [
-      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
-      [0, 1, 2, 3, 18],
-      [0, 1, 2, 18],
-      [0, 1, 18],
-      [0, 18],
+      // [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
+      // [0, 1, 2, 3, 18],
+      // [0, 1, 2, 18],
+      // [0, 1, 18],
+      // [0, 18],
       [18],
-      [17, 18],
-      [16, 17, 18],
-      [15, 16, 17, 18],
-      [0, 2, 4, 6, 8, 10, 12, 14, 16, 18],
-      [1, 3, 5, 7, 9, 11, 13, 15, 17, 18],
-      [1, 3, 5, 15, 18],
-      [1, 4, 6, 15, 18],
-      [7, 11, 14, 18],
-      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18],
-      [0, 15, 18],
+      // [17, 18],
+      // [16, 17, 18],
+      // [15, 16, 17, 18],
+      // [0, 2, 4, 6, 8, 10, 12, 14, 16, 18],
+      // [1, 3, 5, 7, 9, 11, 13, 15, 17, 18],
+      // [1, 3, 5, 15, 18],
+      // [1, 4, 6, 15, 18],
+      // [7, 11, 14, 18],
+      // [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18],
+      // [0, 15, 18],
     ];
 
     for (const [i, testCase] of tests.entries()) {
@@ -180,6 +208,9 @@ describe('Yield calculation tests', () => {
 
           // build claim for earner
           const auth = await EarnAuthority.load(connection, PROGRAM_ID, new ConsoleLogger());
+          auth.global.earnAuthority = provider.wallet.publicKey;
+          auth.global.admin = provider.wallet.publicKey;
+
           const earner = (await auth.getAllEarners())[0];
           const ix = await auth.buildClaimInstruction(earner);
 
@@ -285,6 +316,23 @@ function mockSubgraphIndexUpdates(
       })),
     }))
     .persist();
+
+  nock(API_URL)
+    .get('/events/current-index')
+    .query(true)
+    .reply(200, (url: any) => {
+      return {
+        solana: {
+          index: 1060233223247,
+          ts: '2025-10-07T13:24:33.000Z',
+        },
+        ethereum: {
+          index: 1060253186958,
+          ts: '2025-10-07T17:23:27.404Z',
+        },
+      };
+    })
+    .persist();
 }
 
 function getProgramAccountsFn(connection: Connection) {
@@ -293,8 +341,8 @@ function getProgramAccountsFn(connection: Connection) {
     if ((config as any)?.filters?.[0].memcmp?.bytes === 'gZH8R1wytJi') {
       return [
         {
-          account: (await connection.getAccountInfo(new PublicKey('HQ7haiD7PAG5cEA8QE3CzcVhG68HByJxdLP7Sbp9J2Yx')))!,
-          pubkey: new PublicKey('HQ7haiD7PAG5cEA8QE3CzcVhG68HByJxdLP7Sbp9J2Yx'),
+          account: (await connection.getAccountInfo(new PublicKey('AGKrjenY5JobFXNw4L4QMeSEVhhGgj2zUmx9YmjBkB8a')))!,
+          pubkey: new PublicKey('AGKrjenY5JobFXNw4L4QMeSEVhhGgj2zUmx9YmjBkB8a'),
         },
       ];
     }

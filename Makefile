@@ -16,7 +16,7 @@ test-sdk:
 	cd tests && pnpm jest --preset ts-jest tests/unit/sdk.test.ts; exit $$?
 
 test-merkle:
-	pnpm jest --preset ts-jest tests/unit/merkle.test.ts; exit $$?
+	cd tests && pnpm jest --preset ts-jest tests/unit/merkle.test.ts; exit $$?
 
 build-test-swap-program:
 	@cd ../solana-extensions && anchor build -p ext_swap

@@ -9,6 +9,7 @@ import { MockLogger, Logger } from './logger';
 import { getBalanceAt } from './tokenBalance';
 import { MExt } from './idl/m_ext';
 import { getProgram } from './idl';
+import { M0SolanaApi } from '@m0-foundation/solana-m-api-sdk';
 
 export class EarnAuthority {
   global: GlobalAccountData;
@@ -59,8 +60,11 @@ export class EarnAuthority {
     return accounts.map((a) => new Earner(this.connection, a.publicKey, a.account, this.program.programId));
   }
 
-  async buildClaimInstruction(earner: Earner): Promise<TransactionInstruction | null> {
-    if (earner.data.lastClaimIndex.gte(this.global.index!)) {
+  async buildClaimInstruction(earner: Earner, pendingSync = false): Promise<TransactionInstruction | null> {
+    const { solana: lastestIndex } = await getApiClient().events.currentIndex();
+    const latestIndex = pendingSync ? new BN(lastestIndex.index) : this.global.index!;
+
+    if (earner.data.lastClaimIndex.gte(latestIndex)) {
       this.logger.warn('Earner already claimed', {
         earner: earner.pubkey.toBase58(),
         tokenAccount: earner.data.userTokenAccount.toBase58(),
@@ -77,6 +81,10 @@ export class EarnAuthority {
     // iterate through the steps and calculate the pending yield for the earner
     let claimYield: BN = new BN(0);
     steps.reverse();
+
+    if (pendingSync) {
+      steps.push({ ts: new Date(), index: lastestIndex.index } as M0SolanaApi.IndexUpdate);
+    }
 
     let last = steps[0];
     for (let i = 1; i < steps.length; i++) {
@@ -99,9 +107,7 @@ export class EarnAuthority {
 
     // calculate the claim "snapshot" balance from the claim yield and indices
     // b* = y / ((I_n / I_l) - 1) = y * I_l / (I_n - I_l)
-    const claimBalance = claimYield
-      .mul(earner.data.lastClaimIndex)
-      .div(this.global.index!.sub(earner.data.lastClaimIndex));
+    const claimBalance = claimYield.mul(earner.data.lastClaimIndex).div(latestIndex.sub(earner.data.lastClaimIndex));
 
     if (claimBalance.lte(new BN(0))) {
       this.logger.info('No yield to claim', {

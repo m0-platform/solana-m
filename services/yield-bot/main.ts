@@ -106,7 +106,7 @@ async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promis
       // throttle requests
       await limiter.removeTokens(1);
 
-      const ix = await auth.buildClaimInstruction(earner);
+      const ix = await auth.buildClaimInstruction(earner, true);
       if (ix) ixs.push(ix);
     }
 

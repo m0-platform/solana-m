@@ -90,8 +90,14 @@ export class EarnAuthority {
     for (let i = 1; i < steps.length; i++) {
       let current = steps[i];
 
+      // updates are effectively at the same time, skip
+      // (resolution is only to the second)
+      if (current.ts.getTime() === last.ts.getTime()) {
+        continue;
+      }
+
       // Check that indices and timestamps are only increasing
-      if (current.index < last.index || current.ts < last.ts) {
+      if (current.index < last.index || current.ts.getTime() < last.ts.getTime()) {
         throw new Error('Invalid index or timestamp');
       }
 

@@ -1,5 +1,5 @@
 use base64::prelude::*;
-use consts::{MINTS, SYSTEM_PROGRAMS};
+use consts::SYSTEM_PROGRAMS;
 use pb::{
     database::v1::{table_change::Operation, DatabaseChanges, Field, TableChange},
     transfers::v1::{
@@ -50,9 +50,6 @@ fn map_transfer_events(block: Block) -> TokenTransactions {
 
         // Parse token account balance updates from mints and transfers
         for token_account in token_accounts(&t) {
-            if !MINTS.contains(&token_account.mint) {
-                continue;
-            }
             if token_account.pre_balance == token_account.post_balance {
                 continue;
             }
@@ -146,9 +143,6 @@ fn map_transfer_events_to_db(block: Block) -> DatabaseChanges {
 
         // Parse token account balance updates from mints and transfers
         for token_account in token_accounts(&t) {
-            if !MINTS.contains(&token_account.mint) {
-                continue;
-            }
             if token_account.pre_balance == token_account.post_balance {
                 continue;
             }

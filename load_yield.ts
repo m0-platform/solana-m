@@ -1,7 +1,7 @@
 import { MongoClient } from 'mongodb';
 
 (async () => {
-  const client = await MongoClient.connect('mongodb://read_admin:abDLaqbzpn72@shinkansen.proxy.rlwy.net:22285/');
+  const client = await MongoClient.connect('');
   const database = client.db('solana-m-substream');
 
   // get all index updates

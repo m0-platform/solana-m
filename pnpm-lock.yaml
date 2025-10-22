@@ -15,36 +15,15 @@ catalogs:
     '@solana/web3.js':
       specifier: ^1.68.0
       version: 1.98.4
-    '@sqds/multisig':
-      specifier: ~2.1.3
-      version: 2.1.3
     '@types/bn.js':
       specifier: ^5.1.2
       version: 5.1.6
-    '@types/bs58':
-      specifier: ^4.0.1
-      version: 4.0.4
-    '@wormhole-foundation/sdk-solana':
-      specifier: 3.4.7
-      version: 3.4.7
-    '@wormhole-foundation/sdk-solana-core':
-      specifier: 3.4.7
-      version: 3.4.7
-    '@wormhole-foundation/sdk-solana-ntt':
-      specifier: 2.0.5
-      version: 2.0.5
     bn.js:
       specifier: ~5.2.1
       version: 5.2.2
     bs58:
       specifier: ^4.0.1
       version: 4.0.1
-    commander:
-      specifier: 13.1.0
-      version: 13.1.0
-    limiter:
-      specifier: ~3.0.0
-      version: 3.0.0
     sha3:
       specifier: ^2.1.4
       version: 2.1.4
@@ -54,15 +33,9 @@ catalogs:
     viem:
       specifier: ~2.23.14
       version: 2.23.15
-    web3:
-      specifier: ~4.16.0
-      version: 4.16.0
     winston:
       specifier: ~3.17.0
       version: 3.17.0
-    winston-loki:
-      specifier: ~6.1.3
-      version: 6.1.3
 
 overrides:
   '@wormhole-foundation/sdk': 3.4.7
@@ -227,12 +200,9 @@ importers:
       '@coral-xyz/anchor':
         specifier: 'catalog:'
         version: 0.31.1(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
-      '@m0-foundation/solana-m-api-sdk':
-        specifier: 0.1.3
-        version: 0.1.3
       '@solana/spl-token':
         specifier: 'catalog:'
-        version: 0.4.13(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+        version: 0.4.13(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@solana/web3.js':
         specifier: 'catalog:'
         version: 1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
@@ -248,6 +218,9 @@ importers:
       js-sha256:
         specifier: ^0.11.0
         version: 0.11.1
+      mongodb:
+        specifier: ^6.20.0
+        version: 6.20.0(socks@2.8.5)
       sha3:
         specifier: 'catalog:'
         version: 2.1.4
@@ -415,7 +388,7 @@ importers:
         version: 2.1.3(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@wormhole-foundation/sdk':
         specifier: 3.4.7
-        version: 3.4.7(bufferutil@4.0.9)(got@11.8.6)(typescript@5.8.3)(utf-8-validate@5.0.10)
+        version: 3.4.7(bufferutil@4.0.9)(got@11.8.6)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)
       '@wormhole-foundation/sdk-solana':
         specifier: ~3.6.0
         version: 3.6.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
@@ -9558,52 +9531,6 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@injectivelabs/sdk-ts@1.16.16(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)':
-    dependencies:
-      '@apollo/client': 3.13.9(@types/react@19.2.0)(graphql@16.11.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      '@cosmjs/amino': 0.33.1
-      '@cosmjs/proto-signing': 0.33.1
-      '@cosmjs/stargate': 0.33.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      '@injectivelabs/abacus-proto-ts': 1.14.0
-      '@injectivelabs/core-proto-ts': 1.16.6
-      '@injectivelabs/exceptions': 1.16.16
-      '@injectivelabs/grpc-web': 0.0.1(google-protobuf@3.21.4)
-      '@injectivelabs/grpc-web-node-http-transport': 0.0.2(@injectivelabs/grpc-web@0.0.1(google-protobuf@3.21.4))
-      '@injectivelabs/grpc-web-react-native-transport': 0.0.2(@injectivelabs/grpc-web@0.0.1(google-protobuf@3.21.4))
-      '@injectivelabs/indexer-proto-ts': 1.13.18
-      '@injectivelabs/mito-proto-ts': 1.13.2
-      '@injectivelabs/networks': 1.16.16
-      '@injectivelabs/olp-proto-ts': 1.13.4
-      '@injectivelabs/ts-types': 1.16.16
-      '@injectivelabs/utils': 1.16.16
-      '@noble/curves': 1.9.7
-      '@noble/hashes': 1.8.0
-      '@scure/base': 1.2.6
-      axios: 1.12.2
-      bip39: 3.1.0
-      cosmjs-types: 0.9.0
-      crypto-js: 4.2.0
-      ethers: 6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      google-protobuf: 3.21.4
-      graphql: 16.11.0
-      http-status-codes: 2.3.0
-      rxjs: 7.8.2
-      secp256k1: 4.0.4
-      shx: 0.3.4
-      snakecase-keys: 5.5.0
-      viem: 2.37.13(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
-    transitivePeerDependencies:
-      - '@types/react'
-      - bufferutil
-      - debug
-      - graphql-ws
-      - react
-      - react-dom
-      - subscriptions-transport-ws
-      - typescript
-      - utf-8-validate
-      - zod
-
   '@injectivelabs/sdk-ts@1.16.16(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)':
     dependencies:
       '@apollo/client': 3.13.9(@types/react@19.2.0)(graphql@16.11.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -15020,13 +14947,13 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@wormhole-foundation/sdk-cosmwasm-core@3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)':
+  '@wormhole-foundation/sdk-cosmwasm-core@3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)':
     dependencies:
       '@cosmjs/cosmwasm-stargate': 0.32.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@cosmjs/stargate': 0.32.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      '@injectivelabs/sdk-ts': 1.16.16(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      '@injectivelabs/sdk-ts': 1.16.16(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
       '@wormhole-foundation/sdk-connect': 3.4.7
-      '@wormhole-foundation/sdk-cosmwasm': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      '@wormhole-foundation/sdk-cosmwasm': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
     transitivePeerDependencies:
       - '@types/react'
       - bufferutil
@@ -15039,13 +14966,13 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@wormhole-foundation/sdk-cosmwasm-core@3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)':
+  '@wormhole-foundation/sdk-cosmwasm-core@3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)':
     dependencies:
       '@cosmjs/cosmwasm-stargate': 0.32.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@cosmjs/stargate': 0.32.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      '@injectivelabs/sdk-ts': 1.16.16(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
+      '@injectivelabs/sdk-ts': 1.16.16(@types/react@19.2.0)(bufferutil@4.0.9)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)
       '@wormhole-foundation/sdk-connect': 3.4.7
-      '@wormhole-foundation/sdk-cosmwasm': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
+      '@wormhole-foundation/sdk-cosmwasm': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)
     transitivePeerDependencies:
       - '@types/react'
       - bufferutil
@@ -15066,27 +14993,6 @@ snapshots:
       '@wormhole-foundation/sdk-connect': 3.4.7
       '@wormhole-foundation/sdk-cosmwasm': 3.4.7(@types/react@19.2.0)(bufferutil@4.0.9)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)
       '@wormhole-foundation/sdk-cosmwasm-core': 3.4.7(@types/react@19.2.0)(bufferutil@4.0.9)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)
-      cosmjs-types: 0.9.0
-    transitivePeerDependencies:
-      - '@types/react'
-      - bufferutil
-      - debug
-      - graphql-ws
-      - react
-      - react-dom
-      - subscriptions-transport-ws
-      - typescript
-      - utf-8-validate
-      - zod
-
-  '@wormhole-foundation/sdk-cosmwasm-ibc@3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)':
-    dependencies:
-      '@cosmjs/cosmwasm-stargate': 0.32.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      '@cosmjs/stargate': 0.32.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      '@injectivelabs/sdk-ts': 1.16.16(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
-      '@wormhole-foundation/sdk-connect': 3.4.7
-      '@wormhole-foundation/sdk-cosmwasm': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
-      '@wormhole-foundation/sdk-cosmwasm-core': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       cosmjs-types: 0.9.0
     transitivePeerDependencies:
       - '@types/react'
@@ -15121,6 +15027,27 @@ snapshots:
       - utf-8-validate
       - zod
 
+  '@wormhole-foundation/sdk-cosmwasm-ibc@3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)':
+    dependencies:
+      '@cosmjs/cosmwasm-stargate': 0.32.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      '@cosmjs/stargate': 0.32.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      '@injectivelabs/sdk-ts': 1.16.16(@types/react@19.2.0)(bufferutil@4.0.9)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)
+      '@wormhole-foundation/sdk-connect': 3.4.7
+      '@wormhole-foundation/sdk-cosmwasm': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)
+      '@wormhole-foundation/sdk-cosmwasm-core': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)
+      cosmjs-types: 0.9.0
+    transitivePeerDependencies:
+      - '@types/react'
+      - bufferutil
+      - debug
+      - graphql-ws
+      - react
+      - react-dom
+      - subscriptions-transport-ws
+      - typescript
+      - utf-8-validate
+      - zod
+
   '@wormhole-foundation/sdk-cosmwasm-tokenbridge@3.4.7(@types/react@19.2.0)(bufferutil@4.0.9)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)':
     dependencies:
       '@cosmjs/cosmwasm-stargate': 0.32.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
@@ -15139,12 +15066,12 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@wormhole-foundation/sdk-cosmwasm-tokenbridge@3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)':
+  '@wormhole-foundation/sdk-cosmwasm-tokenbridge@3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)':
     dependencies:
       '@cosmjs/cosmwasm-stargate': 0.32.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      '@injectivelabs/sdk-ts': 1.16.16(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      '@injectivelabs/sdk-ts': 1.16.16(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
       '@wormhole-foundation/sdk-connect': 3.4.7
-      '@wormhole-foundation/sdk-cosmwasm': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      '@wormhole-foundation/sdk-cosmwasm': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
     transitivePeerDependencies:
       - '@types/react'
       - bufferutil
@@ -15157,12 +15084,12 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@wormhole-foundation/sdk-cosmwasm-tokenbridge@3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)':
+  '@wormhole-foundation/sdk-cosmwasm-tokenbridge@3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)':
     dependencies:
       '@cosmjs/cosmwasm-stargate': 0.32.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      '@injectivelabs/sdk-ts': 1.16.16(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
+      '@injectivelabs/sdk-ts': 1.16.16(@types/react@19.2.0)(bufferutil@4.0.9)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)
       '@wormhole-foundation/sdk-connect': 3.4.7
-      '@wormhole-foundation/sdk-cosmwasm': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
+      '@wormhole-foundation/sdk-cosmwasm': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)
     transitivePeerDependencies:
       - '@types/react'
       - bufferutil
@@ -15195,12 +15122,12 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@wormhole-foundation/sdk-cosmwasm@3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)':
+  '@wormhole-foundation/sdk-cosmwasm@3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)':
     dependencies:
       '@cosmjs/cosmwasm-stargate': 0.32.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@cosmjs/proto-signing': 0.32.4
       '@cosmjs/stargate': 0.32.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      '@injectivelabs/sdk-ts': 1.16.16(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      '@injectivelabs/sdk-ts': 1.16.16(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
       '@wormhole-foundation/sdk-connect': 3.4.7
       cosmjs-types: 0.9.0
     transitivePeerDependencies:
@@ -15215,12 +15142,12 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@wormhole-foundation/sdk-cosmwasm@3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)':
+  '@wormhole-foundation/sdk-cosmwasm@3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)':
     dependencies:
       '@cosmjs/cosmwasm-stargate': 0.32.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@cosmjs/proto-signing': 0.32.4
       '@cosmjs/stargate': 0.32.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      '@injectivelabs/sdk-ts': 1.16.16(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
+      '@injectivelabs/sdk-ts': 1.16.16(@types/react@19.2.0)(bufferutil@4.0.9)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)
       '@wormhole-foundation/sdk-connect': 3.4.7
       cosmjs-types: 0.9.0
     transitivePeerDependencies:
@@ -15608,7 +15535,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@wormhole-foundation/sdk@3.4.7(bufferutil@4.0.9)(got@11.8.6)(typescript@5.8.3)(utf-8-validate@5.0.10)':
+  '@wormhole-foundation/sdk@3.4.7(bufferutil@4.0.9)(got@11.8.6)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)':
     dependencies:
       '@wormhole-foundation/sdk-algorand': 3.4.7
       '@wormhole-foundation/sdk-algorand-core': 3.4.7
@@ -15619,10 +15546,10 @@ snapshots:
       '@wormhole-foundation/sdk-aptos-tokenbridge': 3.4.7(got@11.8.6)
       '@wormhole-foundation/sdk-base': 3.4.7
       '@wormhole-foundation/sdk-connect': 3.4.7
-      '@wormhole-foundation/sdk-cosmwasm': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
-      '@wormhole-foundation/sdk-cosmwasm-core': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
-      '@wormhole-foundation/sdk-cosmwasm-ibc': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
-      '@wormhole-foundation/sdk-cosmwasm-tokenbridge': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      '@wormhole-foundation/sdk-cosmwasm': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
+      '@wormhole-foundation/sdk-cosmwasm-core': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
+      '@wormhole-foundation/sdk-cosmwasm-ibc': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
+      '@wormhole-foundation/sdk-cosmwasm-tokenbridge': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
       '@wormhole-foundation/sdk-definitions': 3.4.7
       '@wormhole-foundation/sdk-evm': 3.4.7(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@wormhole-foundation/sdk-evm-cctp': 3.4.7(bufferutil@4.0.9)(utf-8-validate@5.0.10)
@@ -15655,7 +15582,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@wormhole-foundation/sdk@3.4.7(bufferutil@4.0.9)(got@11.8.6)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)':
+  '@wormhole-foundation/sdk@3.4.7(bufferutil@4.0.9)(got@11.8.6)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)':
     dependencies:
       '@wormhole-foundation/sdk-algorand': 3.4.7
       '@wormhole-foundation/sdk-algorand-core': 3.4.7
@@ -15666,10 +15593,10 @@ snapshots:
       '@wormhole-foundation/sdk-aptos-tokenbridge': 3.4.7(got@11.8.6)
       '@wormhole-foundation/sdk-base': 3.4.7
       '@wormhole-foundation/sdk-connect': 3.4.7
-      '@wormhole-foundation/sdk-cosmwasm': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
-      '@wormhole-foundation/sdk-cosmwasm-core': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
-      '@wormhole-foundation/sdk-cosmwasm-ibc': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
-      '@wormhole-foundation/sdk-cosmwasm-tokenbridge': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
+      '@wormhole-foundation/sdk-cosmwasm': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)
+      '@wormhole-foundation/sdk-cosmwasm-core': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)
+      '@wormhole-foundation/sdk-cosmwasm-ibc': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)
+      '@wormhole-foundation/sdk-cosmwasm-tokenbridge': 3.4.7(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)
       '@wormhole-foundation/sdk-definitions': 3.4.7
       '@wormhole-foundation/sdk-evm': 3.4.7(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@wormhole-foundation/sdk-evm-cctp': 3.4.7(bufferutil@4.0.9)(utf-8-validate@5.0.10)
@@ -16595,6 +16522,10 @@ snapshots:
   debug@4.3.4:
     dependencies:
       ms: 2.1.2
+
+  debug@4.4.1:
+    dependencies:
+      ms: 2.1.3
 
   debug@4.4.1(supports-color@5.5.0):
     dependencies:
@@ -19918,7 +19849,7 @@ snapshots:
       cac: 6.7.14
       chokidar: 4.0.3
       consola: 3.4.2
-      debug: 4.4.1(supports-color@5.5.0)
+      debug: 4.4.1
       esbuild: 0.25.5
       fix-dts-default-cjs-exports: 1.0.1
       joycon: 3.1.1

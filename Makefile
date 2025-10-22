@@ -54,6 +54,7 @@ yield-bot-mainnet:
 		TURNKEY_PUBKEY=5FFDpVvjVPEVGb9SgN9V5HNC6gkrPdVqdX6CxXBVwZV \
 		TURNKEY_API_PUBLIC_KEY=$(shell op read "op://Solana Secure/Turnkey API keys/public-key-prod") \
 		TURNKEY_API_PRIVATE_KEY=$(shell op read "op://Solana Secure/Turnkey API keys/private-key-prod") \
+		MONGO_CONNECTION_STRING=$(shell op read "op://Solana Dev/Mongo Read Access/connection string") \
 		pnpm --silent ts-node services/yield-bot/main.ts distribute --dryRun
 
 #

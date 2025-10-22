@@ -6,7 +6,8 @@ import LokiTransport from 'winston-loki';
 import { EnvOptions, getEnv } from 'shared/environment';
 import { PublicKey } from '@solana/web3.js';
 import winston from 'winston';
-import { M0LiquidityApiClient, M0LiquidityApiEnvironment } from '@m0-foundation/liquidity-sdk';
+import { getContract, WalletClient } from 'viem';
+import HubExecutorEntryPointAbi from './HubExecutorEntryPoint.abi.json';
 
 // logger used by bot and passed to SDK
 const logger = new WinstonLogger('index-bot', { imageBuild: process.env.BUILD_TIME ?? '', mint: 'M' }, true);
@@ -73,68 +74,64 @@ export async function indexCLI() {
 }
 
 async function pushIndex(options: ParsedOptions) {
-  const client = new M0LiquidityApiClient({
-    environment: options.isDevnet ? M0LiquidityApiEnvironment.Devnet : M0LiquidityApiEnvironment.Mainnet,
-  });
+  // Fetch quote from the WH Executor API for delivery to Solana
+  const url = `${process.env.WH_EXECUTOR_API}/quote`;
 
-  const sender = options.evmWalletClient!.account!.address;
+  // relay instructions are (from WH's example, can maybe tweak)
+  // type (uint8): 1
+  // gasLimit (uint128): 250000
+  // msgValue (uint128): 15000000 (0.015 SOL)
+  const relayInstructions: `0x${string}` = '0x010000000000000000000000000003d09000000000000000000000000000e4e1c0';
 
-  const quotes = await client.quote.quote({
-    route: {
-      source: {
-        chain: options.isDevnet ? 'Sepolia' : 'Ethereum',
-        address: '0x437cc33344a0B27A429f795ff6B469C72698B291',
-      },
-      destination: {
-        chain: 'Solana',
-        address: 'mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp',
-      },
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'User-Agent': 'm0-index-bot',
+      'Content-Type': 'application/json',
     },
-    amountIn: '2', // 0 invalid and 1 causes rounding issues
-    recipient: options.recipient,
-    sender,
-    maxNumQuotes: 1,
+    body: JSON.stringify({
+      srcChain: options.isDevnet ? 10002 : 2, // Sepolia : Ethereum
+      dstChain: 1,
+      relayInstructions,
+    }),
   });
 
-  // route should be direct (approved amount should be sufficiently high already)
-  if (quotes.length === 0 || quotes[0].payloads.length !== 1) {
-    throw new Error(`Invalid quote response: quotes: ${quotes.length}`);
+  const quote = await res.json();
+  if (!quote || !quote.estimatedCost || !quote.signedQuote) {
+    throw new Error(`No quote from WH Executor API: ${JSON.stringify(quote)}`);
   }
 
-  logger.info('Fetched quote', { quote: quotes[0].payloads[0].annotation ?? '' });
+  // Construct the index update call to the Hub Executor contract
+  const executorEntryPoint = getContract({
+    abi: HubExecutorEntryPointAbi,
+    address: '0x22f04a6cd935bfa3b4d000a4e3d4079adb148198' as `0x${string}`, // Deterministic deployment address
+    client: options.evmWalletClient! as WalletClient,
+  });
 
-  // grab and convert EVM payload
-  const evmPayloads: { to: `0x${string}`; value: bigint | undefined; data: `0x${string}` }[] = [];
-  for (const p of quotes[0].payloads) {
-    if (p.data.type === 'evm') {
-      evmPayloads.push({
-        to: p.data.to as `0x${string}`,
-        value: p.data.value ? BigInt(p.data.value) : undefined,
-        data: p.data.data as `0x${string}`,
-      });
-    }
-  }
+  const sender = options.evmWalletClient!.account!.address as `0x${string}`;
+  const refundAddress = ('0x' + sender.substring(2).padStart(64, '0')) as `0x${string}`;
 
-  const p = quotes[0].payloads[0];
-  if (p.data.type !== 'evm') {
-    throw new Error('Expected EVM payload');
-  }
+  const txArgs = [
+    BigInt(1), // Destination Chain ID (Solana)
+    refundAddress, // Refund address (32 bytes, left-padded)
+    {
+      value: BigInt(quote.estimatedCost), // value
+      refundAddress: sender, // refund address (20 bytes)
+      signedQuote: quote.signedQuote as `0x${string}`, // signed quote from WH Executor API
+      instructions: relayInstructions, // relay instructions for executor
+    },
+    '0x01000101' as `0x${string}`, // transceiver instructions (disable standard relaying)
+  ];
+  const txOptions = {
+    value: BigInt(quote.estimatedCost),
+  };
 
   if (options.dryRun) {
-    await options.evmClient.simulateCalls({
-      account: sender,
-      calls: evmPayloads,
-    });
+    await executorEntryPoint.simulate.sendMTokenIndex(txArgs, txOptions);
 
     logger.info('Dry run complete, not sending transaction');
   } else {
-    const tx = await options.evmWalletClient!.sendTransaction({
-      account: options.evmWalletClient!.account!,
-      chain: options.evmWalletClient!.chain!,
-      value: p.data.value ? BigInt(p.data.value) : undefined,
-      to: p.data.to as `0x${string}`,
-      data: p.data.data as `0x${string}`,
-    });
+    const tx = await executorEntryPoint.write.sendMTokenIndex(txArgs, txOptions);
 
     slackMessage.messages.push(`Index updated: ${tx}`);
     slackMessage.explorer = `https://wormholescan.io/#/tx/${tx}`;

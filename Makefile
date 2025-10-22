@@ -44,13 +44,13 @@ yield-bot-devnet:
 	@RPC_URL=$(shell op read "op://Solana Dev/Helius/dev rpc") \
 		DEVNET=true \
 		MONGO_CONNECTION_STRING=$(shell op read "op://Solana Dev/Mongo Read Access/devnet-connection-string") \
-		EVM_RPC_URL=$(shell op read "op://Solana Dev/Alchemy/sepolia") \
+		ETH_RPC_URL=$(shell op read "op://Solana Dev/Alchemy/sepolia") \
 		KEYPAIR=$(shell op read "op://Solana Dev/Solana Program Keys/devnet-authority") \
 		pnpm --silent ts-node services/yield-bot/main.ts distribute --dryRun
 
 yield-bot-mainnet:
 	@RPC_URL=$(shell op read "op://Solana Dev/Helius/prod rpc") \
-		EVM_RPC_URL=$(shell op read "op://Solana Dev/Alchemy/mainnet") \
+		ETH_RPC_URL=$(shell op read "op://Solana Dev/Alchemy/mainnet") \
 		TURNKEY_PUBKEY=5FFDpVvjVPEVGb9SgN9V5HNC6gkrPdVqdX6CxXBVwZV \
 		TURNKEY_API_PUBLIC_KEY=$(shell op read "op://Solana Secure/Turnkey API keys/public-key-prod") \
 		TURNKEY_API_PRIVATE_KEY=$(shell op read "op://Solana Secure/Turnkey API keys/private-key-prod") \

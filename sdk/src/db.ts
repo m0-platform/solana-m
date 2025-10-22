@@ -65,11 +65,11 @@ export async function indexUpdates(params: { fromTime: number; toTime?: number }
   const result = await cursor.toArray();
 
   return result.map((update) => ({
-    index: update.index,
-    programId: update.program_id,
-    signature: update.signature,
-    tokenSupply: update.token_supply,
-    ts: update.transaction.block_time,
+    index: update.index as number,
+    programId: update.program_id as string,
+    signature: update.signature as string,
+    tokenSupply: update.token_supply as number,
+    ts: new Date(update.transaction.block_time * 1000),
   }));
 }
 
@@ -107,7 +107,7 @@ export async function currentIndex() {
 
   const result = await cursor.toArray();
 
-  return { index: result[0].index, ts: result[0].transaction.block_time };
+  return { index: result[0].index as number, ts: result[0].transaction.block_time as number };
 }
 
 export async function getBalanceAt(tokenAccount: PublicKey, mint: PublicKey, ts: Date): Promise<BN> {

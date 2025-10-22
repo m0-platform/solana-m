@@ -89,7 +89,7 @@ export async function yieldCLI() {
 
 async function validation(opt: ParsedOptions) {
   const auth = await EarnAuthority.load(opt.connection, wM, logger);
-  await validateDatabaseData(auth, opt.apiEnvornment);
+  await validateDatabaseData(auth);
 }
 
 async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promise<void> {

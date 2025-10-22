@@ -15,15 +15,36 @@ catalogs:
     '@solana/web3.js':
       specifier: ^1.68.0
       version: 1.98.4
+    '@sqds/multisig':
+      specifier: ~2.1.3
+      version: 2.1.4
     '@types/bn.js':
       specifier: ^5.1.2
       version: 5.1.6
+    '@types/bs58':
+      specifier: ^4.0.1
+      version: 4.0.4
+    '@wormhole-foundation/sdk-solana':
+      specifier: 3.4.7
+      version: 3.4.7
+    '@wormhole-foundation/sdk-solana-core':
+      specifier: 3.4.7
+      version: 3.4.7
+    '@wormhole-foundation/sdk-solana-ntt':
+      specifier: 2.0.5
+      version: 2.0.5
     bn.js:
       specifier: ~5.2.1
       version: 5.2.2
     bs58:
       specifier: ^4.0.1
       version: 4.0.1
+    commander:
+      specifier: 13.1.0
+      version: 13.1.0
+    limiter:
+      specifier: ~3.0.0
+      version: 3.0.0
     sha3:
       specifier: ^2.1.4
       version: 2.1.4
@@ -33,9 +54,15 @@ catalogs:
     viem:
       specifier: ~2.23.14
       version: 2.23.15
+    web3:
+      specifier: ~4.16.0
+      version: 4.16.0
     winston:
       specifier: ~3.17.0
       version: 3.17.0
+    winston-loki:
+      specifier: ~6.1.3
+      version: 6.1.3
 
 overrides:
   '@wormhole-foundation/sdk': 3.4.7
@@ -202,7 +229,7 @@ importers:
         version: 0.31.1(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@solana/spl-token':
         specifier: 'catalog:'
-        version: 0.4.13(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
+        version: 0.4.13(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@solana/web3.js':
         specifier: 'catalog:'
         version: 1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
@@ -385,7 +412,7 @@ importers:
         version: 1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@sqds/multisig':
         specifier: 'catalog:'
-        version: 2.1.3(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
+        version: 2.1.4(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@wormhole-foundation/sdk':
         specifier: 3.4.7
         version: 3.4.7(bufferutil@4.0.9)(got@11.8.6)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@4.1.11)
@@ -452,6 +479,9 @@ importers:
       bn.js:
         specifier: 'catalog:'
         version: 5.2.2
+      mongodb:
+        specifier: ^6.20.0
+        version: 6.20.0(socks@2.8.5)
       viem:
         specifier: 'catalog:'
         version: 2.23.15(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
@@ -2892,10 +2922,6 @@ packages:
     resolution: {integrity: sha512-jrseNWipwl9xXZgrzwZF3hhL0eIVxuEtoZOSLmuPuef7FgHjstuTtNJAeT4icA7pzdDV4hZvu54pI2r2f7SmrQ==}
     peerDependencies:
       '@solana/web3.js': '*'
-
-  '@sqds/multisig@2.1.3':
-    resolution: {integrity: sha512-WOiL7La+RSiJsz7jVO85yhSiiSvNMUthiWuLPeWVOoD6IYa34BEAzanF1RdXRWGglSbRFYCTkyr+Ay1WmXmSRQ==}
-    engines: {node: '>=14'}
 
   '@sqds/multisig@2.1.4':
     resolution: {integrity: sha512-5w+NmwHOzl96nI50R/fjSD6uFydRLNUquhoEmmWbGepS4D9DnQyF2TKcUBfTyxV3sgJt00ypBt7SXB3y8WOzUQ==}
@@ -10143,7 +10169,7 @@ snapshots:
       '@metaplex-foundation/beet': 0.7.1
       '@solana/web3.js': 1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       bs58: 5.0.0
-      debug: 4.4.1(supports-color@5.5.0)
+      debug: 4.4.3
     transitivePeerDependencies:
       - bufferutil
       - encoding
@@ -10155,7 +10181,7 @@ snapshots:
     dependencies:
       ansicolors: 0.3.2
       bn.js: 5.2.2
-      debug: 4.4.1(supports-color@5.5.0)
+      debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
 
@@ -12555,7 +12581,7 @@ snapshots:
       eventemitter3: 5.0.1
       uuid: 9.0.1
 
-  '@sqds/multisig@2.1.3(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)':
+  '@sqds/multisig@2.1.4(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@metaplex-foundation/beet': 0.7.1
       '@metaplex-foundation/beet-solana': 0.4.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
@@ -16523,10 +16549,6 @@ snapshots:
     dependencies:
       ms: 2.1.2
 
-  debug@4.4.1:
-    dependencies:
-      ms: 2.1.3
-
   debug@4.4.1(supports-color@5.5.0):
     dependencies:
       ms: 2.1.3
@@ -18558,9 +18580,9 @@ snapshots:
       '@adraffy/ens-normalize': 1.11.1
       '@noble/curves': 1.9.7
       '@noble/hashes': 1.8.0
-      '@scure/bip32': 1.6.2
-      '@scure/bip39': 1.5.4
-      abitype: 1.0.8(typescript@5.8.3)(zod@4.1.11)
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
+      abitype: 1.1.1(typescript@5.8.3)(zod@4.1.11)
       eventemitter3: 5.0.1
     optionalDependencies:
       typescript: 5.8.3
@@ -18603,7 +18625,7 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
-      abitype: 1.0.8(typescript@5.8.3)(zod@4.1.11)
+      abitype: 1.1.1(typescript@5.8.3)(zod@4.1.11)
       eventemitter3: 5.0.1
     optionalDependencies:
       typescript: 5.8.3
@@ -18904,7 +18926,7 @@ snapshots:
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.0
       '@types/node': 22.13.17
-      long: 5.2.5
+      long: 5.3.2
 
   protobufjs@7.5.3:
     dependencies:
@@ -19849,7 +19871,7 @@ snapshots:
       cac: 6.7.14
       chokidar: 4.0.3
       consola: 3.4.2
-      debug: 4.4.1
+      debug: 4.4.1(supports-color@5.5.0)
       esbuild: 0.25.5
       fix-dts-default-cjs-exports: 1.0.1
       joycon: 3.1.1
@@ -20341,7 +20363,7 @@ snapshots:
 
   web3-eth-ens@4.4.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76):
     dependencies:
-      '@adraffy/ens-normalize': 1.11.0
+      '@adraffy/ens-normalize': 1.11.1
       web3-core: 4.7.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       web3-errors: 1.3.1
       web3-eth: 4.11.1(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
@@ -20558,7 +20580,7 @@ snapshots:
     dependencies:
       async-exit-hook: 2.0.1
       btoa: 1.2.1
-      protobufjs: 7.5.3
+      protobufjs: 7.5.4
       url-polyfill: 1.1.13
       winston-transport: 4.9.0
     optionalDependencies:

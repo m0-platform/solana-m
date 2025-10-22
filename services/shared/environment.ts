@@ -3,13 +3,7 @@ import { Turnkey } from '@turnkey/sdk-server';
 import { TurnkeySigner } from '@turnkey/solana';
 import { privateKeyToAccount } from 'viem/accounts';
 import { sepolia, mainnet } from 'viem/chains';
-import {
-  createPublicClient,
-  ETH_MERKLE_TREE_BUILDER,
-  http,
-  M0SolanaApiEnvironment,
-  PublicClient,
-} from '@m0-foundation/solana-m-sdk';
+import { createPublicClient, ETH_MERKLE_TREE_BUILDER, http, PublicClient } from '@m0-foundation/solana-m-sdk';
 import { Hex, createWalletClient, WalletClient } from 'viem';
 import { ETH_MERKLE_TREE_BUILDER_DEVNET } from '@m0-foundation/solana-m-sdk';
 import { Transport } from 'viem';
@@ -30,7 +24,6 @@ export interface EnvOptions {
   evmClient: PublicClient;
   merkleTreeAddress: `0x${string}`;
   evmWalletClient?: WalletClient;
-  apiEnvornment: M0SolanaApiEnvironment;
   signerPubkey: PublicKey;
   signer?: Keypair;
   squads?: SquadsEnvOption;
@@ -111,7 +104,6 @@ export function getEnv(): EnvOptions {
     evmClient: createPublicClient({ transport: http(ETH_RPC_URL!) }),
     merkleTreeAddress: isDevnet ? ETH_MERKLE_TREE_BUILDER_DEVNET : ETH_MERKLE_TREE_BUILDER,
     evmWalletClient,
-    apiEnvornment: isDevnet ? M0SolanaApiEnvironment.Devnet : M0SolanaApiEnvironment.Mainnet,
     turnkey,
     squads,
   };

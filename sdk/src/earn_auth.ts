@@ -60,7 +60,7 @@ export class EarnAuthority {
   }
 
   async buildClaimInstruction(earner: Earner, pendingSync = false): Promise<TransactionInstruction | null> {
-    const { index: lastestIndex } = await currentIndex();
+    const lastestIndex = await currentIndex();
     const latestIndex = pendingSync ? new BN(lastestIndex.index) : this.global.index!;
 
     if (earner.data.lastClaimIndex.gte(latestIndex)) {
@@ -191,7 +191,7 @@ export class EarnAuthority {
       spl.TOKEN_2022_PROGRAM_ID,
     );
 
-    const { index: dbIndex } = await currentIndex();
+    const dbIndex = await currentIndex();
 
     // adjust $M collateral by multiplier
     const collateral = new BN(tokenAccountInfo.amount.toString())
@@ -268,6 +268,11 @@ export class EarnAuthority {
       default:
         throw new Error(`Unknown yield variant: ${this.global.variant}`);
     }
+  }
+
+  async loadIndexFromDB(): Promise<number> {
+    const { index } = await currentIndex();
+    return index;
   }
 
   private _getRewardAmounts(logs: string[]) {

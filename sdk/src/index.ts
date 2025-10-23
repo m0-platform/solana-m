@@ -1,4 +1,3 @@
-import { M0SolanaApiClient, M0SolanaApiEnvironment } from '@m0-foundation/solana-m-api-sdk';
 import { PublicKey } from '@solana/web3.js';
 
 // Solana program IDs
@@ -19,11 +18,3 @@ export { Earner } from './earner';
 export { EvmCaller } from './evm_caller';
 export * from './logger';
 export * from './transaction';
-
-export const getApiClient = () => {
-  let apiEnv: M0SolanaApiEnvironment = M0SolanaApiEnvironment.Mainnet;
-  if (process.env.DEVNET === 'true') apiEnv = M0SolanaApiEnvironment.Devnet;
-  if (process.env.LOCALNET === 'true') apiEnv = M0SolanaApiEnvironment.Localnet;
-  return new M0SolanaApiClient({ environment: apiEnv });
-};
-export { M0SolanaApiClient, M0SolanaApiEnvironment } from '@m0-foundation/solana-m-api-sdk';

@@ -1,15 +1,14 @@
 import { Connection, TransactionInstruction, PublicKey } from '@solana/web3.js';
-import { getApiClient, TransactionBuilder } from '.';
+import { TransactionBuilder } from '.';
 import { Earner } from './earner';
 import { EarnManager } from './earn_manager';
 import { GlobalAccountData, loadGlobal } from './accounts';
 import * as spl from '@solana/spl-token';
 import { BN, Program } from '@coral-xyz/anchor';
 import { MockLogger, Logger } from './logger';
-import { getBalanceAt } from './tokenBalance';
 import { MExt } from './idl/m_ext';
 import { getProgram } from './idl';
-import { M0SolanaApi } from '@m0-foundation/solana-m-api-sdk';
+import { currentIndex, getBalanceAt, indexUpdates } from './db';
 
 export class EarnAuthority {
   global: GlobalAccountData;
@@ -61,7 +60,7 @@ export class EarnAuthority {
   }
 
   async buildClaimInstruction(earner: Earner, pendingSync = false): Promise<TransactionInstruction | null> {
-    const { solana: lastestIndex } = await getApiClient().events.currentIndex();
+    const lastestIndex = await currentIndex();
     const latestIndex = pendingSync ? new BN(lastestIndex.index) : this.global.index!;
 
     if (earner.data.lastClaimIndex.gte(latestIndex)) {
@@ -73,7 +72,7 @@ export class EarnAuthority {
     }
 
     // get the index updates from the earner's last claim to the current index
-    const { updates: steps } = await getApiClient().events.indexUpdates({
+    const steps = await indexUpdates({
       fromTime: earner.data.lastClaimTimestamp.toNumber(),
       toTime: this.global.timestamp!.toNumber() + 1, // include current index
     });
@@ -83,7 +82,7 @@ export class EarnAuthority {
     steps.reverse();
 
     if (pendingSync) {
-      steps.push({ ts: new Date(), index: lastestIndex.index } as M0SolanaApi.IndexUpdate);
+      steps.push({ ts: new Date(), index: lastestIndex.index } as any);
     }
 
     let last = steps[0];
@@ -192,7 +191,7 @@ export class EarnAuthority {
       spl.TOKEN_2022_PROGRAM_ID,
     );
 
-    const { solana: dbIndex } = await getApiClient().events.currentIndex();
+    const dbIndex = await currentIndex();
 
     // adjust $M collateral by multiplier
     const collateral = new BN(tokenAccountInfo.amount.toString())
@@ -269,6 +268,11 @@ export class EarnAuthority {
       default:
         throw new Error(`Unknown yield variant: ${this.global.variant}`);
     }
+  }
+
+  async loadIndexFromDB(): Promise<number> {
+    const { index } = await currentIndex();
+    return index;
   }
 
   private _getRewardAmounts(logs: string[]) {

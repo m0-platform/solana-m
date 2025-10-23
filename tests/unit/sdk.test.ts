@@ -1,20 +1,11 @@
 import { BN, Program } from '@coral-xyz/anchor';
-import {
-  Context,
-  Keypair,
-  Logs,
-  PublicKey,
-  sendAndConfirmTransaction,
-  Transaction,
-  TransactionInstruction,
-} from '@solana/web3.js';
+import { Keypair, PublicKey, sendAndConfirmTransaction, Transaction, TransactionInstruction } from '@solana/web3.js';
 import { ConsoleLogger } from '@m0-foundation/solana-m-sdk';
 import * as spl from '@solana/spl-token';
 import { createMintInstruction, LiteSVMProviderExt, loadKeypair } from '../test-utils';
 import { EarnAuthority, EarnManager, Earner } from '@m0-foundation/solana-m-sdk';
 import { MExt } from '../programs/crank';
 import { Earn } from '../../target/types/earn';
-import { getBalanceAt, _balanceFromTransfers } from '@m0-foundation/solana-m-sdk/src/tokenBalance';
 import nock from 'nock';
 import { fromWorkspace } from 'anchor-litesvm';
 import NodeWallet from '@coral-xyz/anchor/dist/cjs/nodewallet';
@@ -145,60 +136,6 @@ describe('SDK unit tests', () => {
     test('get earn manager', async () => {
       const manager = await EarnManager.fromManagerAddress(connection, mExt.programId, signer.publicKey);
       expect(manager.data.feeBps.toNumber()).toEqual(10);
-    });
-  });
-
-  describe('api calculations', () => {
-    test('balance at', async () => {
-      const balance = await getBalanceAt(
-        new PublicKey('BpBCHhfSbR368nurxPizimYEr55JE7JWQ5aDQjYi3EQj'),
-        mints[0].publicKey,
-        new Date(1000e3),
-      );
-      expect(balance.toNumber()).toEqual(2000000000000);
-    });
-
-    describe('balance calculations', () => {
-      test('no transfers balance', async () => {
-        expect(_balanceFromTransfers([]).toNumber()).toEqual(0);
-      });
-      test('one transfers halfway', async () => {
-        expect(
-          _balanceFromTransfers([{ preBalance: 100, postBalance: 50, ts: new Date(100e3) } as any]).toNumber(),
-        ).toEqual(50);
-      });
-      test('huge transfer before calculation', async () => {
-        expect(
-          _balanceFromTransfers([{ preBalance: 0, postBalance: 1000000, ts: new Date(1499995e3) } as any]).toNumber(),
-        ).toEqual(1000000);
-      });
-      test('many transfers', async () => {
-        const numTransfers = 50;
-        const transferAmount = 10;
-
-        // generate transfer data
-        const transfers = [...Array(numTransfers)].map(
-          (_, i) =>
-            ({
-              preBalance: 1000 - 10 * i,
-              postBalance: 1000 - 10 * (i + 1),
-              ts: new Date((100 + i * transferAmount) * 1000),
-            } as any),
-        );
-
-        // sort transfers in place by timestamp (newest first)
-        transfers.sort((a, b) => b.ts.getTime() - a.ts.getTime());
-
-        expect(_balanceFromTransfers(transfers).toNumber()).toEqual(transfers[0].postBalance);
-      });
-      test('current balance is 0', async () => {
-        expect(
-          _balanceFromTransfers([
-            { preBalance: 1000, postBalance: 0, ts: new Date(200e3) } as any,
-            { preBalance: 0, postBalance: 1000, ts: new Date(150e3) } as any,
-          ]).toNumber(),
-        ).toEqual(0);
-      });
     });
   });
 

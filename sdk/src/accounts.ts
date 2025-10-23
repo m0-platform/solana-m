@@ -40,8 +40,11 @@ export async function loadGlobal(connection: Connection, program: PublicKey): Pr
   // global account will differ depending on the program features
   const globalData = (await connection.getAccountInfo(globalAccount))!.data;
 
+  // depending on pending admin
+  const yieldTypeOffset = globalData[40] === 1 ? 172 : 140;
+
   // assuming no pending admin
-  const yieldType = globalData[140];
+  const yieldType = globalData[yieldTypeOffset];
   const decoder = yieldVariantsDecoder(yieldType);
   const global = decoder.decode('ExtGlobalV2', globalData);
 

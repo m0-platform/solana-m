@@ -2,6 +2,7 @@
 
 pub mod errors;
 pub mod instructions;
+pub mod payloads;
 pub mod state;
 
 use anchor_lang::prelude::*;
@@ -28,7 +29,13 @@ pub mod bridge {
         destination_token: [u8; 32],
         recipient: [u8; 32],
     ) -> Result<()> {
-        SendTokens::handler(ctx)
+        SendTokens::handler(
+            ctx,
+            amount,
+            destination_chain_id,
+            destination_token,
+            recipient,
+        )
     }
 
     pub fn send_fill_report(

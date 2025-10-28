@@ -5,6 +5,7 @@ seeds = false
 skip-lint = false
 
 [programs.localnet]
+bridge = "MzBrgc8yXBj4P16GTkcSyDZkEQZB9qDqf3fh9bByJce"
 earn = "mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z"
 portal = "mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY"
 
@@ -12,11 +13,8 @@ portal = "mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Localnet"
+cluster = "localnet"
 wallet = "tests/keys/user.json"
-
-[test]
-upgradeable = true
 
 [scripts]
 test = "pnpm run jest --preset ts-jest --verbose --testPathPattern=tests/unit"

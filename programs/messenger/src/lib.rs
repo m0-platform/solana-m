@@ -22,20 +22,13 @@ pub mod messenger {
 
     /// Outbound Instructions
 
-    pub fn send_token(
-        ctx: Context<SendTokens>,
+    pub fn send_token<'info>(
+        ctx: Context<'_, '_, '_, 'info, SendTokens<'info>>,
         amount: u64,
-        destination_chain_id: u32,
         destination_token: [u8; 32],
         recipient: [u8; 32],
     ) -> Result<()> {
-        SendTokens::handler(
-            ctx,
-            amount,
-            destination_chain_id,
-            destination_token,
-            recipient,
-        )
+        SendTokens::handler(ctx, amount, destination_token, recipient)
     }
 
     pub fn send_fill_report(

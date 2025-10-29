@@ -19,10 +19,10 @@ pub mod wormhole_adapter {
 
     pub fn receive_message(
         ctx: Context<ReceiveMessage>,
-        guardian_set_bump: u8,
+        guardian_set_index: u32,
         vaa_body: Vec<u8>,
     ) -> Result<()> {
-        ReceiveMessage::handler(ctx, guardian_set_bump, vaa_body)
+        ReceiveMessage::handler(ctx, guardian_set_index, vaa_body)
     }
 
     pub fn relay_message(ctx: Context<RelayMessage>, message: Vec<u8>) -> Result<()> {

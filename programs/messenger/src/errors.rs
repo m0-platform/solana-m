@@ -10,4 +10,8 @@ pub enum MessengerError {
     InvalidAmount,
     #[msg("Invalid extension")]
     InvalidExtension,
+    #[msg("Bridge adapter not supported")]
+    InvalidBridgeAdapter,
+    #[msg("Invalid number of remaining accounts")]
+    InvalidRemainingAccounts,
 }

@@ -6,7 +6,12 @@ use anchor_lang::{
 };
 use wormhole_post_message_shim::{program::WormholePostMessageShim, types::Finality};
 
-use crate::{consts::{CORE_BRIDGE_CONFIG, CORE_BRIDGE_FEE_COLLECTOR, CORE_BRIDGE_PROGRAM_ID, MESSENGER_PROGRAM_ID}, state::{GLOBAL_SEED, WormholeGlobal}};
+use crate::{
+    consts::{
+        CORE_BRIDGE_CONFIG, CORE_BRIDGE_FEE_COLLECTOR, CORE_BRIDGE_PROGRAM_ID, MESSENGER_PROGRAM_ID,
+    },
+    state::{WormholeGlobal, GLOBAL_SEED},
+};
 
 #[derive(Accounts)]
 pub struct RelayMessage<'info> {
@@ -20,7 +25,6 @@ pub struct RelayMessage<'info> {
     )]
     pub wormhole_global: Account<'info, WormholeGlobal>,
 
-
     #[account(
         seeds = [b"authority"], 
         seeds::program = MESSENGER_PROGRAM_ID,
@@ -30,26 +34,34 @@ pub struct RelayMessage<'info> {
     messenger_authority: Signer<'info>,
 
     #[account(
-        mut, 
+        mut,
         address = CORE_BRIDGE_CONFIG
     )]
     /// CHECK: Wormhole bridge config. [`wormhole::post_message`] requires this account be mutable.
     pub bridge: UncheckedAccount<'info>,
 
     #[account(
-        mut, 
-        seeds = [&emitter.key.to_bytes()], 
+        mut,
+        seeds = [&emitter.key.to_bytes()],
         seeds::program = wormhole_post_message_shim::ID,
         bump
     )]
     /// CHECK: Wormhole Message. [`wormhole::post_message`] requires this account be signer and mutable.
     pub message: UncheckedAccount<'info>,
 
-    #[account(seeds = [b"emitter"], bump)]
+    #[account(
+        seeds = [b"emitter"],
+        bump
+    )]
     /// CHECK: emitter enforced on the CPI
     pub emitter: UncheckedAccount<'info>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"Sequence", &emitter.key.to_bytes()], 
+        seeds::program = CORE_BRIDGE_PROGRAM_ID,
+        bump
+    )]
     /// CHECK: Emitter's sequence account. [`wormhole::post_message`] requires this account be mutable.
     pub sequence: UncheckedAccount<'info>,
 

@@ -4,7 +4,10 @@ use anchor_lang::{prelude::*, solana_program::keccak};
 use wormhole_verify_vaa_shim::cpi::accounts::VerifyHash;
 use wormhole_verify_vaa_shim::program::WormholeVerifyVaaShim;
 
-use crate::state::{WormholeGlobal, GLOBAL_SEED};
+use crate::{
+    consts::CORE_BRIDGE_PROGRAM_ID,
+    state::{WormholeGlobal, GLOBAL_SEED},
+};
 
 #[derive(Accounts)]
 pub struct ReceiveMessage<'info> {
@@ -25,7 +28,20 @@ pub struct ReceiveMessage<'info> {
 }
 
 impl ReceiveMessage<'_> {
-    fn validate(&self, guardian_set_bump: u8, vaa_body: Vec<u8>) -> Result<()> {
+    fn validate(&self, guardian_set_index: u32, vaa_body: Vec<u8>) -> Result<()> {
+        if vaa_body.len() < 51 {
+            return Err(ProgramError::InvalidArgument.into());
+        }
+
+        let (guardian_set_key, guardian_set_bump) = Pubkey::find_program_address(
+            &[b"GuardianSet", &guardian_set_index.to_be_bytes()],
+            &CORE_BRIDGE_PROGRAM_ID,
+        );
+
+        if guardian_set_key != self.guardian_set.key() {
+            return Err(ProgramError::InvalidArgument.into());
+        }
+
         // Compute the message hash.
         let message_hash = &keccak::hashv(&[&vaa_body]).to_bytes();
         let digest = keccak::hash(message_hash.as_slice()).to_bytes();
@@ -44,8 +60,8 @@ impl ReceiveMessage<'_> {
         )
     }
 
-    #[access_control(ctx.accounts.validate(guardian_set_bump, vaa_body))]
-    pub fn handler(ctx: Context<Self>, guardian_set_bump: u8, vaa_body: Vec<u8>) -> Result<()> {
+    #[access_control(ctx.accounts.validate(guardian_set_index, vaa_body))]
+    pub fn handler(ctx: Context<Self>, guardian_set_index: u32, vaa_body: Vec<u8>) -> Result<()> {
         Ok(())
     }
 }

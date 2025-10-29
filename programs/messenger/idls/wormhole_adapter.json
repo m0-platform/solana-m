@@ -1,0 +1,480 @@
+{
+  "address": "mzWh4w2CAHymGp89Z8VV2nKuCkdSFARS3fEaTBPq14b",
+  "metadata": {
+    "name": "wormhole_adapter",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "wormhole_global",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "receive_message",
+      "discriminator": [
+        38,
+        144,
+        127,
+        225,
+        31,
+        225,
+        238,
+        25
+      ],
+      "accounts": [
+        {
+          "name": "wormhole_global",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "guardian_set"
+        },
+        {
+          "name": "guardian_signatures"
+        },
+        {
+          "name": "wormhole_verify_vaa_shim",
+          "address": "EFaNWErqAtVWufdNb7yofSHHfWFos843DFpu4JBw24at"
+        }
+      ],
+      "args": [
+        {
+          "name": "guardian_set_index",
+          "type": "u32"
+        },
+        {
+          "name": "vaa_body",
+          "type": "bytes"
+        }
+      ]
+    },
+    {
+      "name": "relay_message",
+      "discriminator": [
+        187,
+        90,
+        182,
+        138,
+        51,
+        248,
+        175,
+        98
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "wormhole_global",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "messenger_authority",
+          "docs": [
+            "Only relay messages coming from the Messenger program"
+          ],
+          "signer": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                5,
+                96,
+                71,
+                38,
+                195,
+                17,
+                0,
+                131,
+                79,
+                49,
+                225,
+                51,
+                140,
+                91,
+                229,
+                193,
+                101,
+                155,
+                214,
+                243,
+                111,
+                176,
+                88,
+                151,
+                248,
+                178,
+                69,
+                151,
+                27,
+                53,
+                202,
+                23
+              ]
+            }
+          }
+        },
+        {
+          "name": "bridge",
+          "writable": true,
+          "address": "2yVjuQwpsvdsrywzsJJVs9Ueh4zayyo5DYJbBNc3DDpn"
+        },
+        {
+          "name": "message",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "emitter"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                206,
+                93,
+                34,
+                116,
+                131,
+                143,
+                202,
+                41,
+                198,
+                209,
+                143,
+                152,
+                10,
+                211,
+                213,
+                245,
+                235,
+                78,
+                129,
+                210,
+                121,
+                29,
+                243,
+                98,
+                128,
+                136,
+                144,
+                147,
+                38,
+                68,
+                208,
+                24
+              ]
+            }
+          }
+        },
+        {
+          "name": "emitter",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  109,
+                  105,
+                  116,
+                  116,
+                  101,
+                  114
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "sequence",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  83,
+                  101,
+                  113,
+                  117,
+                  101,
+                  110,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "emitter"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                14,
+                10,
+                88,
+                154,
+                65,
+                165,
+                95,
+                189,
+                102,
+                197,
+                42,
+                71,
+                95,
+                45,
+                146,
+                166,
+                211,
+                220,
+                155,
+                71,
+                71,
+                17,
+                76,
+                185,
+                175,
+                130,
+                90,
+                152,
+                181,
+                69,
+                211,
+                206
+              ]
+            }
+          }
+        },
+        {
+          "name": "fee_collector",
+          "writable": true,
+          "address": "9bFNrXNb2WTx8fMHXCheaZqkLZ3YCCaiqTftHxeintHy"
+        },
+        {
+          "name": "clock",
+          "address": "SysvarC1ock11111111111111111111111111111111"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "wormhole_program",
+          "address": "worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth"
+        },
+        {
+          "name": "wormhole_post_message_shim_ea",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                206,
+                93,
+                34,
+                116,
+                131,
+                143,
+                202,
+                41,
+                198,
+                209,
+                143,
+                152,
+                10,
+                211,
+                213,
+                245,
+                235,
+                78,
+                129,
+                210,
+                121,
+                29,
+                243,
+                98,
+                128,
+                136,
+                144,
+                147,
+                38,
+                68,
+                208,
+                24
+              ]
+            }
+          }
+        },
+        {
+          "name": "wormhole_post_message_shim",
+          "address": "EtZMZM22ViKMo4r5y4Anovs3wKQ2owUmDpjygnMMcdEX"
+        }
+      ],
+      "args": [
+        {
+          "name": "message",
+          "type": "bytes"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "WormholeGlobal",
+      "discriminator": [
+        116,
+        100,
+        187,
+        174,
+        88,
+        1,
+        91,
+        250
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "WormholeGlobal",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          }
+        ]
+      }
+    }
+  ],
+  "constants": [
+    {
+      "name": "GLOBAL_SEED",
+      "type": "bytes",
+      "value": "[103, 108, 111, 98, 97, 108]"
+    }
+  ]
+}

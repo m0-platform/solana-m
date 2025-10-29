@@ -3,7 +3,10 @@ use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
 use crate::{
     errors::MessengerError,
-    instructions::ext_swap::{self, accounts::SwapGlobal, program::ExtSwap},
+    instructions::{
+        ext_swap::{self, accounts::SwapGlobal, program::ExtSwap},
+        wormhole_adapter,
+    },
     payloads::{PayloadType, TokenTransferPayload},
     state::{MessengerGlobal, AUTHORITY_SEED, GLOBAL_SEED},
 };
@@ -93,6 +96,10 @@ pub struct SendTokens<'info> {
 
     pub extension_token_program: Interface<'info, TokenInterface>,
 
+    #[account(address = wormhole_adapter::ID)]
+    /// CHECK: checked against contraint
+    pub bridge_adapter: AccountInfo<'info>,
+
     pub system_program: Program<'info, System>,
 }
 
@@ -123,10 +130,9 @@ impl SendTokens<'_> {
     }
 
     #[access_control(ctx.accounts.validate(amount))]
-    pub fn handler(
-        ctx: Context<Self>,
+    pub fn handler<'info>(
+        ctx: Context<'_, '_, '_, 'info, SendTokens<'info>>,
         amount: u64,
-        destination_chain_id: u32,
         destination_token: [u8; 32],
         recipient: [u8; 32],
     ) -> Result<()> {
@@ -172,6 +178,47 @@ impl SendTokens<'_> {
         })
         .encode();
 
-        Ok(())
+        // Relay the message based on provided adapter
+        if ctx.accounts.bridge_adapter.key() == wormhole_adapter::ID {
+            // Delegate account validation to wormhole adapter
+            let [
+                wormhole_global,
+                bridge,
+                message_account,
+                emitter,
+                sequence,
+                fee_collector,
+                clock,
+                wormhole_program,
+                wormhole_post_message_shim_ea,
+                wormhole_post_message_shim
+            ]: [AccountInfo; 10] = ctx.remaining_accounts.to_vec()
+                .try_into()
+                .map_err(|_| MessengerError::InvalidRemainingAccounts)?;
+
+            wormhole_adapter::cpi::relay_message(
+                CpiContext::new(
+                    ctx.accounts.bridge_adapter.to_account_info(),
+                    wormhole_adapter::cpi::accounts::RelayMessage {
+                        payer: ctx.accounts.sender.to_account_info(),
+                        wormhole_global,
+                        messenger_authority: ctx.accounts.messenger_authority.to_account_info(),
+                        bridge,
+                        message: message_account,
+                        emitter,
+                        sequence,
+                        fee_collector,
+                        clock,
+                        system_program: ctx.accounts.system_program.to_account_info(),
+                        wormhole_program,
+                        wormhole_post_message_shim_ea,
+                        wormhole_post_message_shim,
+                    },
+                ),
+                message,
+            )
+        } else {
+            err!(MessengerError::InvalidBridgeAdapter)
+        }
     }
 }

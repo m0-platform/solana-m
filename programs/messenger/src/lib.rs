@@ -11,7 +11,7 @@ use instructions::*;
 declare_id!("MzBrgc8yXBj4P16GTkcSyDZkEQZB9qDqf3fh9bByJce");
 
 #[program]
-pub mod bridge {
+pub mod messenger {
     use super::*;
 
     /// Admin Instructions

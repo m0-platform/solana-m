@@ -1,12 +1,12 @@
 [package]
-name = "bridge"
+name = "messenger"
 version = "0.1.0"
 description = "bridge program that interacts with bridge adapters"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "bridge"
+name = "messenger"
 
 [features]
 default = []

@@ -3688,6 +3688,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "wormhole-adapter"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "cfg-if",
+]
+
+[[package]]
 name = "wormhole-anchor-sdk"
 version = "0.31.0"
 source = "git+https://github.com/wormhole-foundation/wormhole-scaffolding?rev=fbaea64#fbaea64cc0089125d81e2e4ee849d8e028d13000"

@@ -1,13 +1,14 @@
 [toolchain]
 
 [features]
-seeds = false
+resolution = true
 skip-lint = false
 
 [programs.localnet]
-messenger = "MzBrgc8yXBj4P16GTkcSyDZkEQZB9qDqf3fh9bByJce"
 earn = "mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z"
+messenger = "MzBrgc8yXBj4P16GTkcSyDZkEQZB9qDqf3fh9bByJce"
 portal = "mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY"
+wormhole-adapter = "3t6JFdg6r35rCQqurHtjbmEC6hdAjUiHF9wWYPZ4nACK"
 
 [registry]
 url = "https://api.apr.dev"

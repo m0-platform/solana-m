@@ -15,9 +15,9 @@ pub struct SendTokens<'info> {
 
     #[account(
         seeds = [GLOBAL_SEED],
-        bump = bridge_global.bump,
+        bump = messenger_global.bump,
     )]
-    pub bridge_global: Account<'info, MessengerGlobal>,
+    pub messenger_global: Account<'info, MessengerGlobal>,
 
     #[account(
         seeds = [GLOBAL_SEED],
@@ -46,7 +46,7 @@ pub struct SendTokens<'info> {
     #[account(
         mut,
         associated_token::mint = m_mint,
-        associated_token::authority = bridge_authority,
+        associated_token::authority = messenger_authority,
         associated_token::token_program = m_token_program,
     )]
     pub m_token_account: InterfaceAccount<'info, TokenAccount>,
@@ -59,7 +59,7 @@ pub struct SendTokens<'info> {
         bump,
     )]
     /// CHECK: account does not hold data
-    pub bridge_authority: UncheckedAccount<'info>,
+    pub messenger_authority: UncheckedAccount<'info>,
 
     #[account(
         mut,
@@ -98,7 +98,7 @@ pub struct SendTokens<'info> {
 
 impl SendTokens<'_> {
     fn validate(&self, amount: u64) -> Result<()> {
-        if self.bridge_global.paused {
+        if self.messenger_global.paused {
             return err!(MessengerError::Paused);
         }
 
@@ -138,7 +138,7 @@ impl SendTokens<'_> {
                 ctx.accounts.swap_program.to_account_info(),
                 ext_swap::cpi::accounts::Unwrap {
                     signer: ctx.accounts.sender.to_account_info(),
-                    unwrap_authority: Some(ctx.accounts.bridge_authority.to_account_info()),
+                    unwrap_authority: Some(ctx.accounts.messenger_authority.to_account_info()),
                     swap_global: ctx.accounts.swap_global.to_account_info(),
                     from_global: ctx.accounts.extension_global.to_account_info(),
                     from_mint: ctx.accounts.extension_mint.to_account_info(),
@@ -153,7 +153,7 @@ impl SendTokens<'_> {
                     from_ext_program: ctx.accounts.extension_program.to_account_info(),
                     system_program: ctx.accounts.system_program.to_account_info(),
                 },
-                &[&[AUTHORITY_SEED, &[ctx.bumps.bridge_authority]]],
+                &[&[AUTHORITY_SEED, &[ctx.bumps.messenger_authority]]],
             ),
             amount,
         )?;

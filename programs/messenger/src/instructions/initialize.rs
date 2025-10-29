@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::state::{BridgeGlobal, GLOBAL_SEED};
+use crate::state::{MessengerGlobal, GLOBAL_SEED};
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -10,11 +10,11 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = admin,
-        space =  BridgeGlobal::SIZE,
+        space =  MessengerGlobal::SIZE,
         seeds = [GLOBAL_SEED],
         bump,
     )]
-    pub swap_global: Account<'info, BridgeGlobal>,
+    pub swap_global: Account<'info, MessengerGlobal>,
 
     pub system_program: Program<'info, System>,
 }

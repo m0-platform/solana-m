@@ -2,10 +2,10 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
 use crate::{
-    errors::BridgeError,
+    errors::MessengerError,
     instructions::ext_swap::{self, accounts::SwapGlobal, program::ExtSwap},
     payloads::{PayloadType, TokenTransferPayload},
-    state::{BridgeGlobal, AUTHORITY_SEED, GLOBAL_SEED},
+    state::{MessengerGlobal, AUTHORITY_SEED, GLOBAL_SEED},
 };
 
 #[derive(Accounts)]
@@ -17,7 +17,7 @@ pub struct SendTokens<'info> {
         seeds = [GLOBAL_SEED],
         bump = bridge_global.bump,
     )]
-    pub bridge_global: Account<'info, BridgeGlobal>,
+    pub bridge_global: Account<'info, MessengerGlobal>,
 
     #[account(
         seeds = [GLOBAL_SEED],
@@ -99,7 +99,7 @@ pub struct SendTokens<'info> {
 impl SendTokens<'_> {
     fn validate(&self, amount: u64) -> Result<()> {
         if self.bridge_global.paused {
-            return err!(BridgeError::Paused);
+            return err!(MessengerError::Paused);
         }
 
         if self
@@ -112,11 +112,11 @@ impl SendTokens<'_> {
             })
             .is_none()
         {
-            return err!(BridgeError::InvalidExtension);
+            return err!(MessengerError::InvalidExtension);
         }
 
         if amount == 0 {
-            return err!(BridgeError::InvalidAmount);
+            return err!(MessengerError::InvalidAmount);
         }
 
         Ok(())

@@ -1,15 +1,13 @@
-pub enum PayloadType {
+pub enum Payload {
     TokenTransfer(TokenTransferPayload),
     Index(IndexPayload),
-    RegistrarKey,
-    RegistrarList,
     FillReport(FillReportPayload),
 }
 
-impl PayloadType {
+impl Payload {
     pub fn encode(&self) -> Vec<u8> {
         match self {
-            PayloadType::TokenTransfer(payload) => {
+            Payload::TokenTransfer(payload) => {
                 let mut data = vec![0u8];
                 data.extend_from_slice(&payload.amount.to_be_bytes());
                 data.extend_from_slice(&payload.destination_token);
@@ -18,15 +16,13 @@ impl PayloadType {
                 data.extend_from_slice(&payload.index.to_be_bytes());
                 data
             }
-            PayloadType::Index(payload) => {
+            Payload::Index(payload) => {
                 let mut data = vec![1u8];
                 data.extend_from_slice(&payload.index.to_be_bytes());
                 data.extend_from_slice(&payload.message_id);
                 data
             }
-            PayloadType::RegistrarKey => vec![2u8],
-            PayloadType::RegistrarList => vec![3u8],
-            PayloadType::FillReport(payload) => {
+            Payload::FillReport(payload) => {
                 let mut data = vec![4u8];
                 data.extend_from_slice(&payload.order_id);
                 data.extend_from_slice(&payload.amount_in_to_release.to_be_bytes());
@@ -48,7 +44,7 @@ impl PayloadType {
                 let (recipient_bytes, data) = data.split_at(32);
                 let (index_bytes, _) = data.split_at(8);
 
-                PayloadType::TokenTransfer(TokenTransferPayload {
+                Payload::TokenTransfer(TokenTransferPayload {
                     amount: u128::from_le_bytes(amount_bytes.try_into().unwrap()),
                     destination_token: destination_token_bytes.try_into().unwrap(),
                     sender: sender_bytes.try_into().unwrap(),
@@ -60,20 +56,18 @@ impl PayloadType {
                 let (index_bytes, message_id_bytes) = data.split_at(8);
                 let (message_id_bytes, _) = message_id_bytes.split_at(32);
 
-                PayloadType::Index(IndexPayload {
+                Payload::Index(IndexPayload {
                     index: u64::from_le_bytes(index_bytes.try_into().unwrap()),
                     message_id: message_id_bytes.try_into().unwrap(),
                 })
             }
-            2 => PayloadType::RegistrarKey,
-            3 => PayloadType::RegistrarList,
             4 => {
                 let (order_id_bytes, data) = data.split_at(32);
                 let (amount_in_to_release_bytes, data) = data.split_at(16);
                 let (amount_out_filled_bytes, data) = data.split_at(16);
                 let (origin_recipient_bytes, _) = data.split_at(32);
 
-                PayloadType::FillReport(FillReportPayload {
+                Payload::FillReport(FillReportPayload {
                     order_id: order_id_bytes.try_into().unwrap(),
                     amount_in_to_release: u128::from_le_bytes(
                         amount_in_to_release_bytes.try_into().unwrap(),

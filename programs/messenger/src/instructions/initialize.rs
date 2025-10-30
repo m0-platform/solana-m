@@ -21,6 +21,12 @@ pub struct Initialize<'info> {
 
 impl Initialize<'_> {
     pub fn handler(ctx: Context<Self>) -> Result<()> {
+        ctx.accounts.swap_global.set_inner(MessengerGlobal {
+            admin: ctx.accounts.admin.key(),
+            bump: ctx.bumps.swap_global,
+            paused: false,
+        });
+
         Ok(())
     }
 }

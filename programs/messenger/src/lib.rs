@@ -2,7 +2,6 @@
 
 pub mod errors;
 pub mod instructions;
-pub mod payloads;
 pub mod state;
 
 use anchor_lang::prelude::*;
@@ -31,14 +30,20 @@ pub mod messenger {
         SendTokens::handler(ctx, amount, destination_token, recipient)
     }
 
-    pub fn send_fill_report(
-        ctx: Context<SendFillReport>,
+    pub fn send_fill_report<'info>(
+        ctx: Context<'_, '_, '_, 'info, SendFillReport<'info>>,
         order_id: [u8; 32],
         amount_in_to_release: u128,
         amount_out_filled: u128,
         origin_recipient: [u8; 32],
     ) -> Result<()> {
-        SendFillReport::handler(ctx)
+        SendFillReport::handler(
+            ctx,
+            order_id,
+            amount_in_to_release,
+            amount_out_filled,
+            origin_recipient,
+        )
     }
 
     /// Inbound Instructions

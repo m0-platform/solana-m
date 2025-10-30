@@ -1,0 +1,795 @@
+{
+  "address": "mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z",
+  "metadata": {
+    "name": "earn",
+    "version": "0.2.0",
+    "spec": "0.1.0",
+    "description": "Earner management and yield distribution program for M"
+  },
+  "instructions": [
+    {
+      "name": "add_registrar_earner",
+      "discriminator": [
+        76,
+        77,
+        185,
+        48,
+        251,
+        203,
+        63,
+        190
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "global_account",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "m_mint",
+          "relations": [
+            "global_account"
+          ]
+        },
+        {
+          "name": "user_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+        }
+      ],
+      "args": [
+        {
+          "name": "user",
+          "type": "pubkey"
+        },
+        {
+          "name": "proof",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "ProofElement"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "global_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "m_mint",
+          "writable": true
+        },
+        {
+          "name": "portal_token_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                11,
+                134,
+                236,
+                24,
+                28,
+                212,
+                197,
+                201,
+                132,
+                233,
+                6,
+                43,
+                19,
+                242,
+                178,
+                222,
+                123,
+                159,
+                91,
+                94,
+                104,
+                232,
+                67,
+                73,
+                35,
+                29,
+                102,
+                20,
+                205,
+                243,
+                249,
+                159
+              ]
+            }
+          }
+        },
+        {
+          "name": "ext_swap_global",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                5,
+                60,
+                242,
+                167,
+                56,
+                11,
+                17,
+                54,
+                97,
+                114,
+                227,
+                114,
+                39,
+                167,
+                101,
+                13,
+                161,
+                190,
+                235,
+                218,
+                112,
+                220,
+                127,
+                89,
+                126,
+                174,
+                151,
+                23,
+                37,
+                130,
+                35,
+                190
+              ]
+            }
+          }
+        },
+        {
+          "name": "portal_m_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "portal_token_authority"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "m_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "ext_swap_m_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "ext_swap_global"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "m_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        }
+      ],
+      "args": [
+        {
+          "name": "current_index",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "propagate_index",
+      "discriminator": [
+        147,
+        161,
+        17,
+        101,
+        221,
+        86,
+        186,
+        218
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "signer": true
+        },
+        {
+          "name": "global_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "m_mint",
+          "writable": true,
+          "relations": [
+            "global_account"
+          ]
+        },
+        {
+          "name": "token_program",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+        }
+      ],
+      "args": [
+        {
+          "name": "index",
+          "type": "u64"
+        },
+        {
+          "name": "earner_merkle_root",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "recover_m",
+      "discriminator": [
+        149,
+        133,
+        151,
+        133,
+        212,
+        43,
+        7,
+        145
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "global_account"
+          ]
+        },
+        {
+          "name": "global_account",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "m_mint",
+          "relations": [
+            "global_account"
+          ]
+        },
+        {
+          "name": "source_token_account",
+          "writable": true
+        },
+        {
+          "name": "destination_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": {
+            "option": "u64"
+          }
+        }
+      ]
+    },
+    {
+      "name": "remove_registrar_earner",
+      "discriminator": [
+        39,
+        9,
+        93,
+        224,
+        9,
+        29,
+        121,
+        68
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "global_account",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "m_mint",
+          "relations": [
+            "global_account"
+          ]
+        },
+        {
+          "name": "user_token_account",
+          "docs": [
+            "We originally allowed this account to be validated later and potentially be closed,",
+            "but this is not necessary anymore since if the account is closed, it will be frozen",
+            "when re-initialized. Therefore, closing a token account is equivalent to removing an earner.",
+            "For this reason, we also know that if there is a thawed token account, it went through the",
+            "add registrar earner flow and thus the owner is the original since we required it to be immutable."
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+        }
+      ],
+      "args": [
+        {
+          "name": "proofs",
+          "type": {
+            "vec": {
+              "vec": {
+                "defined": {
+                  "name": "ProofElement"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "neighbors",
+          "type": {
+            "vec": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "EarnGlobal",
+      "discriminator": [
+        229,
+        50,
+        25,
+        132,
+        207,
+        93,
+        185,
+        23
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "IndexUpdateV2",
+      "discriminator": [
+        101,
+        65,
+        57,
+        8,
+        193,
+        254,
+        16,
+        193
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "AlreadyClaimed",
+      "msg": "Already claimed for user."
+    },
+    {
+      "code": 6001,
+      "name": "ExceedsMaxYield",
+      "msg": "Rewards exceed max yield."
+    },
+    {
+      "code": 6002,
+      "name": "NotAuthorized",
+      "msg": "Invalid signer."
+    },
+    {
+      "code": 6003,
+      "name": "InvalidParam",
+      "msg": "Invalid parameter."
+    },
+    {
+      "code": 6004,
+      "name": "AlreadyEarns",
+      "msg": "User is already an earner."
+    },
+    {
+      "code": 6005,
+      "name": "NoActiveClaim",
+      "msg": "There is no active claim to complete."
+    },
+    {
+      "code": 6006,
+      "name": "NotEarning",
+      "msg": "User is not earning."
+    },
+    {
+      "code": 6007,
+      "name": "RequiredAccountMissing",
+      "msg": "An optional account is required in this case, but not provided."
+    },
+    {
+      "code": 6008,
+      "name": "InvalidAccount",
+      "msg": "Account does not match the expected key."
+    },
+    {
+      "code": 6009,
+      "name": "NotActive",
+      "msg": "Account is not currently active."
+    },
+    {
+      "code": 6010,
+      "name": "InvalidProof",
+      "msg": "Merkle proof verification failed."
+    },
+    {
+      "code": 6011,
+      "name": "MutableOwner",
+      "msg": "Token account owner is required to be immutable."
+    },
+    {
+      "code": 6012,
+      "name": "InvalidMint",
+      "msg": "Invalid Mint."
+    },
+    {
+      "code": 6013,
+      "name": "MathOverflow",
+      "msg": "Math overflow error."
+    },
+    {
+      "code": 6014,
+      "name": "MathUnderflow",
+      "msg": "Math underflow error."
+    },
+    {
+      "code": 6015,
+      "name": "TypeConversionError",
+      "msg": "Type conversion error."
+    }
+  ],
+  "types": [
+    {
+      "name": "EarnGlobal",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "m_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "portal_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "ext_swap_global_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "earner_merkle_root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "IndexUpdateV2",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "index",
+            "type": "u64"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          },
+          {
+            "name": "supply",
+            "type": "u64"
+          },
+          {
+            "name": "current_multiplier",
+            "type": "f64"
+          },
+          {
+            "name": "new_multiplier",
+            "type": "f64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProofElement",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "node",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "on_right",
+            "type": "bool"
+          }
+        ]
+      }
+    }
+  ],
+  "constants": [
+    {
+      "name": "GLOBAL_SEED",
+      "type": "bytes",
+      "value": "[103, 108, 111, 98, 97, 108]"
+    }
+  ]
+}

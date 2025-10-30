@@ -1,19 +1,18 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
+use common::{Payload, TokenTransferPayload};
 
 use crate::{
     errors::MessengerError,
     instructions::{
         ext_swap::{self, accounts::SwapGlobal, program::ExtSwap},
-        wormhole_adapter,
+        send_message, wormhole_adapter,
     },
-    payloads::{PayloadType, TokenTransferPayload},
     state::{MessengerGlobal, AUTHORITY_SEED, GLOBAL_SEED},
 };
 
 #[derive(Accounts)]
 pub struct SendTokens<'info> {
-    #[account(mut)]
     pub sender: Signer<'info>,
 
     #[account(
@@ -35,6 +34,7 @@ pub struct SendTokens<'info> {
         seeds::program = extension_program.key(),
         bump,
     )]
+    /// CHECK: account checked on uwrap CPI
     pub extension_global: AccountInfo<'info>,
 
     #[account(
@@ -90,6 +90,7 @@ pub struct SendTokens<'info> {
 
     pub swap_program: Program<'info, ExtSwap>,
 
+    /// CHECK: account checked on uwrap CPI
     pub extension_program: AccountInfo<'info>,
 
     pub m_token_program: Interface<'info, TokenInterface>,
@@ -97,7 +98,7 @@ pub struct SendTokens<'info> {
     pub extension_token_program: Interface<'info, TokenInterface>,
 
     #[account(address = wormhole_adapter::ID)]
-    /// CHECK: checked against contraint
+    /// CHECK: checked against constraint
     pub bridge_adapter: AccountInfo<'info>,
 
     pub system_program: Program<'info, System>,
@@ -168,57 +169,22 @@ impl SendTokens<'_> {
         ctx.accounts.m_token_account.reload()?;
         let m_amount = ctx.accounts.m_token_account.amount - m_pre_balance;
 
-        // Bridge message
-        let message = PayloadType::TokenTransfer(TokenTransferPayload {
+        let message = Payload::TokenTransfer(TokenTransferPayload {
             amount: m_amount as u128,
             destination_token,
             sender: ctx.accounts.sender.key().to_bytes(),
             recipient,
             index: 0,
-        })
-        .encode();
+        });
 
-        // Relay the message based on provided adapter
-        if ctx.accounts.bridge_adapter.key() == wormhole_adapter::ID {
-            // Delegate account validation to wormhole adapter
-            let [
-                wormhole_global,
-                bridge,
-                message_account,
-                emitter,
-                sequence,
-                fee_collector,
-                clock,
-                wormhole_program,
-                wormhole_post_message_shim_ea,
-                wormhole_post_message_shim
-            ]: [AccountInfo; 10] = ctx.remaining_accounts.to_vec()
-                .try_into()
-                .map_err(|_| MessengerError::InvalidRemainingAccounts)?;
-
-            wormhole_adapter::cpi::relay_message(
-                CpiContext::new(
-                    ctx.accounts.bridge_adapter.to_account_info(),
-                    wormhole_adapter::cpi::accounts::RelayMessage {
-                        payer: ctx.accounts.sender.to_account_info(),
-                        wormhole_global,
-                        messenger_authority: ctx.accounts.messenger_authority.to_account_info(),
-                        bridge,
-                        message: message_account,
-                        emitter,
-                        sequence,
-                        fee_collector,
-                        clock,
-                        system_program: ctx.accounts.system_program.to_account_info(),
-                        wormhole_program,
-                        wormhole_post_message_shim_ea,
-                        wormhole_post_message_shim,
-                    },
-                ),
-                message,
-            )
-        } else {
-            err!(MessengerError::InvalidBridgeAdapter)
-        }
+        // Send message to bridge adapter
+        send_message(
+            ctx.accounts.bridge_adapter.to_account_info(),
+            ctx.accounts.sender.to_account_info(),
+            ctx.accounts.messenger_authority.to_account_info(),
+            ctx.accounts.system_program.to_account_info(),
+            ctx.remaining_accounts.to_vec(),
+            message.encode(),
+        )
     }
 }

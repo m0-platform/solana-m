@@ -3,7 +3,7 @@ pub mod receive_message;
 pub mod relay_message;
 pub mod resolve_execute;
 
-use anchor_lang::prelude::*;
+use anchor_lang::prelude::{borsh::de, *};
 use common::{Payload, TokenTransferPayload};
 pub use initialize::*;
 pub use receive_message::*;
@@ -16,6 +16,7 @@ declare_program!(wormhole_post_message_shim);
 declare_program!(messenger);
 declare_program!(wormhole_verify_vaa_shim);
 declare_program!(earn);
+declare_program!(ext_swap);
 
 #[derive(Debug)]
 pub struct VaaBody {

@@ -8,4 +8,8 @@ pub enum WormholeError {
     InvalidPeer,
     #[msg("Invalid VAA")]
     InvalidVaa,
+    #[msg("RESOLVER_RESULT_ACCOUNT needs to be writable")]
+    InvalidReturnAccount,
+    #[msg("Missing payer account")]
+    MissingPayerAccount,
 }

@@ -20,5 +20,10 @@ devnet = []
 
 [dependencies]
 anchor-lang.workspace = true
+anchor-spl.workspace = true
+common = { path = "../common" }
 cfg-if.workspace = true
+executor-account-resolver-svm = { version = "0.0.1", git = "https://github.com/wormholelabs-xyz/executor-account-resolver-svm", rev = "a39fe39cece715b3e1d1afef1f6e47740595a562" }
 
+[dev-dependencies]
+base64 = "0.22.1"

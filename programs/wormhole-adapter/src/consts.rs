@@ -1,7 +1,5 @@
 use anchor_lang::{prelude::Pubkey, pubkey};
 
-pub const MESSENGER_PROGRAM_ID: Pubkey = pubkey!("MzBrgc8yXBj4P16GTkcSyDZkEQZB9qDqf3fh9bByJce");
-
 cfg_if::cfg_if! {
     if #[cfg(feature = "mainnet")] {
         pub const CORE_BRIDGE_PROGRAM_ID: Pubkey = pubkey!("worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth");

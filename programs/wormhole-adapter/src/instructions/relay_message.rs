@@ -1,14 +1,13 @@
-declare_program!(wormhole_post_message_shim);
-
 use anchor_lang::{
     prelude::*,
     system_program::{transfer, Transfer},
 };
-use wormhole_post_message_shim::{program::WormholePostMessageShim, types::Finality};
 
 use crate::{
-    consts::{
-        CORE_BRIDGE_CONFIG, CORE_BRIDGE_FEE_COLLECTOR, CORE_BRIDGE_PROGRAM_ID, MESSENGER_PROGRAM_ID,
+    consts::{CORE_BRIDGE_CONFIG, CORE_BRIDGE_FEE_COLLECTOR, CORE_BRIDGE_PROGRAM_ID},
+    instructions::{
+        messenger,
+        wormhole_post_message_shim::{self, program::WormholePostMessageShim, types::Finality},
     },
     state::{WormholeGlobal, GLOBAL_SEED},
 };
@@ -27,7 +26,7 @@ pub struct RelayMessage<'info> {
 
     #[account(
         seeds = [b"authority"], 
-        seeds::program = MESSENGER_PROGRAM_ID,
+        seeds::program = messenger::ID,
         bump
     )]
     /// Only relay messages coming from the Messenger program

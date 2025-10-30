@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub enum Payload {
     TokenTransfer(TokenTransferPayload),
     Index(IndexPayload),
@@ -83,6 +84,7 @@ impl Payload {
     }
 }
 
+#[derive(Debug)]
 pub struct TokenTransferPayload {
     pub amount: u128,
     pub destination_token: [u8; 32],
@@ -91,6 +93,7 @@ pub struct TokenTransferPayload {
     pub index: u64,
 }
 
+#[derive(Debug)]
 pub struct FillReportPayload {
     pub order_id: [u8; 32],
     pub amount_in_to_release: u128,
@@ -98,6 +101,7 @@ pub struct FillReportPayload {
     pub origin_recipient: [u8; 32],
 }
 
+#[derive(Debug)]
 pub struct IndexPayload {
     pub index: u64,
     pub message_id: [u8; 32],

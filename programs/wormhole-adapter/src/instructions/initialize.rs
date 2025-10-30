@@ -10,7 +10,7 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = admin,
-        space =  WormholeGlobal::SIZE,
+        space =  WormholeGlobal::size(0),
         seeds = [GLOBAL_SEED],
         bump,
     )]
@@ -25,6 +25,7 @@ impl Initialize<'_> {
             bump: ctx.bumps.wormhole_global,
             admin: ctx.accounts.admin.key(),
             paused: false,
+            peers: Vec::new(),
         });
 
         Ok(())

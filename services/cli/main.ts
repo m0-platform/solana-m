@@ -58,7 +58,7 @@ const EARN_IDL = require('../../target/idl/earn.json');
 
 const PROGRAMS = {
   // program id the same for devnet and mainnet
-  portal: new PublicKey('mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY'),
+  portal: new PublicKey('MzBrgc8yXBj4P16GTkcSyDZkEQZB9qDqf3fh9bByJce'),
   earn: new PublicKey('mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z'),
   swap: new PublicKey('MSwapi3WhNKMUGm9YrxGhypgUEt7wYQH3ZgG32XoWzH'),
   svmPeer: new PublicKey('J1bVGcwG3nPsAJsi3GFNqC9NZmKatSuoutPbaKMiT7Bm'),
@@ -437,6 +437,40 @@ async function main() {
         console.log(`Earn initialized: ${sig}`);
       }
     });
+
+  program.command('update-portal-authority').action(async () => {
+    const [owner] = keysFromEnv(['PAYER_KEYPAIR']);
+    const earn = new Program<Earn>(EARN_IDL, anchorProvider(connection, owner));
+
+    let admin = owner.publicKey;
+    if (process.env.SQUADS_VAULT) {
+      admin = new PublicKey(process.env.SQUADS_VAULT);
+    }
+
+    const [portalAuth] = PublicKey.findProgramAddressSync([Buffer.from('authority')], PROGRAMS.portal);
+
+    const tx = await earn.methods
+      .updatePortalAuthority(portalAuth)
+      .accounts({
+        admin,
+      })
+      .signers([owner])
+      .transaction();
+
+    tx.feePayer = admin;
+    tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+    if (process.env.SQUADS_VAULT) {
+      const b = tx.serialize({ verifySignatures: false });
+      console.log('Transaction:', {
+        b64: b.toString('base64'),
+        b58: bs58.encode(b),
+      });
+    } else {
+      const sig = await connection.sendTransaction(tx, [owner]);
+      console.log(`Portal Authority updated: ${sig}`);
+    }
+  });
 
   program
     .command('update-lut')

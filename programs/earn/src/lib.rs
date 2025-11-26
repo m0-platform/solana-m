@@ -47,6 +47,13 @@ pub mod earn {
         RecoverM::handler(ctx, amount)
     }
 
+    pub fn update_portal_authority(
+        ctx: Context<UpdatePortalAuthority>,
+        new_portal_authority: Pubkey,
+    ) -> Result<()> {
+        UpdatePortalAuthority::handler(ctx, new_portal_authority)
+    }
+
     // Portal instrutions
 
     pub fn propagate_index(

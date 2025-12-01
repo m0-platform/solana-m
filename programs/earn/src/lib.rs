@@ -54,7 +54,7 @@ pub mod earn {
         UpdatePortalAuthority::handler(ctx, new_portal_authority)
     }
 
-    // Portal instrutions
+    // Portal instructions
 
     pub fn propagate_index(
         ctx: Context<PropagateIndex>,

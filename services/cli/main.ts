@@ -450,9 +450,9 @@ async function main() {
     const [portalAuth] = PublicKey.findProgramAddressSync([Buffer.from('authority')], PROGRAMS.portal);
 
     const tx = await earn.methods
-      .updatePortalAuthority(portalAuth)
+      .updatePortalAuthority()
       .accounts({
-        admin,
+        newPortalAuthority: portalAuth,
       })
       .signers([owner])
       .transaction();

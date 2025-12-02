@@ -49,7 +49,7 @@ import {
 } from '../../sdk/src';
 import { createInitializeConfidentialTransferMintInstruction } from './confidential-transfers';
 import { Program } from '@coral-xyz/anchor';
-import { anchorProvider, initResolverAccount, isEVM, keysFromEnv, NttManager, updatePortalMint } from './utils';
+import { anchorProvider, keysFromEnv, NttManager, updateMintAuthority, updatePortalMint } from './utils';
 import { MerkleTree } from '../../sdk/src/merkle';
 import { bs58 } from '@coral-xyz/anchor/dist/cjs/utils/bytes';
 import { SolanaUnsignedTransaction } from '@wormhole-foundation/sdk-solana/dist/cjs';
@@ -458,6 +458,27 @@ async function main() {
       .transaction();
 
     tx.feePayer = admin;
+    tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+    if (process.env.SQUADS_VAULT) {
+      const b = tx.serialize({ verifySignatures: false });
+      console.log('Transaction:', {
+        b64: b.toString('base64'),
+        b58: bs58.encode(b),
+      });
+    } else {
+      const sig = await connection.sendTransaction(tx, [owner]);
+      console.log(`Portal Authority updated: ${sig}`);
+    }
+  });
+
+  program.command('update-mint-authority').action(async () => {
+    const [owner, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
+
+    const { ntt } = NttManager(connection, owner, mint.publicKey);
+    const tx = new Transaction().add(updateMintAuthority(owner.publicKey, ntt.pdas.configAccount(), mint.publicKey));
+
+    tx.feePayer = owner.publicKey;
     tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
 
     if (process.env.SQUADS_VAULT) {

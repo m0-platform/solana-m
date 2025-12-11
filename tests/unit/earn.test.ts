@@ -36,7 +36,6 @@ import {
 } from '@solana/spl-token';
 import { randomInt } from 'crypto';
 
-import { MerkleTree, ProofElement } from '../../sdk/src/merkle';
 import { Earn as EarnNew } from '../../target/types/earn_new_test';
 import { Earn as EarnMigrate } from '../../target/types/earn_migrate_test';
 
@@ -819,7 +818,6 @@ class EarnTest<V extends Variant = Variant.New> {
     if (expected.admin) expect(state.admin).toEqual(expected.admin);
     if (expected.mMint) expect(state.mMint).toEqual(expected.mMint);
     if (expected.portalAuthority) expect(state.portalAuthority).toEqual(expected.portalAuthority);
-    if (expected.earnerMerkleRoot) expect(state.earnerMerkleRoot).toEqual(expected.earnerMerkleRoot);
     if (expected.bump) expect(state.bump).toEqual(expected.bump);
   }
 
@@ -875,10 +873,10 @@ class EarnTest<V extends Variant = Variant.New> {
     }
   }
 
-  public async propagateIndex(newIndex: BN, earnerMerkleRoot: number[] = ZERO_WORD) {
+  public async propagateIndex(newIndex: BN) {
     // Send the instruction
     await this.earn.methods
-      .propagateIndex(newIndex, earnerMerkleRoot)
+      .propagateIndex(newIndex)
       .accounts({
         signer: this.admin.publicKey,
       })
@@ -886,41 +884,37 @@ class EarnTest<V extends Variant = Variant.New> {
       .rpc();
   }
 
-  public async addRegistrarEarner(earner: PublicKey, proof: ProofElement[], earnerTokenAccount?: PublicKey) {
+  public async addRegistrarEarner(earner: PublicKey, earnerTokenAccount?: PublicKey) {
     // Get the earner ATA
     const tokenAccount = earnerTokenAccount ?? (await this.getATA(this.mMint.publicKey, earner));
 
     // Send the instruction
     await this.earn.methods
-      .addRegistrarEarner(earner, proof)
+      .addRegistrarEarner()
       .accountsPartial({
-        signer: this.nonAdmin.publicKey,
+        authority: this.admin.publicKey,
+        payer: this.admin.publicKey,
+        user: earner,
         userTokenAccount: tokenAccount,
       })
-      .signers([this.nonAdmin])
+      .signers([this.admin])
       .rpc();
   }
 
-  public async removeRegistrarEarner(
-    earner: PublicKey,
-    proofs: ProofElement[][],
-    neighbors: PublicKey[],
-    earnerTokenAccount?: PublicKey,
-  ) {
+  public async removeRegistrarEarner(earner: PublicKey, earnerTokenAccount?: PublicKey) {
     // Get the earner ATA
     const tokenAccount = earnerTokenAccount ?? (await this.getATA(this.mMint.publicKey, earner));
 
     // Send the instruction
     await this.earn.methods
-      .removeRegistrarEarner(
-        proofs,
-        neighbors.map((n) => [...n.toBytes()].map((b) => Number(b))),
-      )
-      .accounts({
-        signer: this.nonAdmin.publicKey,
+      .removeRegistrarEarner()
+      .accountsPartial({
+        authority: this.admin.publicKey,
+        payer: this.admin.publicKey,
+        user: earner,
         userTokenAccount: tokenAccount,
       })
-      .signers([this.nonAdmin])
+      .signers([this.admin])
       .rpc();
   }
 }
@@ -930,9 +924,6 @@ const ZERO_WORD = new Array(32).fill(0);
 // Start parameters
 // const initialSupply = new BN(100_000_000); // 100 tokens with 6 decimals
 const initialIndex = new BN(1_000_000_000_000); // 1.0
-
-// Merkle trees
-let earnerMerkleTree: MerkleTree;
 
 const VARIANTS: Variant[] = [Variant.New, Variant.Migrate];
 
@@ -1402,15 +1393,7 @@ for (const variant of VARIANTS) {
       //   [X] the transaction fails with a not authorized error
       // [X] given the portal does sign the transaction
       //   [X] given the new index is less than the existing index
-      //     [X] given the new earner merkle root is empty
-      //       [X] it is not updated
-      //     [X] given the new earner merkle is not empty
-      //       [X] it is not updated
       //   [X] given the new index is greater than or equal to the existing index
-      //     [X] given the new earner merkle root is empty
-      //       [X] it is not updated
-      //     [X] given the new earner merkle is not empty
-      //       [X] it is updated
       //   [X] given the new index is greater than the existing index
       //     [X] the index is updated to the new index
       //   [X] given the new index is less than or equal to the existing index
@@ -1420,23 +1403,19 @@ for (const variant of VARIANTS) {
         // Initialize the program
         await $.initializeEarn(initialIndex);
 
-        // Populate the earner merkle tree with the initial earners
-        earnerMerkleTree = new MerkleTree([$.admin.publicKey, $.earnerOne.publicKey, $.earnerTwo.publicKey]);
-
         // Propagate the earner and earn manager merkle roots so they are set to non-zero values
-        await $.propagateIndex(initialIndex, earnerMerkleTree.getRoot());
+        await $.propagateIndex(initialIndex);
       });
 
       // given the portal does not sign the transaction
       // the transaction fails with an address constraint error
       test('Non-portal cannot update index - reverts', async () => {
         const newIndex = new BN(1_100_000_000_000);
-        const newEarnerRoot = Array(32).fill(1);
 
         await $.expectAnchorError(
           $.earn.methods
-            .propagateIndex(newIndex, newEarnerRoot)
-            .accounts({
+            .propagateIndex(newIndex)
+            .accountsPartial({
               signer: $.nonAdmin.publicKey,
             })
             .signers([$.nonAdmin])
@@ -1446,67 +1425,39 @@ for (const variant of VARIANTS) {
       });
 
       // given new index is less than the existing index
-      // given new earner merkle root is empty
       // nothing is updated
-      test('new index < existing index, new earner root empty - earner root is not updated', async () => {
+      test('new index < existing index', async () => {
         // Try to propagate a new index with a lower value
         const lowerIndex = new BN(randomInt(0, initialIndex.toNumber()));
-        const emptyEarnerRoot = ZERO_WORD;
 
-        await $.propagateIndex(lowerIndex, emptyEarnerRoot);
-
-        // Check the state
-        await $.expectGlobalState({
-          earnerMerkleRoot: earnerMerkleTree.getRoot(),
-        });
+        await $.propagateIndex(lowerIndex);
       });
 
       // given new index is less than the existing index
-      // given new earner merkle root is not empty
       // nothing is updated
-      test('new index < existing index, new earner root not empty - earner root is not updated', async () => {
+      test('new index < existing index', async () => {
         // Try to propagate a new index with a lower value
         const lowerIndex = new BN(randomInt(0, initialIndex.toNumber()));
-        const newEarnerRoot = new Array(32).fill(1);
 
-        await $.propagateIndex(lowerIndex, newEarnerRoot);
-
-        // Check the state
-        await $.expectGlobalState({
-          earnerMerkleRoot: earnerMerkleTree.getRoot(),
-        });
+        await $.propagateIndex(lowerIndex);
       });
 
       // given new index is greater than or equal to the existing index
-      // given new earner merkle root is empty
       // nothing is updated
-      test('new index >= existing index, new earner root empty - earner root is not updated', async () => {
+      test('new index >= existing index', async () => {
         // Try to propagate a new index with a higher value
         const higherIndex = new BN(randomInt(initialIndex.toNumber() + 1, initialIndex.toNumber() * 2));
-        const emptyEarnerRoot = ZERO_WORD;
 
-        await $.propagateIndex(higherIndex, emptyEarnerRoot);
-
-        // Check the state
-        await $.expectGlobalState({
-          earnerMerkleRoot: earnerMerkleTree.getRoot(),
-        });
+        await $.propagateIndex(higherIndex);
       });
 
       // given new index is greater than or equal to the existing index
       // given new earner merkle root is not empty
-      // earner merkle root is updated
-      test('new index >= existing index, new earner root not empty - earner root is updated', async () => {
+      test('new index >= existing index', async () => {
         // Try to propagate a new index with a higher value
         const higherIndex = new BN(randomInt(initialIndex.toNumber() + 1, initialIndex.toNumber() * 2));
-        const newEarnerRoot = new Array(32).fill(1);
 
-        await $.propagateIndex(higherIndex, newEarnerRoot);
-
-        // Check the state
-        await $.expectGlobalState({
-          earnerMerkleRoot: newEarnerRoot,
-        });
+        await $.propagateIndex(higherIndex);
       });
 
       // given new index <= existing index
@@ -1552,23 +1503,19 @@ for (const variant of VARIANTS) {
 
     describe('add_registrar_earner unit tests', () => {
       // test cases
-      // [X] given the earner tree is empty and the user is the zero value pubkey
-      //   [X] it reverts with an InvalidParam error
       // [X] given the user token account is for the wrong token mint
       //   [X] it reverts with a constraint token mint error
       // [X] given the user token account is not for the user pubkey
       //   [X] it reverts with a constraint token owner error
       // [X] given the user token account is not initialized
-      //   [X] it reverts with an account not initialized error
+      //   [X] it initializes the account
       // [X] given the user token account has a mutable owner
-      //   [X] it reverts with an mutable owner error
-      // [ ] given the user token account state is already thawed
-      //   [ ] it reverts with an invalid account error
+      //   [X] it reverts with not associated token account error
+      // [X] given the user token account state is already thawed
+      //   [X] instruction succeeds as no-op
       // [X] given the earner account is already initialized
       //   [X] it reverts with an account already initialized error
       // [X] given all the accounts are valid
-      //   [X] given the merkle proof for the user in the earner list is invalid
-      //     [X] it reverts with an InvalidProof error
       //   [X] given the merkle proof for the user in the earner list is valid
       //     [X] it creates the earner account
       //     [X] it sets the earner account's user to the provided pubkey
@@ -1579,38 +1526,8 @@ for (const variant of VARIANTS) {
         // Initialize the program
         await $.initializeEarn(initialIndex);
 
-        // Populate the earner merkle tree with the initial earners
-        earnerMerkleTree = new MerkleTree([$.admin.publicKey, $.earnerOne.publicKey, $.earnerTwo.publicKey]);
-
         // Propagate a new index to set the merkle root
-        await $.propagateIndex(new BN(1_100_000_000_000), earnerMerkleTree.getRoot());
-      });
-
-      test('Earner tree is empty and user is zero value - reverts', async () => {
-        // Remove all earners from the merkle tree
-        earnerMerkleTree = new MerkleTree([]);
-
-        // Propagate the new merkle root
-        await $.propagateIndex(new BN(1_100_000_000_000), earnerMerkleTree.getRoot());
-
-        // Get the ATA for the zero value pubkey
-        const zeroATA = await $.getATA($.mMint.publicKey, PublicKey.default);
-
-        // Get the inclusion proof for the zero value pubkey in the earner merkle tree
-        const { proof } = earnerMerkleTree.getInclusionProof(PublicKey.default);
-
-        // Attempt to add earner with empty tree and zero value pubkey
-        await $.expectAnchorError(
-          $.earn.methods
-            .addRegistrarEarner(PublicKey.default, proof)
-            .accounts({
-              signer: $.nonAdmin.publicKey,
-              userTokenAccount: zeroATA,
-            })
-            .signers([$.nonAdmin])
-            .rpc(),
-          'InvalidParam',
-        );
+        await $.propagateIndex(new BN(1_100_000_000_000));
       });
 
       // given the user token account is for the wrong token mint
@@ -1623,19 +1540,18 @@ for (const variant of VARIANTS) {
         // Get earner one ATA for the wrong mint
         const wrongATA = await $.getATA(wrongMint.publicKey, $.earnerOne.publicKey);
 
-        // Get the inclusion proof for earner one in the earner merkle tree
-        const { proof } = earnerMerkleTree.getInclusionProof($.earnerOne.publicKey);
-
         // Attempt to add earner with wrong token mint
         await $.expectAnchorError(
           $.earn.methods
-            .addRegistrarEarner($.earnerOne.publicKey, proof)
+            .addRegistrarEarner()
             .accountsPartial({
-              signer: $.nonAdmin.publicKey,
+              payer: $.admin.publicKey,
+              authority: $.admin.publicKey,
               mMint: wrongMint.publicKey,
+              user: $.earnerOne.publicKey,
               userTokenAccount: wrongATA,
             })
-            .signers([$.nonAdmin])
+            .signers([$.admin])
             .rpc(),
           'InvalidAccount',
         );
@@ -1647,26 +1563,25 @@ for (const variant of VARIANTS) {
         // Get the ATA for a random user
         const randomATA = await $.getATA($.mMint.publicKey, $.nonAdmin.publicKey);
 
-        // Get the inclusion proof for earner one in the earner merkle tree
-        const { proof } = earnerMerkleTree.getInclusionProof($.earnerOne.publicKey);
-
         // Attempt to add earner with wrong token owner
         await $.expectAnchorError(
           $.earn.methods
-            .addRegistrarEarner($.earnerOne.publicKey, proof)
-            .accounts({
-              signer: $.nonAdmin.publicKey,
+            .addRegistrarEarner()
+            .accountsPartial({
+              payer: $.admin.publicKey,
+              authority: $.admin.publicKey,
+              user: $.earnerOne.publicKey,
               userTokenAccount: randomATA,
             })
-            .signers([$.nonAdmin])
+            .signers([$.admin])
             .rpc(),
           'ConstraintTokenOwner',
         );
       });
 
       // given the user token account is not initialized
-      // it reverts with an account not initialized error
-      test('User token account is not initialized - reverts', async () => {
+      // it initializes the account
+      test('User token account is not initialized', async () => {
         // Calculate the ATA for earner one, but don't create it
         const nonInitATA = getAssociatedTokenAddressSync(
           $.mMint.publicKey,
@@ -1676,44 +1591,39 @@ for (const variant of VARIANTS) {
           ASSOCIATED_TOKEN_PROGRAM_ID,
         );
 
-        // Get the inclusion proof for earner one in the earner merkle tree
-        const { proof } = earnerMerkleTree.getInclusionProof($.earnerOne.publicKey);
-
         // Attempt to add earner with uninitialized token account
-        await $.expectAnchorError(
-          $.earn.methods
-            .addRegistrarEarner($.earnerOne.publicKey, proof)
-            .accounts({
-              signer: $.nonAdmin.publicKey,
-              userTokenAccount: nonInitATA,
-            })
-            .signers([$.nonAdmin])
-            .rpc(),
-          'AccountNotInitialized',
-        );
+        $.earn.methods
+          .addRegistrarEarner()
+          .accountsPartial({
+            payer: $.admin.publicKey,
+            authority: $.admin.publicKey,
+            user: $.earnerOne.publicKey,
+            userTokenAccount: nonInitATA,
+          })
+          .signers([$.admin])
+          .rpc();
       });
 
       // given the user token account is already thawed
-      // it reverts with an invalid account error
-      test('User token account already thawed - reverts', async () => {
+      // instruction succeeds as no-op
+      test('User token account already thawed', async () => {
         // Get the ATA for earner one
         const earnerOneATA = await $.getATA($.mMint.publicKey, $.earnerOne.publicKey);
 
-        // Get the inclusion proof for earner one in the earner merkle tree
-        const { proof } = earnerMerkleTree.getInclusionProof($.earnerOne.publicKey);
-
         // Add earner one to the earn manager's list
-        await $.addRegistrarEarner($.earnerOne.publicKey, proof);
+        await $.addRegistrarEarner($.earnerOne.publicKey);
 
         // Attempt to add earner with already initialized account
         await $.expectSystemError(
           $.earn.methods
-            .addRegistrarEarner($.earnerOne.publicKey, proof)
-            .accounts({
-              signer: $.nonAdmin.publicKey,
+            .addRegistrarEarner()
+            .accountsPartial({
+              payer: $.admin.publicKey,
+              authority: $.admin.publicKey,
+              user: $.earnerOne.publicKey,
               userTokenAccount: earnerOneATA,
             })
-            .signers([$.nonAdmin])
+            .signers([$.admin])
             .rpc(),
         );
       });
@@ -1742,66 +1652,37 @@ for (const variant of VARIANTS) {
 
         await $.provider.send!(transaction, [$.nonAdmin, tokenAccountKeypair]);
 
-        // Get the inclusion proof for the earner against the earner merkle tree
-        const { proof } = earnerMerkleTree.getInclusionProof($.earnerOne.publicKey);
-
         await $.expectAnchorError(
           $.earn.methods
-            .addRegistrarEarner($.earnerOne.publicKey, proof)
+            .addRegistrarEarner()
             .accountsPartial({
-              signer: $.nonAdmin.publicKey,
+              payer: $.admin.publicKey,
+              authority: $.admin.publicKey,
+              user: $.earnerOne.publicKey,
               userTokenAccount: tokenAccountKeypair.publicKey,
             })
-            .signers([$.nonAdmin])
+            .signers([$.admin])
             .rpc(),
-          'MutableOwner',
+          'AccountNotAssociatedTokenAccount',
         );
       });
 
       // given all the accounts are valid
-      // given the merkle proof for the user in the earner list is invalid
-      // it reverts with an InvalidProof error
-      test('Invalid merkle proof for user inclusion - reverts', async () => {
-        // Get the ATA for non earner one
-        const nonEarnerOneATA = await $.getATA($.mMint.publicKey, $.nonEarner.publicKey);
-
-        // Get the inclusion proof for earner one in the earner merkle tree
-        const { proof } = earnerMerkleTree.getInclusionProof($.earnerOne.publicKey);
-
-        // Attempt to add earner with invalid merkle proof
-        await $.expectAnchorError(
-          $.earn.methods
-            .addRegistrarEarner($.nonEarner.publicKey, proof)
-            .accounts({
-              signer: $.nonAdmin.publicKey,
-              userTokenAccount: nonEarnerOneATA,
-            })
-            .signers([$.nonAdmin])
-            .rpc(),
-          'InvalidProof',
-        );
-      });
-
-      // given all the accounts are valid
-      // given the merkle proof for the user in the earner list is valid
       // it creates the earner account
-      // it sets the earner account's earn_manager to None
-      // it sets the earner account's last_claim_index to the current index
       test('Add registrar earner - success', async () => {
         // Get the ATA for earner one
         const earnerOneATA = await $.getATA($.mMint.publicKey, $.earnerOne.publicKey);
 
-        // Get the inclusion proof for earner one in the earner merkle tree
-        const { proof } = earnerMerkleTree.getInclusionProof($.earnerOne.publicKey);
-
         // Add earner one to the earn manager's list
         await $.earn.methods
-          .addRegistrarEarner($.earnerOne.publicKey, proof)
-          .accounts({
-            signer: $.nonAdmin.publicKey,
+          .addRegistrarEarner()
+          .accountsPartial({
+            payer: $.admin.publicKey,
+            authority: $.admin.publicKey,
+            user: $.earnerOne.publicKey,
             userTokenAccount: earnerOneATA,
           })
-          .signers([$.nonAdmin])
+          .signers([$.admin])
           .rpc();
 
         // Check that the token account has been thawed
@@ -1814,12 +1695,8 @@ for (const variant of VARIANTS) {
       // [X] given the user token account is not initialized
       //   [X] it reverts with an account not initialized error
       // [X] given the user token account is frozen
-      //   [X] it reverts with an invalid account error
+      //   [X] instuction succeeds as a no-op
       // [X] given all the accounts are valid
-      //   [X] given empty merkle proof for user exclusion
-      //     [X] it reverts with an InvalidProof error
-      //   [X] given the merkle proof for user's exclusion from the earner list is invalid
-      //     [X] it reverts with an InvalidProof error
       //   [X] given the merkle proof for user's exclusion from the earner list is valid
       //     [X] it closes the earner account and refunds the rent to the signer
 
@@ -1827,25 +1704,14 @@ for (const variant of VARIANTS) {
         // Initialize the program
         await $.initializeEarn(initialIndex);
 
-        // Populate the earner merkle tree with the initial earners
-        earnerMerkleTree = new MerkleTree([$.admin.publicKey, $.earnerOne.publicKey, $.earnerTwo.publicKey]);
-
-        // Propagate a new index to set the merkle roots
-        await $.propagateIndex(new BN(1_100_000_000_000), earnerMerkleTree.getRoot());
+        // Propagate a new index
+        await $.propagateIndex(new BN(1_100_000_000_000));
 
         // Register earner one
-        const { proof } = earnerMerkleTree.getInclusionProof($.earnerOne.publicKey);
-        await $.addRegistrarEarner($.earnerOne.publicKey, proof);
+        await $.addRegistrarEarner($.earnerOne.publicKey);
 
         // Register earner two
-        const { proof: proofTwo } = earnerMerkleTree.getInclusionProof($.earnerTwo.publicKey);
-        await $.addRegistrarEarner($.earnerTwo.publicKey, proofTwo);
-
-        // Remove earner one from the earner merkle tree
-        earnerMerkleTree.removeLeaf($.earnerOne.publicKey);
-
-        // Update the earner merkle root on the global account
-        await $.propagateIndex(new BN(1_100_000_000_000), earnerMerkleTree.getRoot());
+        await $.addRegistrarEarner($.earnerTwo.publicKey);
       });
 
       // given the user token account is not initialized
@@ -1854,25 +1720,24 @@ for (const variant of VARIANTS) {
         // Get the ATA for non earner one
         const nonEarnerOneATA = await $.getATA($.mMint.publicKey, $.nonEarner.publicKey);
 
-        // Get the exclusion proof for non earner one against the earner merkle tree
-        const { proofs, neighbors } = earnerMerkleTree.getExclusionProof($.nonEarner.publicKey);
-
         // Attempt to remove earner with uninitialized account
         await $.expectAnchorError(
           $.earn.methods
-            .removeRegistrarEarner(proofs, neighbors)
-            .accounts({
-              signer: $.nonAdmin.publicKey,
+            .removeRegistrarEarner()
+            .accountsPartial({
+              payer: $.admin.publicKey,
+              authority: $.admin.publicKey,
+              user: $.earnerOne.publicKey,
               userTokenAccount: nonEarnerOneATA,
             })
-            .signers([$.nonAdmin])
+            .signers([$.admin])
             .rpc(),
-          'InvalidAccount',
+          'ConstraintTokenOwner',
         );
       });
 
       // given the user token account is frozen
-      // it reverts with an invalid account error
+      // instuction succeeds as a no-op
       test('User token account is already frozen - reverts', async () => {
         // Get the ATA for non earner
         const nonEarnerOneATA = await $.getATA($.mMint.publicKey, $.nonEarner.publicKey);
@@ -1880,59 +1745,16 @@ for (const variant of VARIANTS) {
         // Attempt to remove earner with frozen token account
         await $.expectAnchorError(
           $.earn.methods
-            .removeRegistrarEarner([], [])
-            .accounts({
-              signer: $.nonAdmin.publicKey,
+            .removeRegistrarEarner()
+            .accountsPartial({
+              payer: $.admin.publicKey,
+              authority: $.admin.publicKey,
+              user: $.earnerOne.publicKey,
               userTokenAccount: nonEarnerOneATA,
             })
-            .signers([$.nonAdmin])
+            .signers([$.admin])
             .rpc(),
-          'InvalidAccount',
-        );
-      });
-
-      // given all the accounts are valid
-      // given no proofs or neighbors are provided
-      // it reverts with an InvalidProof error
-      test('Empty merkle proof for user exclusion - reverts', async () => {
-        // Get the ATA for earner one
-        const earnerOneATA = await $.getATA($.mMint.publicKey, $.earnerOne.publicKey);
-
-        // Attempt to remove earner with invalid merkle proof
-        await $.expectAnchorError(
-          $.earn.methods
-            .removeRegistrarEarner([], [])
-            .accounts({
-              signer: $.nonAdmin.publicKey,
-              userTokenAccount: earnerOneATA,
-            })
-            .signers([$.nonAdmin])
-            .rpc(),
-          'InvalidProof',
-        );
-      });
-
-      // given all the accounts are valid
-      // given the merkle proof for user's exclusion from the earner list is invalid
-      // it reverts with an InvalidProof error
-      test('Invalid merkle proof for user exclusion - reverts', async () => {
-        // Get the ATA for earner two
-        const earnerTwoATA = await $.getATA($.mMint.publicKey, $.earnerTwo.publicKey);
-
-        // Get the exclusion proof for earner one against the earner merkle tree
-        const { proofs, neighbors } = earnerMerkleTree.getExclusionProof($.earnerOne.publicKey);
-
-        // Attempt to remove earner with invalid merkle proof
-        await $.expectAnchorError(
-          $.earn.methods
-            .removeRegistrarEarner(proofs, neighbors)
-            .accounts({
-              signer: $.nonAdmin.publicKey,
-              userTokenAccount: earnerTwoATA,
-            })
-            .signers([$.nonAdmin])
-            .rpc(),
-          'InvalidProof',
+          'ConstraintTokenOwner',
         );
       });
 
@@ -1946,53 +1768,20 @@ for (const variant of VARIANTS) {
         // Expect the token account to be thawed before removal
         await $.expectTokenAccountState(earnerOneATA, AccountState.Initialized);
 
-        // Get the exclusion proof for earner one against the earner merkle tree
-        const { proofs, neighbors } = earnerMerkleTree.getExclusionProof($.earnerOne.publicKey);
-
-        // Remove earner one from the earn manager's list
+        // Remove earner
         await $.earn.methods
-          .removeRegistrarEarner(proofs, neighbors)
-          .accounts({
-            signer: $.nonAdmin.publicKey,
+          .removeRegistrarEarner()
+          .accountsPartial({
+            payer: $.admin.publicKey,
+            authority: $.admin.publicKey,
+            user: $.earnerOne.publicKey,
             userTokenAccount: earnerOneATA,
           })
-          .signers([$.nonAdmin])
+          .signers([$.admin])
           .rpc();
 
         // Verify the token account is now frozen
         await $.expectTokenAccountState(earnerOneATA, AccountState.Frozen);
-      });
-
-      test('Remove registrar earner ownership transfered - success', async () => {
-        // Get the ATA for earner two
-        const earnerTwoATA = await $.getATA($.mMint.publicKey, $.earnerTwo.publicKey);
-
-        // Check that the token account is thawed before removal
-        await $.expectTokenAccountState(earnerTwoATA, AccountState.Initialized);
-
-        // Modify owner on token account
-        const accountInfo = $.svm.getAccount(earnerTwoATA)!;
-        accountInfo.data[32] = 0x1;
-        $.svm.setAccount(earnerTwoATA, accountInfo);
-
-        // Token account
-        const account = await getAccount($.provider.connection, earnerTwoATA, undefined, TOKEN_2022_PROGRAM_ID);
-
-        // Get the exclusion proof for earner two against the earner merkle tree
-        const { proofs, neighbors } = earnerMerkleTree.getExclusionProof(account.owner);
-
-        // Remove earner one from the earn manager's list
-        await $.earn.methods
-          .removeRegistrarEarner(proofs, neighbors)
-          .accounts({
-            signer: $.nonAdmin.publicKey,
-            userTokenAccount: earnerTwoATA,
-          })
-          .signers([$.nonAdmin])
-          .rpc();
-
-        // Verify the token account is frozen earner account was closed correctly
-        await $.expectTokenAccountState(earnerTwoATA, AccountState.Frozen);
       });
     });
 

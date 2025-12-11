@@ -198,9 +198,6 @@ impl Initialize<'_> {
 
         cfg_if! {
             if #[cfg(feature = "migrate")] {
-                // Set existing merkle root
-                ctx.accounts.global_account.earner_merkle_root = ctx.accounts.old_global_account.earner_merkle_root;
-
                 // Set the multiplier on the m_mint to the current index and timestamp on the old earn program
                 update_multiplier(
                     &mut ctx.accounts.m_mint,                                       // mint

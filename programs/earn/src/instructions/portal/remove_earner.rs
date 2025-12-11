@@ -48,7 +48,6 @@ pub struct RemoveRegistrarEarner<'info> {
 }
 
 impl RemoveRegistrarEarner<'_> {
-    #[allow(unused_variables)]
     pub fn handler(ctx: Context<Self>) -> Result<()> {
         if ctx.accounts.user_token_account.state != AccountState::Frozen {
             freeze_token_account(

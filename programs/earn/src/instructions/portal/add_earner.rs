@@ -29,7 +29,8 @@ pub struct AddRegistrarEarner<'info> {
     )]
     pub global_account: Account<'info, EarnGlobal>,
 
-    /// CHECK: any account can be an earner, validated by the bridge
+    /// CHECK: any account can be an earner
+    /// part of registrar payload and validated by the bridge
     pub user: UncheckedAccount<'info>,
 
     pub m_mint: InterfaceAccount<'info, Mint>,

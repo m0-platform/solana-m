@@ -52,21 +52,11 @@ pub mod earn {
         PropagateIndex::handler(ctx, index)
     }
 
-    pub fn add_earner(ctx: Context<AddEarner>, user: Pubkey) -> Result<()> {
-        AddEarner::handler(ctx, user)
+    pub fn add_earner(ctx: Context<AddRegistrarEarner>) -> Result<()> {
+        AddRegistrarEarner::handler(ctx)
     }
 
-    pub fn remove_earner(ctx: Context<RemoveEarner>, user: Pubkey) -> Result<()> {
-        RemoveEarner::handler(ctx, user)
-    }
-
-    // Open instructions
-
-    pub fn add_registrar_earner(ctx: Context<ThawEarnerAccount>, user: Pubkey) -> Result<()> {
-        ThawEarnerAccount::handler(ctx, user)
-    }
-
-    pub fn remove_registrar_earner(ctx: Context<FreezeEarnerAccount>, user: Pubkey) -> Result<()> {
-        FreezeEarnerAccount::handler(ctx, user)
+    pub fn remove_earner(ctx: Context<RemoveRegistrarEarner>) -> Result<()> {
+        RemoveRegistrarEarner::handler(ctx)
     }
 }

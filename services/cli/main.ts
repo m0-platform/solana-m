@@ -40,17 +40,10 @@ import {
   TokenMetadata,
 } from '@solana/spl-token-metadata';
 import { Chain, ChainAddress, UniversalAddress, assertChain, signSendWait } from '@wormhole-foundation/sdk';
-import {
-  createPublicClient,
-  http,
-  ETH_MERKLE_TREE_BUILDER,
-  ETH_MERKLE_TREE_BUILDER_DEVNET,
-  EvmCaller,
-} from '../../sdk/src';
+import { createPublicClient, http, EvmCaller } from '../../sdk/src';
 import { createInitializeConfidentialTransferMintInstruction } from './confidential-transfers';
 import { Program } from '@coral-xyz/anchor';
 import { anchorProvider, initResolverAccount, isEVM, keysFromEnv, NttManager, updatePortalMint } from './utils';
-import { MerkleTree } from '../../sdk/src/merkle';
 import { bs58 } from '@coral-xyz/anchor/dist/cjs/utils/bytes';
 import { SolanaUnsignedTransaction } from '@wormhole-foundation/sdk-solana/dist/cjs';
 import { Earn } from '../../target/types/earn';
@@ -549,61 +542,6 @@ async function main() {
       console.log(`Paused: ${sig}`);
     }
   });
-
-  program
-    .command('add-registrar-earner')
-    .description('Add earner that is in the earner merkle tree')
-    .argument('<earner>', 'The earner to add')
-    .option('-e, --extension', 'If the earner is an extension', false)
-    .action(async (earnerAddress: string, { extension }) => {
-      const [owner, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
-
-      let earner = new PublicKey(earnerAddress);
-      if (extension) {
-        // if the earner is an extension, derive vault PDA
-        earner = PublicKey.findProgramAddressSync([Buffer.from('m_vault')], earner)[0];
-      }
-
-      // assumes ata is being used as the token account
-      const earnerATA = getAssociatedTokenAddressSync(mint.publicKey, earner, true, TOKEN_2022_PROGRAM_ID);
-
-      const earn = new Program<Earn>(EARN_IDL, anchorProvider(connection, owner));
-      const [globalAccount] = PublicKey.findProgramAddressSync([Buffer.from('global')], PROGRAMS.earn);
-
-      // fetch registrar earners
-      const evmCaller = new EvmCaller(
-        evmClient,
-        undefined,
-        process.env.NETWORK === 'devnet' ? ETH_MERKLE_TREE_BUILDER_DEVNET : ETH_MERKLE_TREE_BUILDER,
-      );
-      const earners = await evmCaller.getEarners();
-
-      console.log(`earners on registrar: ${earners.map((e) => e.toBase58())}`);
-
-      // validate root
-      const global = await earn.account.earnGlobal.fetch(globalAccount);
-      const expectedRoot = await evmCaller.getMerkleRoot('earners');
-
-      const root = '0x' + Buffer.from(global.earnerMerkleRoot).toString('hex');
-      if (root !== expectedRoot) {
-        throw new Error(`Root mismatch: expected ${expectedRoot}, got ${root}`);
-      }
-
-      const tree = new MerkleTree(earners);
-      const proof = tree.getInclusionProof(earner);
-
-      // register the earner with proof
-      const sig = await earn.methods
-        .addRegistrarEarner(earner, proof.proof)
-        .accounts({
-          signer: owner.publicKey,
-          userTokenAccount: earnerATA,
-        })
-        .signers([])
-        .rpc();
-
-      console.log(`Earner added: ${earner.toBase58()} (${sig})`);
-    });
 
   await program.parseAsync(process.argv);
 }

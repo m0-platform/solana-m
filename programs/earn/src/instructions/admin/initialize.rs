@@ -192,7 +192,7 @@ impl Initialize<'_> {
             m_mint: ctx.accounts.m_mint.key(),
             portal_authority: ctx.accounts.portal_token_authority.key(),
             ext_swap_global_account: ctx.accounts.ext_swap_global.key(),
-            earner_merkle_root: [0; 32],
+            padding: [0; 32],
             bump: ctx.bumps.global_account,
         });
 

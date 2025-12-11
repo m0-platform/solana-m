@@ -52,11 +52,11 @@ pub mod earn {
         PropagateIndex::handler(ctx, index)
     }
 
-    pub fn add_earner(ctx: Context<AddRegistrarEarner>) -> Result<()> {
+    pub fn add_registrar_earner(ctx: Context<AddRegistrarEarner>) -> Result<()> {
         AddRegistrarEarner::handler(ctx)
     }
 
-    pub fn remove_earner(ctx: Context<RemoveRegistrarEarner>) -> Result<()> {
+    pub fn remove_registrar_earner(ctx: Context<RemoveRegistrarEarner>) -> Result<()> {
         RemoveRegistrarEarner::handler(ctx)
     }
 }

@@ -1,22 +1,18 @@
-// external dependencies
 use anchor_lang::prelude::*;
 use anchor_spl::{
     token_2022::spl_token_2022::state::AccountState,
     token_interface::{Mint, Token2022, TokenAccount},
 };
 
-// local dependencies
 use crate::{
     errors::EarnError,
-    state::{EarnGlobal, GLOBAL_SEED},
-    utils::{
-        merkle_proof::{verify_not_in_tree, ProofElement},
-        token::freeze_token_account,
-    },
+    state::{EarnGlobal, EARNER_SEED, GLOBAL_SEED},
+    utils::token::freeze_token_account,
 };
 
 #[derive(Accounts)]
-pub struct RemoveRegistrarEarner<'info> {
+#[instruction(user: Pubkey)]
+pub struct FreezeEarnerAccount<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
 
@@ -28,6 +24,13 @@ pub struct RemoveRegistrarEarner<'info> {
     pub global_account: Account<'info, EarnGlobal>,
 
     pub m_mint: InterfaceAccount<'info, Mint>,
+
+    #[account(
+        seeds = [EARNER_SEED, user.as_ref()],
+        bump
+    )]
+    /// CHECK: this account is expected to be closed
+    pub earner: AccountInfo<'info>,
 
     /// We originally allowed this account to be validated later and potentially be closed,
     /// but this is not necessary anymore since if the account is closed, it will be frozen
@@ -44,32 +47,18 @@ pub struct RemoveRegistrarEarner<'info> {
     pub token_program: Program<'info, Token2022>,
 }
 
-impl RemoveRegistrarEarner<'_> {
-    fn validate(&self, proofs: Vec<Vec<ProofElement>>, neighbors: Vec<[u8; 32]>) -> Result<()> {
+impl FreezeEarnerAccount<'_> {
+    fn validate(&self) -> Result<()> {
         // Verify the user is not in the approved earners list
-        verify_not_in_tree(
-            self.global_account.earner_merkle_root,
-            self.user_token_account.owner.to_bytes(),
-            proofs,
-            neighbors,
-        )?;
-
-        // Don't allow removal of token accounts owned by the portal token authority or the ext swap global account
-        if self.user_token_account.owner == self.global_account.portal_authority
-            || self.user_token_account.owner == self.global_account.ext_swap_global_account
-        {
-            return err!(EarnError::NotAuthorized);
+        if !self.earner.to_account_info().data_is_empty() {
+            return err!(EarnError::EarnerApproved);
         }
 
         Ok(())
     }
 
-    #[access_control(ctx.accounts.validate(proofs, neighbors))]
-    pub fn handler(
-        ctx: Context<RemoveRegistrarEarner>,
-        proofs: Vec<Vec<ProofElement>>,
-        neighbors: Vec<[u8; 32]>,
-    ) -> Result<()> {
+    #[access_control(ctx.accounts.validate())]
+    pub fn handler(ctx: Context<Self>, user: Pubkey) -> Result<()> {
         // Freeze the user's token account so they can no longer hold $M
         freeze_token_account(
             &ctx.accounts.user_token_account,

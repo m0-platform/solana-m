@@ -120,8 +120,7 @@ pub fn release_inbound_mint_common<'info>(
     );
 
     // Propagate the index update before minting tokens
-    let earner_root = inbox_item.earners_root_update.unwrap_or_default();
-    earn::cpi::propagate_index(propogate_ctx, inbox_item.index_update, earner_root)?;
+    earn::cpi::propagate_index(propogate_ctx, inbox_item.index_update)?;
 
     msg!(
         "Index update: {} | root update: {}",

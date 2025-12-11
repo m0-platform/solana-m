@@ -1,5 +1,5 @@
-pub mod add_registrar_earner;
-pub mod remove_registrar_earner;
+pub mod freeze_earner_account;
+pub mod thaw_earner_account;
 
-pub use add_registrar_earner::*;
-pub use remove_registrar_earner::*;
+pub use freeze_earner_account::*;
+pub use thaw_earner_account::*;

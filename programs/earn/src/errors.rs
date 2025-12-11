@@ -34,4 +34,6 @@ pub enum EarnError {
     MathUnderflow,
     #[msg("Type conversion error.")]
     TypeConversionError,
+    #[msg("The specified earner is approved.")]
+    EarnerApproved,
 }

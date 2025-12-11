@@ -1,26 +1,18 @@
-// external dependencies
 use anchor_lang::prelude::*;
 use anchor_spl::{
     token_2022::spl_token_2022::state::AccountState,
     token_interface::{Mint, Token2022, TokenAccount},
 };
 
-// local dependencies
 use crate::{
     errors::EarnError,
-    state::{EarnGlobal, GLOBAL_SEED},
-    utils::{
-        merkle_proof::{verify_in_tree, ProofElement},
-        token::{has_immutable_owner, thaw_token_account},
-    },
+    state::{EarnGlobal, Earner, EARNER_SEED, GLOBAL_SEED},
+    utils::token::{has_immutable_owner, thaw_token_account},
 };
 
 #[derive(Accounts)]
 #[instruction(user: Pubkey)]
-pub struct AddRegistrarEarner<'info> {
-    #[account(mut)]
-    pub signer: Signer<'info>,
-
+pub struct ThawEarnerAccount<'info> {
     #[account(
         seeds = [GLOBAL_SEED],
         bump = global_account.bump,
@@ -29,6 +21,12 @@ pub struct AddRegistrarEarner<'info> {
     pub global_account: Account<'info, EarnGlobal>,
 
     pub m_mint: InterfaceAccount<'info, Mint>,
+
+    #[account(
+        seeds = [EARNER_SEED, user.as_ref()],
+        bump = earner.bump
+    )]
+    pub earner: Account<'info, Earner>,
 
     #[account(
         mut,
@@ -42,25 +40,8 @@ pub struct AddRegistrarEarner<'info> {
     pub token_program: Program<'info, Token2022>,
 }
 
-impl AddRegistrarEarner<'_> {
-    fn validate(&self, user: Pubkey, proof: Vec<ProofElement>) -> Result<()> {
-        // Ensure the user is not the default public key (system program)
-        if user == Pubkey::default() {
-            return err!(EarnError::InvalidParam);
-        }
-
-        // Verify the user is in the approved earners list
-        verify_in_tree(
-            self.global_account.earner_merkle_root,
-            user.to_bytes(),
-            proof,
-        )?;
-
-        Ok(())
-    }
-
-    #[access_control(ctx.accounts.validate(user, proof))]
-    pub fn handler(ctx: Context<Self>, user: Pubkey, proof: Vec<ProofElement>) -> Result<()> {
+impl ThawEarnerAccount<'_> {
+    pub fn handler(ctx: Context<Self>, user: Pubkey) -> Result<()> {
         // Thaw the user's token account so they can hold $M
         thaw_token_account(
             &ctx.accounts.user_token_account,

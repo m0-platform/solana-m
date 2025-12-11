@@ -10,7 +10,6 @@ pub mod utils;
 use anchor_lang::prelude::*;
 
 use instructions::*;
-use utils::merkle_proof::ProofElement;
 
 #[cfg(not(feature = "no-entrypoint"))]
 solana_security_txt::security_txt! {
@@ -49,29 +48,25 @@ pub mod earn {
 
     // Portal instrutions
 
-    pub fn propagate_index(
-        ctx: Context<PropagateIndex>,
-        index: u64,
-        earner_merkle_root: [u8; 32],
-    ) -> Result<()> {
-        PropagateIndex::handler(ctx, index, earner_merkle_root)
+    pub fn propagate_index(ctx: Context<PropagateIndex>, index: u64) -> Result<()> {
+        PropagateIndex::handler(ctx, index)
+    }
+
+    pub fn add_earner(ctx: Context<AddEarner>, user: Pubkey) -> Result<()> {
+        AddEarner::handler(ctx, user)
+    }
+
+    pub fn remove_earner(ctx: Context<RemoveEarner>, user: Pubkey) -> Result<()> {
+        RemoveEarner::handler(ctx, user)
     }
 
     // Open instructions
 
-    pub fn add_registrar_earner(
-        ctx: Context<AddRegistrarEarner>,
-        user: Pubkey,
-        proof: Vec<ProofElement>,
-    ) -> Result<()> {
-        AddRegistrarEarner::handler(ctx, user, proof)
+    pub fn add_registrar_earner(ctx: Context<ThawEarnerAccount>, user: Pubkey) -> Result<()> {
+        ThawEarnerAccount::handler(ctx, user)
     }
 
-    pub fn remove_registrar_earner(
-        ctx: Context<RemoveRegistrarEarner>,
-        proofs: Vec<Vec<ProofElement>>,
-        neighbors: Vec<[u8; 32]>,
-    ) -> Result<()> {
-        RemoveRegistrarEarner::handler(ctx, proofs, neighbors)
+    pub fn remove_registrar_earner(ctx: Context<FreezeEarnerAccount>, user: Pubkey) -> Result<()> {
+        FreezeEarnerAccount::handler(ctx, user)
     }
 }

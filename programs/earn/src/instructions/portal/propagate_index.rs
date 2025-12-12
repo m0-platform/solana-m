@@ -37,32 +37,29 @@ impl PropagateIndex<'_> {
         let current_multiplier: f64 = scaled_ui_config.new_multiplier.into();
         let new_multiplier = index_to_multiplier(new_index)?;
 
-        // Check if the new multiplier is greater than or equal to the previously seen multiplier.
-        if new_multiplier >= current_multiplier {
-            // If the new multiplier is strictly greater than the current one, update the multiplier.
-            if new_multiplier > current_multiplier {
-                let timestamp = Clock::get()?.unix_timestamp;
+        // If the new multiplier is strictly greater than the current one, update the multiplier.
+        if new_multiplier > current_multiplier {
+            let timestamp = Clock::get()?.unix_timestamp;
 
-                update_multiplier(
-                    &mut ctx.accounts.m_mint,
-                    &ctx.accounts.global_account.to_account_info(),
-                    &[&[GLOBAL_SEED, &[ctx.accounts.global_account.bump]]],
-                    &ctx.accounts.token_program,
-                    new_multiplier,
-                    timestamp,
-                )?;
+            update_multiplier(
+                &mut ctx.accounts.m_mint,
+                &ctx.accounts.global_account.to_account_info(),
+                &[&[GLOBAL_SEED, &[ctx.accounts.global_account.bump]]],
+                &ctx.accounts.token_program,
+                new_multiplier,
+                timestamp,
+            )?;
 
-                // Mint gets reloaded on update_multiplier
-                let scaled_ui_config = get_scaled_ui_config(&ctx.accounts.m_mint)?;
+            // Mint gets reloaded on update_multiplier
+            let scaled_ui_config = get_scaled_ui_config(&ctx.accounts.m_mint)?;
 
-                emit!(IndexUpdateV2 {
-                    index: new_index,
-                    ts: timestamp,
-                    supply: ctx.accounts.m_mint.supply,
-                    current_multiplier,
-                    new_multiplier: scaled_ui_config.new_multiplier.into(),
-                });
-            }
+            emit!(IndexUpdateV2 {
+                index: new_index,
+                ts: timestamp,
+                supply: ctx.accounts.m_mint.supply,
+                current_multiplier,
+                new_multiplier: scaled_ui_config.new_multiplier.into(),
+            });
         }
 
         Ok(())

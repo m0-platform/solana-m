@@ -44,7 +44,7 @@ const OLD_EARN_IDL = require('../../programs/earn/idls/old_earn.json');
 const OLD_EARN_PROGRAM_ID = new PublicKey('MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c');
 import { OldEarn } from '../programs/old_earn';
 
-const PORTAL_PROGRAM_ID = new PublicKey('mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY');
+const PORTAL_PROGRAM_ID = new PublicKey('MzBrgc8yXBj4P16GTkcSyDZkEQZB9qDqf3fh9bByJce');
 const EXT_SWAP_PROGRAM_ID = new PublicKey('MSwapi3WhNKMUGm9YrxGhypgUEt7wYQH3ZgG32XoWzH');
 
 import {
@@ -738,7 +738,7 @@ class EarnTest<V extends Variant = Variant.New> {
   }
 
   public getPortalTokenAuthority(): PublicKey {
-    const [portalTokenAuthority] = PublicKey.findProgramAddressSync([Buffer.from('token_authority')], this.portal);
+    const [portalTokenAuthority] = PublicKey.findProgramAddressSync([Buffer.from('authority')], this.portal);
 
     return portalTokenAuthority;
   }

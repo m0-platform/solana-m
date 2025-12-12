@@ -21,4 +21,4 @@ pub struct EarnGlobal {
 // Seed used by the Portal program to derive the token authority PDA.
 // We include it here as a convenience instead of importing it from the Portal program.
 // This avoids a circular dependency between the earn and portal programs.
-pub const TOKEN_AUTHORITY_SEED: &[u8] = b"token_authority";
+pub const TOKEN_AUTHORITY_SEED: &[u8] = b"authority";

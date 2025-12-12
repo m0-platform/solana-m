@@ -6,8 +6,9 @@ use anchor_spl::{
 };
 
 use crate::{
+    constants::PORTAL_PROGRAM,
     errors::EarnError,
-    state::{EarnGlobal, GLOBAL_SEED},
+    state::{EarnGlobal, GLOBAL_SEED, TOKEN_AUTHORITY_SEED},
     utils::token::thaw_token_account,
 };
 
@@ -25,7 +26,12 @@ pub struct UpdatePortalAuthority<'info> {
     )]
     pub global_account: Account<'info, EarnGlobal>,
 
-    /// CHECK: Admin will set this correctly or the Portal will not function
+    /// CHECK: Authority that does not hold data
+    #[account(
+        seeds = [TOKEN_AUTHORITY_SEED],
+        seeds::program = PORTAL_PROGRAM,
+        bump,
+    )]
     pub new_portal_authority: UncheckedAccount<'info>,
 
     #[account(

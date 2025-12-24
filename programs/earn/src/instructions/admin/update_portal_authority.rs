@@ -8,7 +8,7 @@ use anchor_spl::{
 use crate::{
     constants::PORTAL_PROGRAM,
     errors::EarnError,
-    state::{EarnGlobal, GLOBAL_SEED, TOKEN_AUTHORITY_SEED},
+    state::{EarnGlobal, AUTHORITY_SEED, GLOBAL_SEED},
     utils::token::thaw_token_account,
 };
 
@@ -28,7 +28,7 @@ pub struct UpdatePortalAuthority<'info> {
 
     /// CHECK: Authority that does not hold data
     #[account(
-        seeds = [TOKEN_AUTHORITY_SEED],
+        seeds = [AUTHORITY_SEED],
         seeds::program = PORTAL_PROGRAM,
         bump,
     )]

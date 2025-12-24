@@ -19,7 +19,7 @@ use spl_token_2022::extension::{
 use crate::{
     constants::{ANCHOR_DISCRIMINATOR_SIZE, PORTAL_PROGRAM, INDEX_SCALE_F64},
     errors::EarnError,
-    state::{EarnGlobal, GLOBAL_SEED, TOKEN_AUTHORITY_SEED},
+    state::{EarnGlobal, GLOBAL_SEED, AUTHORITY_SEED},
     utils::{conversion::{update_multiplier, index_to_multiplier}, token::thaw_token_account},
 };
 
@@ -72,7 +72,7 @@ pub struct Initialize<'info> {
 
     /// CHECK: This account is validated by its seeds
     #[account(
-        seeds = [TOKEN_AUTHORITY_SEED],
+        seeds = [AUTHORITY_SEED],
         seeds::program = PORTAL_PROGRAM,
         bump,
     )]

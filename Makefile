@@ -1,4 +1,4 @@
-.PHONY: test-yield-bot yield-bot-devnet test-local-validator test-sdk build-devnet upgrade-earn-devnet upgrade-portal-devnet upgrade-ext-earn-devnet deploy-yield-bot deploy-dashboard-devnet deploy-dashboard-mainnet
+.PHONY: test-yield-bot yield-bot-devnet test-local-validator test-sdk build-devnet upgrade-earn-devnet upgrade-ext-earn-devnet deploy-yield-bot deploy-dashboard-devnet deploy-dashboard-mainnet
 
 #
 # Test commands
@@ -103,29 +103,13 @@ define propose_upgrade_program
 	@rm temp-buffer.json
 endef
 
-upgrade-earn-devnet: 
+upgrade-earn-devnet:
 	$(call build-verified,earn,devnet)
 	$(call upgrade_program,earn,$(EARN_PROGRAM_ID))
 
-upgrade-ext-earn-devnet:
-	$(call build-verified,ext_earn,devnet)
-	$(call upgrade_program,ext_earn,$(EXT_EARN_PROGRAM_ID))
-
-upgrade-portal-devnet:
-	$(call build-verified,portal,devnet)
-	$(call upgrade_program,portal,$(PORTAL_PROGRAM_ID))
-
-upgrade-earn-mainnet: 
+upgrade-earn-mainnet:
 	$(call build-verified,earn,mainnet)
 	$(call propose_upgrade_program,earn,$(EARN_PROGRAM_ID))
-
-upgrade-ext-earn-mainnet:
-	$(call build-verified,ext_earn,mainnet)
-	$(call propose_upgrade_program,ext_earn,$(EXT_EARN_PROGRAM_ID))
-
-upgrade-portal-mainnet:
-	$(call build-verified,portal,mainnet)
-	$(call propose_upgrade_program,portal,$(PORTAL_PROGRAM_ID))
 
 #
 # Railway infra

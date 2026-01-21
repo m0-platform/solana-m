@@ -39,7 +39,6 @@ import {
   pack,
   TokenMetadata,
 } from '@solana/spl-token-metadata';
-import { Chain, ChainAddress, UniversalAddress, assertChain, signSendWait } from '@wormhole-foundation/sdk';
 import {
   createPublicClient,
   http,
@@ -49,11 +48,10 @@ import {
 } from '../../sdk/src';
 import { createInitializeConfidentialTransferMintInstruction } from './confidential-transfers';
 import { Program } from '@coral-xyz/anchor';
-import { anchorProvider, keysFromEnv, NttManager, updateMintAuthority, updatePortalMint } from './utils';
 import { MerkleTree } from '../../sdk/src/merkle';
 import { bs58 } from '@coral-xyz/anchor/dist/cjs/utils/bytes';
-import { SolanaUnsignedTransaction } from '@wormhole-foundation/sdk-solana/dist/cjs';
 import { Earn } from '../../target/types/earn';
+import { anchorProvider, keysFromEnv } from './utils';
 const EARN_IDL = require('../../target/idl/earn.json');
 
 const PROGRAMS = {
@@ -338,68 +336,6 @@ async function main() {
     });
 
   program
-    .command('initialize-portal')
-    .option('-i, --id', 'Chain id', '1')
-    .description('Initialize the portal program')
-    .action(async ({ chainId }) => {
-      const [owner, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
-
-      const { ctx, ntt, sender, signer } = NttManager(connection, owner, mint.publicKey);
-
-      const initTxs = ntt.initialize(sender, {
-        mint: mint.publicKey,
-        outboundLimit: RATE_LIMITS_24.outbound,
-        mode: 'burning',
-      });
-
-      const initTx = (await initTxs.next()).value as SolanaUnsignedTransaction<'Mainnet', 'Solana'>;
-      const tx = initTx.transaction.transaction as Transaction;
-
-      // include evm address instruction arg
-      tx.instructions[0].data = Buffer.concat([
-        tx.instructions[0].data,
-        Buffer.from(PROGRAMS.evmToken.slice(2).padStart(64, '0'), 'hex'),
-      ]);
-
-      // override chain id
-      tx.instructions[0].data.writeUInt16LE(parseInt(chainId), 8);
-
-      let sig = await sendAndConfirmTransaction(connection, tx, [owner]);
-      console.log(`Portal initialized: ${PROGRAMS.portal.toBase58()} (${sig})`);
-
-      const initResolver = initResolverAccount(owner.publicKey, ntt.pdas.configAccount());
-      sig = await sendAndConfirmTransaction(connection, new Transaction().add(initResolver), [owner]);
-      console.log(`Resolver initialized: ${PROGRAMS.portal.toBase58()} (${sig})`);
-
-      const initLUT = ntt.initializeOrUpdateLUT({ payer: owner.publicKey, owner: owner.publicKey });
-      await signSendWait(ctx, initLUT, signer);
-      console.log(`LUT initialized: ${ntt.pdas.lutAccount().toBase58()}`);
-    });
-
-  program.command('update-portal-mint').action(async () => {
-    const [payer, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
-    const { ntt } = NttManager(connection, payer, mint.publicKey);
-
-    let owner = payer.publicKey;
-    if (process.env.SQUADS_VAULT) {
-      owner = new PublicKey(process.env.SQUADS_VAULT);
-    }
-
-    const tx = new Transaction().add(updatePortalMint(owner, ntt.pdas.configAccount(), mint.publicKey));
-
-    if (process.env.SQUADS_VAULT) {
-      const b = tx.serialize({ verifySignatures: false });
-      console.log('Transaction:', {
-        b64: b.toString('base64'),
-        b58: bs58.encode(b),
-      });
-    } else {
-      const sig = await connection.sendTransaction(tx, [payer]);
-      console.log(`Paused: ${sig}`);
-    }
-  });
-
-  program
     .command('initialize-earn')
     .description('Initialize the earn program')
     .action(async () => {
@@ -437,173 +373,6 @@ async function main() {
         console.log(`Earn initialized: ${sig}`);
       }
     });
-
-  program.command('update-portal-authority').action(async () => {
-    const [owner] = keysFromEnv(['PAYER_KEYPAIR']);
-    const earn = new Program<Earn>(EARN_IDL, anchorProvider(connection, owner));
-
-    let admin = owner.publicKey;
-    if (process.env.SQUADS_VAULT) {
-      admin = new PublicKey(process.env.SQUADS_VAULT);
-    }
-
-    const [portalAuth] = PublicKey.findProgramAddressSync([Buffer.from('authority')], PROGRAMS.portal);
-
-    const tx = await earn.methods
-      .updatePortalAuthority()
-      .accounts({
-        newPortalAuthority: portalAuth,
-      })
-      .signers([owner])
-      .transaction();
-
-    tx.feePayer = admin;
-    tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-
-    if (process.env.SQUADS_VAULT) {
-      const b = tx.serialize({ verifySignatures: false });
-      console.log('Transaction:', {
-        b64: b.toString('base64'),
-        b58: bs58.encode(b),
-      });
-    } else {
-      const sig = await connection.sendTransaction(tx, [owner]);
-      console.log(`Portal Authority updated: ${sig}`);
-    }
-  });
-
-  program.command('update-mint-authority').action(async () => {
-    const [owner, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
-
-    const { ntt } = NttManager(connection, owner, mint.publicKey);
-    const tx = new Transaction().add(updateMintAuthority(owner.publicKey, ntt.pdas.configAccount(), mint.publicKey));
-
-    tx.feePayer = owner.publicKey;
-    tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-
-    if (process.env.SQUADS_VAULT) {
-      const b = tx.serialize({ verifySignatures: false });
-      console.log('Transaction:', {
-        b64: b.toString('base64'),
-        b58: bs58.encode(b),
-      });
-    } else {
-      const sig = await connection.sendTransaction(tx, [owner]);
-      console.log(`Portal Authority updated: ${sig}`);
-    }
-  });
-
-  program
-    .command('update-lut')
-    .description('Initialize or update the LUT for the portal program')
-    .action(async () => {
-      const [owner, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
-      const { ctx, ntt, signer } = NttManager(connection, owner, mint.publicKey);
-
-      const lutTxn = ntt.initializeOrUpdateLUT({ payer: owner.publicKey, owner: owner.publicKey });
-      await signSendWait(ctx, lutTxn, signer);
-      console.log('LUT updated');
-    });
-
-  program
-    .command('register-peers')
-    .description('Initialize or update the LUT for the portal program')
-    .action(async () => {
-      const [owner, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
-
-      const { ctx, ntt, signer, sender } = NttManager(connection, owner, mint.publicKey);
-
-      // register wormhole xcvr
-      const registerTxs = ntt.registerWormholeTransceiver({
-        payer: sender,
-        owner: sender,
-      });
-      await signSendWait(ctx, registerTxs, signer);
-
-      // infer other svm network peer
-      const svmOther = process.env.NETWORK!.includes('fogo') ? 'Solana' : 'Fogo';
-
-      const chains = (
-        process.env.NETWORK!.includes('mainnet')
-          ? ['Ethereum', 'Arbitrum', 'Optimism', svmOther]
-          : ['Sepolia', 'ArbitrumSepolia', 'OptimismSepolia', svmOther]
-      ) as Chain[];
-
-      for (let chain of chains) {
-        assertChain(chain);
-        console.log(`Registering transceiver and peer for ${chain}`);
-
-        // set wormhole xcvr peer
-        const remoteXcvr: ChainAddress = {
-          chain,
-          address: isEVM(chain)
-            ? new UniversalAddress(PROGRAMS.evmTransiever, 'hex')
-            : new UniversalAddress(PROGRAMS.svmPeer.toBase58(), 'base58'),
-        };
-        const setXcvrPeerTxs = ntt.setWormholeTransceiverPeer(remoteXcvr, sender);
-        await signSendWait(ctx, setXcvrPeerTxs, signer);
-
-        // set manager peer
-        const remoteMgr: ChainAddress = {
-          chain,
-          address: isEVM(chain)
-            ? new UniversalAddress(PROGRAMS.evmPeer, 'hex')
-            : new UniversalAddress(PROGRAMS.portal.toBase58(), 'base58'),
-        };
-        const setPeerTxs = ntt.setPeer(remoteMgr, 6, RATE_LIMITS_24.inbound, sender);
-        await signSendWait(ctx, setPeerTxs, signer);
-      }
-
-      console.log('Transceiver and peers registered');
-    });
-
-  program
-    .command('update-rate-limits')
-    .description('Set the rate limit for inbound/outbound transfers')
-    .action(async () => {
-      const [owner, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
-      const { ctx, ntt, signer, sender } = NttManager(connection, owner, mint.publicKey);
-
-      // outbound
-      const updateTxns = ntt.setOutboundLimit(RATE_LIMITS_24.outbound, sender);
-      const sigs = await signSendWait(ctx, updateTxns, signer);
-      console.log('Updated outbound limit:', sigs[0].txid);
-
-      // infer other svm network peer
-      const svmOther = process.env.NETWORK!.includes('fogo') ? 'Solana' : 'Fogo';
-
-      const chains = (
-        process.env.NETWORK!.includes('mainnet')
-          ? ['Ethereum', 'Arbitrum', 'Optimism', svmOther]
-          : ['Sepolia', 'ArbitrumSepolia', 'OptimismSepolia', svmOther]
-      ) as Chain[];
-
-      // inbound
-      for (let chain of chains) {
-        const updateTxns = ntt.setInboundLimit(chain, RATE_LIMITS_24.inbound, sender);
-        const sigs = await signSendWait(ctx, updateTxns, signer);
-        console.log(`Updated inbound limit for ${chain}: ${sigs[0].txid}`);
-      }
-    });
-
-  program.command('pause-bridging').action(async () => {
-    const [payer, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
-    const { ntt, sender } = NttManager(connection, payer, mint.publicKey);
-
-    const pauseTxn = (await ntt.pause(sender).next()).value as SolanaUnsignedTransaction<'Mainnet', 'Solana'>;
-    const tx = pauseTxn.transaction.transaction as Transaction;
-
-    if (process.env.SQUADS_VAULT) {
-      const b = tx.serialize({ verifySignatures: false });
-      console.log('Transaction:', {
-        b64: b.toString('base64'),
-        b58: bs58.encode(b),
-      });
-    } else {
-      const sig = await connection.sendTransaction(tx, [payer]);
-      console.log(`Paused: ${sig}`);
-    }
-  });
 
   program
     .command('add-registrar-earner')

@@ -6,7 +6,6 @@ skip-lint = false
 
 [programs.localnet]
 earn = "mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z"
-portal = "mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY"
 
 [registry]
 url = "https://api.apr.dev"

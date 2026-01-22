@@ -29,7 +29,7 @@ import { MongoClient } from 'mongodb';
   for (let i = 1; i < indexUpdates.length; i++) {
     const update = indexUpdates[i];
     const prev = indexUpdates[i - 1];
-    const yieldMult = Number(update.new_multiplier) - Number(prev.new_multiplier);
+    const yieldMult = Number(update.new_multiplier) / Number(prev.new_multiplier) - 1;
 
     // Update balances up to current index update timestamp
     while (balances[balanceIndex]?.ts < update.ts) {

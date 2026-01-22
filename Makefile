@@ -194,6 +194,10 @@ define deploy-substream-mongo
 	railway redeploy --service substream-mongo --yes
 endef
 
+build-substream-mongo-mainnet:
+	$(call build-substream,solana-mainnet-beta,$(MAINNET_STARTING_BLOCK),sf.substreams.sink.database.v1.DatabaseChanges,map_transfer_events_to_db)
+	cp -f substreams/graph/m-token-transactions-v0.1.0.spkg substreams/db/m-token-transactions.spkg
+
 deploy-substream-mongo-devnet:
 	railway environment development
 	$(call deploy-substream-mongo,solana-devnet,devnet,$(DEVNET_STARTING_BLOCK))

@@ -24,6 +24,8 @@ import { MongoClient } from 'mongodb';
     BVo36cZqxD6KUJGhHPZvBDPbe1Q5fR7ekYDj1mbReVjc: 78.9,
     EHNaRY1ZdtaoPVMqE3TW6pacACzEoU1e9V1ToLyavowN: 77.66,
     '7upNeuSPSpinN7zzEsrxMe6p3N6tMub67dkkm5LFBTvp': 278137.05,
+    '67GWo9en5KtPfeZn5LWrCyhL2w31rf1oqeCoszPUKsAs': 0,
+    GeBTfYujk4JLr2MBCZznMTLTGch1QrUyYcMKen4KUFU2: 0,
   };
 
   for (let i = 1; i < indexUpdates.length; i++) {
@@ -50,6 +52,8 @@ import { MongoClient } from 'mongodb';
       BVo36cZqxD6KUJGhHPZvBDPbe1Q5fR7ekYDj1mbReVjc: 'USDKY',
       EHNaRY1ZdtaoPVMqE3TW6pacACzEoU1e9V1ToLyavowN: 'USDK',
       '7upNeuSPSpinN7zzEsrxMe6p3N6tMub67dkkm5LFBTvp': 'wM',
+      '67GWo9en5KtPfeZn5LWrCyhL2w31rf1oqeCoszPUKsAs': 'USD+',
+      GeBTfYujk4JLr2MBCZznMTLTGch1QrUyYcMKen4KUFU2: 'XO',
     }[ta],
     yield: `$${yieldAmount.toFixed(2)}`,
   }));

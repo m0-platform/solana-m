@@ -121,7 +121,7 @@ pub fn transfer_extension_burn<'info>(
 
     // Amount of $M we got from unwrap
     ctx.accounts.common.common.from.reload()?;
-    let m_amount = ctx.accounts.common.common.from.amount - m_pre_balance;
+    let m_principal = ctx.accounts.common.common.from.amount - m_pre_balance;
 
     // TransferBurn expects spending approval to session authority
     approve(
@@ -134,7 +134,7 @@ pub fn transfer_extension_burn<'info>(
             },
             &[&[crate::TOKEN_AUTHORITY_SEED, &[token_auth_bump]]],
         ),
-        m_amount,
+        m_principal,
     )?;
 
     let sub_ctx: Context<'_, '_, '_, 'info, TransferBurn<'info>> = Context::new(
@@ -148,7 +148,7 @@ pub fn transfer_extension_burn<'info>(
     );
 
     // TransferBurn $M from unwrap
-    transfer_burn_common(sub_ctx, args, m_amount)?;
+    transfer_burn_common(sub_ctx, args, m_principal)?;
 
     // Overwrite default destination token
     ctx.accounts.common.common.outbox_item.destination_token = destination_token;

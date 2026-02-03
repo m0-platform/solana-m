@@ -91,7 +91,6 @@ pub struct ReleaseInboundMintExtension<'info> {
 pub fn release_inbound_mint_extension<'info>(
     ctx: Context<'_, '_, '_, 'info, ReleaseInboundMintExtension<'info>>,
 ) -> Result<()> {
-    let m_pre_balance = ctx.accounts.common.recipient.amount;
     let token_auth_bump = ctx.bumps.common.token_authority;
 
     // Release bridged $M
@@ -112,8 +111,6 @@ pub fn release_inbound_mint_extension<'info>(
         true,
     )?;
 
-    ctx.accounts.common.recipient.reload()?;
-
     // Ensure target extensions is correct
     // (only validate if we know the extension exists)
     let target_mint = &ctx.accounts.common.inbox_item.destination_mint;
@@ -129,13 +126,6 @@ pub fn release_inbound_mint_extension<'info>(
             return err!(NTTError::InvalidMint);
         }
     }
-
-    let wrap_amount = ctx
-        .accounts
-        .common
-        .recipient
-        .amount
-        .saturating_sub(m_pre_balance);
 
     // Wrap $M to extension tokens
     ext_swap::cpi::wrap(
@@ -160,7 +150,7 @@ pub fn release_inbound_mint_extension<'info>(
             },
             &[&[crate::TOKEN_AUTHORITY_SEED, &[token_auth_bump]]],
         ),
-        wrap_amount,
+        ctx.accounts.common.inbox_item.transfer.amount,
     )?;
 
     Ok(())

@@ -400,7 +400,7 @@ describe('Portal unit tests', () => {
     });
   });
 
-  // Helper to create transfer_extension instruction - defined at module level for reuse
+  // Helper to create transfer_extension instruction - defined within this test suite for reuse
   async function* transferExtension(caller: Keypair, outboxItem: Keypair, amount: number, extAta: PublicKey) {
     // portal $M token account
     const { address: mAta } = await spl.getOrCreateAssociatedTokenAccount(
@@ -1222,12 +1222,18 @@ describe('Portal unit tests', () => {
      * 3. Round-trip (receive + send same amount) should not cause balance problems
      */
 
-    // Simple PRNG for deterministic test values
+    // Simple PRNG for deterministic test values.
+    // Implements a standard Linear Congruential Generator (LCG) using the
+    // classic glibc parameters:
+    //   X_{n+1} = (1103515245 * X_n + 12345) mod 2^31
+    // These constants are chosen to match glibc's LCG so that tests can
+    // produce reproducible pseudo-random sequences. This is only for
+    // deterministic testing and must not be used for cryptographic purposes.
     function seededRandom(seed: number): () => number {
-      return () => {
-        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-        return seed / 0x7fffffff;
-      };
+     return () => {
+       seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+       return seed / 0x7fffffff;
+     };
     }
 
     describe('Conversion Helper Unit Tests', () => {

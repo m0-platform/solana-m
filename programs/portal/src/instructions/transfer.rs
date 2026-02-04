@@ -187,7 +187,7 @@ pub fn transfer_burn<'info>(
         earn::utils::conversion::get_scaled_ui_config(&ctx.accounts.common.mint)?;
 
     // Get the amount of M tokens to transfer using the multiplier
-    let m_principal = earn::utils::conversion::principal_to_amount_down(
+    let m_principal = earn::utils::conversion::amount_to_principal_down(
         args.amount,
         scaled_ui_config.new_multiplier.into(),
     )?;

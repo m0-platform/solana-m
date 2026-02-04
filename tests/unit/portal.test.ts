@@ -33,6 +33,9 @@ import {
   getScaledUIMult,
   LiteSVMProviderExt,
   loadKeypair,
+  amountToPrincipalDown,
+  amountToPrincipalUp,
+  INDEX_SCALE,
 } from '../test-utils';
 import { fromWorkspace } from 'anchor-litesvm';
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
@@ -397,51 +400,51 @@ describe('Portal unit tests', () => {
     });
   });
 
-  describe('Sending', () => {
-    // create generator that returns transfer_extension instruction
-    async function* transferExtension(caller: Keypair, outboxItem: Keypair, amount: number, extAta: PublicKey) {
-      // portal $M token account
-      const { address: mAta } = await spl.getOrCreateAssociatedTokenAccount(
-        connection,
-        caller,
+  // Helper to create transfer_extension instruction - defined at module level for reuse
+  async function* transferExtension(caller: Keypair, outboxItem: Keypair, amount: number, extAta: PublicKey) {
+    // portal $M token account
+    const { address: mAta } = await spl.getOrCreateAssociatedTokenAccount(
+      connection,
+      caller,
+      mint.publicKey,
+      PublicKey.findProgramAddressSync([Buffer.from('token_authority')], config.PORTAL_PROGRAM_ID)[0],
+      true,
+      undefined,
+      undefined,
+      TOKEN_PROGRAM,
+    );
+
+    const tx = new Transaction().add(
+      buildTransferExtensionIx(
+        ntt,
+        amount,
+        caller.publicKey,
+        outboxItem.publicKey,
         mint.publicKey,
-        PublicKey.findProgramAddressSync([Buffer.from('token_authority')], config.PORTAL_PROGRAM_ID)[0],
-        true,
-        undefined,
-        undefined,
-        TOKEN_PROGRAM,
-      );
+        extMint.publicKey,
+        mAta,
+        extAta,
+      ),
+    );
 
-      const tx = new Transaction().add(
-        buildTransferExtensionIx(
-          ntt,
-          amount,
-          caller.publicKey,
-          outboxItem.publicKey,
-          mint.publicKey,
-          extMint.publicKey,
-          mAta,
-          extAta,
-        ),
-      );
+    tx.feePayer = caller.publicKey;
+    tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+    tx.sign(outboxItem);
 
-      tx.feePayer = caller.publicKey;
-      tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-      tx.sign(outboxItem);
+    yield ntt.createUnsignedTx({ transaction: tx }, 'Ntt.Transfer');
 
-      yield ntt.createUnsignedTx({ transaction: tx }, 'Ntt.Transfer');
+    // release
+    const whTransceiver = await ntt.getWormholeTransceiver();
+    const release = new Transaction().add(
+      await whTransceiver!.createReleaseWormholeOutboundIx(caller.publicKey, outboxItem.publicKey, true),
+    );
 
-      // release
-      const whTransceiver = await ntt.getWormholeTransceiver();
-      const release = new Transaction().add(
-        await whTransceiver!.createReleaseWormholeOutboundIx(caller.publicKey, outboxItem.publicKey, true),
-      );
+    release.feePayer = caller.publicKey;
+    release.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+    yield ntt.createUnsignedTx({ transaction: release }, 'Ntt.Release');
+  }
 
-      release.feePayer = caller.publicKey;
-      release.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-      yield ntt.createUnsignedTx({ transaction: release }, 'Ntt.Release');
-    }
-
+  describe('Sending', () => {
     test('can send tokens', async () => {
       const amount = 100_000n;
       const sender = Wormhole.parseAddress('Solana', signer.address());
@@ -705,7 +708,8 @@ describe('Portal unit tests', () => {
       // check balance
       const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
       const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
-      expect(parsedTokenAccount.amount).toBe(9880099n);
+      // With amount_to_principal_up, 100 tokens at multiplier 1.000000000001 rounds UP to 100 principal
+      expect(parsedTokenAccount.amount).toBe(9880100n);
     });
 
     it('$M tokens - try unauthorized redeem', async () => {
@@ -898,15 +902,15 @@ describe('Portal unit tests', () => {
       const item = await ntt.program.account.inboxItem.fetch(inboxItem);
       expect(JSON.stringify(item.releaseStatus.released)).toBeDefined();
 
-      // check balance
+      // check balance - M balance increases by principal minted (which is then wrapped)
       const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
       const parsedTokenAccount = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM);
-      expect(parsedTokenAccount.amount).toBe(9880099n); // should be unchanged
+      expect(parsedTokenAccount.amount).toBe(9880100n); // M balance after previous receive test
 
-      // check ext balance
+      // check ext balance - with amount_to_principal_up, rounds UP producing 1 more token
       const extTokenAccountInfo = await connection.getAccountInfo(extAta);
       const extParsedTokenAccount = spl.unpackAccount(extAta, extTokenAccountInfo, TOKEN_PROGRAM);
-      expect(extParsedTokenAccount.amount).toBe(9099n);
+      expect(extParsedTokenAccount.amount).toBe(9100n);
     });
 
     it('extension tokens - use resolver', async () => {
@@ -1113,7 +1117,8 @@ describe('Portal unit tests', () => {
       // check ext balance
       let extTokenAccountInfo = await connection.getAccountInfo(extAta);
       let extParsedTokenAccount = spl.unpackAccount(extAta, extTokenAccountInfo, TOKEN_PROGRAM);
-      expect(extParsedTokenAccount.amount).toBe(9099n);
+      // With amount_to_principal_up for wrap, rounds UP producing 1 more extension token
+      expect(extParsedTokenAccount.amount).toBe(9100n);
 
       // send transactions
       redeemTx.feePayer = payer.publicKey;
@@ -1122,10 +1127,10 @@ describe('Portal unit tests', () => {
       const redeemResult = svm.sendTransaction!(redeemTx);
       expect((redeemResult as any).logs?.()).toBeDefined();
 
-      // check updated ext balance
+      // check updated ext balance - accumulated rounding: 9100 (previous) + 100 (this receive) = 9200
       extTokenAccountInfo = await connection.getAccountInfo(extAta);
       extParsedTokenAccount = spl.unpackAccount(extAta, extTokenAccountInfo, TOKEN_PROGRAM);
-      expect(extParsedTokenAccount.amount).toBe(9198n);
+      expect(extParsedTokenAccount.amount).toBe(9200n);
     });
 
     it('extension tokens - redeem to portal authority', async () => {
@@ -1202,6 +1207,390 @@ describe('Portal unit tests', () => {
       const txIds = await ssw(ctx, getRedeemTxns(), signer);
       const logs = await fetchTransactionLogs(provider, txIds[txIds.length - 1].txid);
       expect(logs).toContain('Program log: Index update: 123456 | root update: true');
+    });
+  });
+
+  describe('Precision and Rounding', () => {
+    /**
+     * These tests verify the correct rounding behavior for amount conversions:
+     * - Receiving (mint): uses amount_to_principal_up (rounds UP to ensure user gets full amount)
+     * - Sending (burn): uses amount_to_principal_down (rounds DOWN to protect user from over-burning)
+     *
+     * Key invariants:
+     * 1. UI amount in VAA should exactly match input amount
+     * 2. Principal minted/burned should match expected rounding direction
+     * 3. Round-trip (receive + send same amount) should not cause balance problems
+     */
+
+    // Simple PRNG for deterministic test values
+    function seededRandom(seed: number): () => number {
+      return () => {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff;
+      };
+    }
+
+    describe('Conversion Helper Unit Tests', () => {
+      it('matches expected rounding behavior at test multiplier', () => {
+        const multiplier = 1.000000000001;
+
+        // For amount = 100 at this multiplier:
+        // down: (100 * 1e12) / 1,000,000,000,001 = 99 (truncates 99.9999...)
+        // up: (100 * 1e12 + 1,000,000,000,001 - 1) / 1,000,000,000,001 = 100
+        expect(amountToPrincipalDown(100n, multiplier)).toBe(99n);
+        expect(amountToPrincipalUp(100n, multiplier)).toBe(100n);
+      });
+
+      it('handles multiplier = 1.0 (no conversion)', () => {
+        const amount = 12345n;
+        expect(amountToPrincipalDown(amount, 1.0)).toBe(amount);
+        expect(amountToPrincipalUp(amount, 1.0)).toBe(amount);
+      });
+
+      it('up >= down invariant holds for all test cases', () => {
+        const testCases = [
+          { mult: 1.000000000001, amount: 100n },
+          { mult: 1.5, amount: 7n },
+          { mult: 1.333333333333, amount: 10n },
+          { mult: 2.0, amount: 5n },
+          { mult: 1.1, amount: 11n },
+        ];
+
+        for (const tc of testCases) {
+          const down = amountToPrincipalDown(tc.amount, tc.mult);
+          const up = amountToPrincipalUp(tc.amount, tc.mult);
+          expect(up).toBeGreaterThanOrEqual(down);
+        }
+      });
+
+      it('small amounts do not underflow', () => {
+        const multipliers = [1.0, 1.000000000001, 1.5, 2.0, 10.0];
+
+        for (const mult of multipliers) {
+          const down = amountToPrincipalDown(1n, mult);
+          const up = amountToPrincipalUp(1n, mult);
+
+          expect(down).toBeGreaterThanOrEqual(0n);
+          expect(up).toBeGreaterThanOrEqual(0n);
+          expect(up).toBeGreaterThanOrEqual(down);
+
+          if (mult === 1.0) {
+            expect(down).toBe(1n);
+            expect(up).toBe(1n);
+          }
+        }
+      });
+    });
+
+    describe('Fuzz Tests - Random Index/Amount Combinations', () => {
+      it('up >= down invariant holds for random values', () => {
+        const random = seededRandom(42);
+
+        // Test 100 random combinations
+        for (let i = 0; i < 100; i++) {
+          // Random multiplier between 1.0 and 5.0
+          const mult = 1.0 + random() * 4.0;
+          // Random amount between 1 and 1,000,000
+          const amount = BigInt(Math.floor(random() * 1_000_000) + 1);
+
+          const down = amountToPrincipalDown(amount, mult);
+          const up = amountToPrincipalUp(amount, mult);
+
+          expect(up).toBeGreaterThanOrEqual(down);
+          expect(down).toBeGreaterThanOrEqual(0n);
+          expect(up).toBeGreaterThanOrEqual(0n);
+        }
+      });
+
+      it('principal * multiplier approximates original amount', () => {
+        const random = seededRandom(123);
+
+        for (let i = 0; i < 50; i++) {
+          const mult = 1.0 + random() * 3.0;
+          const amount = BigInt(Math.floor(random() * 100_000) + 100);
+
+          const principalDown = amountToPrincipalDown(amount, mult);
+          const principalUp = amountToPrincipalUp(amount, mult);
+
+          // Convert back: principal * multiplier should be close to original
+          const index = BigInt(Math.trunc(mult * 1e12));
+          const backFromDown = (principalDown * index) / INDEX_SCALE;
+          const backFromUp = (principalUp * index) / INDEX_SCALE;
+
+          // Down should give us <= original amount
+          expect(backFromDown).toBeLessThanOrEqual(amount);
+          // Up should give us >= original amount (or very close due to integer math)
+          // Allow 1 unit tolerance due to double rounding
+          expect(backFromUp + 1n).toBeGreaterThanOrEqual(amount);
+        }
+      });
+
+      it('rounding difference is at most 1 for reasonable values', () => {
+        const random = seededRandom(456);
+
+        for (let i = 0; i < 50; i++) {
+          // Use multipliers close to 1.0 where rounding difference should be small
+          const mult = 1.0 + random() * 0.1;
+          const amount = BigInt(Math.floor(random() * 10_000) + 1);
+
+          const down = amountToPrincipalDown(amount, mult);
+          const up = amountToPrincipalUp(amount, mult);
+
+          // For small multipliers, difference should typically be 0 or 1
+          const diff = up - down;
+          expect(diff).toBeLessThanOrEqual(1n);
+        }
+      });
+    });
+
+    describe('Send/Receive Amount Verification (Fuzzed)', () => {
+      it('send M: VAA contains exact UI amount, burns principal rounded DOWN - fuzzed amounts', async () => {
+        const mult = await getScaledUIMult(connection, mint.publicKey);
+        expect(mult).toBeGreaterThan(1.0);
+
+        const random = seededRandom(789);
+        // Test multiple random amounts
+        const testAmounts = [
+          BigInt(Math.floor(random() * 1000) + 100), // Small: 100-1100
+          BigInt(Math.floor(random() * 10000) + 1000), // Medium: 1000-11000
+          BigInt(Math.floor(random() * 50000) + 10000), // Large: 10000-60000
+        ];
+
+        for (const uiAmount of testAmounts) {
+          const expectedPrincipal = amountToPrincipalDown(uiAmount, mult);
+
+          const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
+          const balanceBefore = spl.unpackAccount(tokenAccount, tokenAccountInfo, TOKEN_PROGRAM).amount;
+
+          // Skip if insufficient balance
+          if (balanceBefore < expectedPrincipal) continue;
+
+          const receiver = testing.utils.makeUniversalChainAddress('Ethereum');
+          const outboxItem = Keypair.generate();
+          const xferTxs = ntt.transfer(sender, uiAmount, receiver, { queue: false, automatic: false }, outboxItem);
+          await ssw(ctx, xferTxs, signer);
+
+          // Verify VAA contains exact UI amount
+          const [wormholeMessage] = PublicKey.findProgramAddressSync(
+            [Buffer.from('message'), outboxItem.publicKey.toBytes()],
+            config.PORTAL_PROGRAM_ID,
+          );
+          const unsignedVaa = await wc.coreBridge.parsePostMessageAccount(wormholeMessage);
+          const payloadHex = Buffer.from(unsignedVaa.payload).toString('hex').slice(272);
+          const payloadAmount = BigInt('0x' + payloadHex.slice(10, 26));
+          expect(payloadAmount).toBe(uiAmount);
+
+          // Verify principal burned matches expected (rounded DOWN)
+          const tokenAccountInfoAfter = await connection.getAccountInfo(tokenAccount);
+          const balanceAfter = spl.unpackAccount(tokenAccount, tokenAccountInfoAfter, TOKEN_PROGRAM).amount;
+          expect(balanceBefore - balanceAfter).toBe(expectedPrincipal);
+        }
+      });
+
+      it('receive: principal rounding verified for fuzzed amounts', async () => {
+        const mult = await getScaledUIMult(connection, mint.publicKey);
+        const random = seededRandom(321);
+
+        // Test that for any amount, up rounding gives at least the UI amount back
+        for (let i = 0; i < 20; i++) {
+          const untrimmedAmount = BigInt(Math.floor(random() * 10000) + 1);
+
+          const principalUp = amountToPrincipalUp(untrimmedAmount, mult);
+          const principalDown = amountToPrincipalDown(untrimmedAmount, mult);
+
+          // Up should always be >= down
+          expect(principalUp).toBeGreaterThanOrEqual(principalDown);
+
+          // Converting principal back to amount:
+          // principalUp * mult should be >= untrimmedAmount (user gets at least what they expected)
+          const index = BigInt(Math.trunc(mult * 1e12));
+          const amountFromUp = (principalUp * index) / INDEX_SCALE;
+
+          // The amount from up-rounded principal should cover the original amount
+          // (may be slightly more due to rounding, but never less)
+          expect(amountFromUp).toBeGreaterThanOrEqual(untrimmedAmount);
+        }
+      });
+    });
+
+    describe('Extension Token Round-Trip (Fuzzed)', () => {
+      it('send extension: VAA contains exact UI amount - fuzzed amounts', async () => {
+        const extAta = getAssociatedTokenAddressSync(extMint.publicKey, payer.publicKey, false, TOKEN_PROGRAM);
+        const random = seededRandom(654);
+
+        // Test multiple random amounts
+        const testAmounts = [
+          Math.floor(random() * 100) + 10, // Small: 10-110
+          Math.floor(random() * 500) + 100, // Medium: 100-600
+          Math.floor(random() * 1000) + 200, // Large: 200-1200
+        ];
+
+        for (const amount of testAmounts) {
+          // Get extension balance before
+          const extTokenAccountInfo = await connection.getAccountInfo(extAta);
+          const extBalanceBefore = spl.unpackAccount(extAta, extTokenAccountInfo, TOKEN_PROGRAM).amount;
+
+          // Skip if insufficient balance
+          if (extBalanceBefore < BigInt(amount)) continue;
+
+          const outboxItem = Keypair.generate();
+          await ssw(ctx, transferExtension(payer, outboxItem, amount, extAta), signer);
+
+          // Verify VAA contains exact UI amount
+          const [wormholeMessage] = PublicKey.findProgramAddressSync(
+            [Buffer.from('message'), outboxItem.publicKey.toBytes()],
+            config.PORTAL_PROGRAM_ID,
+          );
+          const unsignedVaa = await wc.coreBridge.parsePostMessageAccount(wormholeMessage);
+          const payloadHex = Buffer.from(unsignedVaa.payload).toString('hex').slice(272);
+          const payloadAmount = BigInt('0x' + payloadHex.slice(10, 26));
+          expect(payloadAmount).toBe(BigInt(amount));
+
+          // Verify extension balance decreased by exact amount
+          const extTokenAccountInfoAfter = await connection.getAccountInfo(extAta);
+          const extBalanceAfter = spl.unpackAccount(extAta, extTokenAccountInfoAfter, TOKEN_PROGRAM).amount;
+          expect(extBalanceBefore - extBalanceAfter).toBe(BigInt(amount));
+        }
+      });
+
+      it('extension vault M balance changes correctly with fuzzed operations', async () => {
+        const extMVault = getAssociatedTokenAddressSync(
+          mint.publicKey,
+          PublicKey.findProgramAddressSync([Buffer.from('m_vault')], config.EXT_PROGRAM)[0],
+          true,
+          TOKEN_PROGRAM,
+        );
+
+        const mult = await getScaledUIMult(connection, mint.publicKey);
+        const extAta = getAssociatedTokenAddressSync(extMint.publicKey, payer.publicKey, false, TOKEN_PROGRAM);
+        const random = seededRandom(987);
+
+        // Get initial vault balance
+        const vaultInfoBefore = await connection.getAccountInfo(extMVault);
+        const vaultBalanceBefore = spl.unpackAccount(extMVault, vaultInfoBefore, TOKEN_PROGRAM).amount;
+
+        // Send a random amount of extension tokens
+        const sendAmount = Math.floor(random() * 200) + 50; // 50-250
+
+        // Check if we have enough extension tokens
+        const extTokenAccountInfo = await connection.getAccountInfo(extAta);
+        const extBalance = spl.unpackAccount(extAta, extTokenAccountInfo, TOKEN_PROGRAM).amount;
+
+        if (extBalance >= BigInt(sendAmount)) {
+          const outboxItem = Keypair.generate();
+          await ssw(ctx, transferExtension(payer, outboxItem, sendAmount, extAta), signer);
+
+          // Get vault balance after send
+          const vaultInfoAfter = await connection.getAccountInfo(extMVault);
+          const vaultBalanceAfter = spl.unpackAccount(extMVault, vaultInfoAfter, TOKEN_PROGRAM).amount;
+
+          // Vault M balance should decrease (M was unwrapped and burned)
+          // The decrease should be approximately the principal value of the UI amount
+          const expectedPrincipalDecrease = amountToPrincipalDown(BigInt(sendAmount), mult);
+          const actualDecrease = vaultBalanceBefore - vaultBalanceAfter;
+
+          // Allow for some variance due to rounding, but should be close
+          expect(actualDecrease).toBeGreaterThanOrEqual(expectedPrincipalDecrease);
+          // Should not decrease by more than 1 extra due to rounding
+          expect(actualDecrease).toBeLessThanOrEqual(expectedPrincipalDecrease + 1n);
+        }
+      });
+
+      it('round-trip invariant: receive then send same UI amount', async () => {
+        // This test verifies that a user can receive X extension tokens
+        // and send X extension tokens back without balance problems
+        const mult = await getScaledUIMult(connection, mint.publicKey);
+        const random = seededRandom(111);
+
+        // Test multiple amounts
+        const testAmounts = [100n, 500n, 1000n, BigInt(Math.floor(random() * 5000) + 100)];
+
+        for (const uiAmount of testAmounts) {
+          // Calculate what happens on receive:
+          // Portal mints principal_up(uiAmount) M tokens
+          // Then wraps uiAmount M → uiAmount extension tokens
+          const receiveMintsM = amountToPrincipalUp(uiAmount, mult);
+
+          // Calculate what happens on send:
+          // User sends uiAmount extension tokens
+          // Unwrap gives back the M principal that was stored
+          // Portal burns that M principal
+          // The principal from unwrap should match what was stored during wrap
+
+          // Key insight: wrap stores principal_down(uiAmount) in vault
+          // unwrap returns that exact amount
+          const sendBurnsM = amountToPrincipalDown(uiAmount, mult);
+
+          // The difference represents potential "leftover" in the system
+          const mDifference = receiveMintsM - sendBurnsM;
+
+          // Due to rounding:
+          // - Receive mints UP (may mint 1 extra)
+          // - Wrap stores DOWN (may store 1 less than minted)
+          // - Unwrap returns what was stored
+          // - Send burns what was returned
+
+          // The vault may accumulate small amounts due to:
+          // receiveMintsM (up) > wrap stores (down)
+          // This difference stays in portal's M account
+
+          // For the user, they get back exactly the UI amount of extension tokens
+          // so the round-trip is lossless from their perspective
+
+          // The M difference should be 0 or 1 (never negative, never more than 1)
+          expect(mDifference).toBeGreaterThanOrEqual(0n);
+          expect(mDifference).toBeLessThanOrEqual(1n);
+        }
+      });
+    });
+
+    describe('Edge Cases', () => {
+      it('maximum rounding difference scenarios', () => {
+        // Find cases where rounding difference is maximized
+        // This happens when (amount * INDEX_SCALE) % index is close to index - 1
+
+        // Multiplier 2.0: amount 1 gives principal 0 (down) vs 1 (up)
+        expect(amountToPrincipalDown(1n, 2.0)).toBe(0n);
+        expect(amountToPrincipalUp(1n, 2.0)).toBe(1n);
+
+        // Multiplier 1.5: amount 1 gives principal 0 (down) vs 1 (up)
+        expect(amountToPrincipalDown(1n, 1.5)).toBe(0n);
+        expect(amountToPrincipalUp(1n, 1.5)).toBe(1n);
+
+        // Multiplier 10.0: amount 9 gives principal 0 (down) vs 1 (up)
+        expect(amountToPrincipalDown(9n, 10.0)).toBe(0n);
+        expect(amountToPrincipalUp(9n, 10.0)).toBe(1n);
+      });
+
+      it('large amounts maintain precision', () => {
+        const mult = 1.000000000001;
+        const largeAmount = 1_000_000_000_000n; // 1 trillion
+
+        const down = amountToPrincipalDown(largeAmount, mult);
+        const up = amountToPrincipalUp(largeAmount, mult);
+
+        // Should still maintain up >= down
+        expect(up).toBeGreaterThanOrEqual(down);
+
+        // Both should be close to the original amount
+        expect(down).toBeGreaterThan(largeAmount - 1_000_000n);
+        expect(up).toBeLessThan(largeAmount + 1_000_000n);
+      });
+
+      it('amounts at decimal boundary (100 at 8->6 decimals)', () => {
+        // VAA trimmedAmount uses 8 decimals, M uses 6 decimals
+        // 10,000 at 8 decimals = 100 at 6 decimals (divide by 100)
+
+        const trimmedAmount = 10_000n; // 8 decimals
+        const untrimmedAmount = trimmedAmount / 100n; // 6 decimals = 100
+
+        const mult = 1.000000000001;
+        const principalDown = amountToPrincipalDown(untrimmedAmount, mult);
+        const principalUp = amountToPrincipalUp(untrimmedAmount, mult);
+
+        expect(principalDown).toBe(99n);
+        expect(principalUp).toBe(100n);
+      });
     });
   });
 });

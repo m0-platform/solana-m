@@ -181,14 +181,23 @@ pub fn transfer_burn<'info>(
     ctx: Context<'_, '_, '_, 'info, TransferBurn<'info>>,
     args: TransferArgs,
 ) -> Result<()> {
-    let amount = args.amount;
-    transfer_burn_common(ctx, args, amount)
+    // The provided "amount" is the principal amount of M to bridge.
+    // We scale this up to M units using the scaled UI config multiplier.
+    let scaled_ui_config =
+        earn::utils::conversion::get_scaled_ui_config(&ctx.accounts.common.mint)?;
+
+    // Get the amount of M tokens to transfer using the multiplier
+    let m_principal = earn::utils::conversion::amount_to_principal_down(
+        args.amount,
+        scaled_ui_config.new_multiplier.into(),
+    )?;
+    transfer_burn_common(ctx, args, m_principal)
 }
 
 pub fn transfer_burn_common<'info>(
     ctx: Context<'_, '_, '_, 'info, TransferBurn<'info>>,
     args: TransferArgs,
-    principal_amount_m: u64,
+    m_principal: u64,
 ) -> Result<()> {
     let session_authority_bump = ctx.accounts.validate_accounts(&args)?;
 
@@ -201,16 +210,7 @@ pub fn transfer_burn_common<'info>(
         ..
     } = args;
 
-    // The provided "amount" is the principal amount of M to bridge.
-    // We scale this up to M units using the scaled UI config multiplier.
-    let scaled_ui_config = earn::utils::conversion::get_scaled_ui_config(&accs.common.mint)?;
-
-    // Get the amount of M tokens to transfer using the multiplier
-    let mut m_amount = earn::utils::conversion::principal_to_amount_down(
-        principal_amount_m,
-        scaled_ui_config.new_multiplier.into(),
-    )?;
-
+    let mut m_amount = args.amount;
     let trimmed_amount = TrimmedAmount::remove_dust(
         &mut m_amount,
         accs.common.mint.decimals,
@@ -243,7 +243,7 @@ pub fn transfer_burn_common<'info>(
         accs.common.custody.to_account_info(),
         accs.session_authority.to_account_info(),
         ctx.remaining_accounts,
-        principal_amount_m,
+        m_principal,
         accs.common.mint.decimals,
         &[&[
             crate::SESSION_AUTHORITY_SEED,
@@ -264,7 +264,7 @@ pub fn transfer_burn_common<'info>(
             },
             &[&[crate::TOKEN_AUTHORITY_SEED, &[ctx.bumps.token_authority]]],
         ),
-        principal_amount_m,
+        m_principal,
     )?;
 
     accs.common.custody.reload()?;

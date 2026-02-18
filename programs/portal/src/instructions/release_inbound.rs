@@ -4,7 +4,7 @@ use earn::{
     cpi::accounts::PropagateIndex,
     program::Earn,
     state::{EarnGlobal, GLOBAL_SEED},
-    utils::conversion::amount_to_principal_down,
+    utils::conversion::amount_to_principal_up,
 };
 use spl_token_2022::onchain;
 
@@ -140,7 +140,8 @@ pub fn release_inbound_mint_common<'info>(
         let scaled_ui_config = earn::utils::conversion::get_scaled_ui_config(&ctx.accounts.mint)?;
 
         // Get the principal amount of $M tokens to transfer using the multiplier
-        let principal = amount_to_principal_down(
+        // Round up to ensure the portal has enough tokens to cover the UI amount
+        let principal = amount_to_principal_up(
             inbox_item.transfer.amount,
             scaled_ui_config.new_multiplier.into(),
         )?;

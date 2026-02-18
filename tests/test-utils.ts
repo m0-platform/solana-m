@@ -279,3 +279,44 @@ export enum Comparison {
   LessThan,
   LessThanOrEqual,
 }
+
+// Amount conversion helpers - mirrors the Rust logic in programs/earn/src/utils/conversion.rs
+export const INDEX_SCALE = 1_000_000_000_000n; // 1e12
+
+/**
+ * Convert UI amount to principal, rounding DOWN.
+ * Used when sending/burning tokens (protects user from over-burning).
+ */
+export function amountToPrincipalDown(amount: bigint, multiplier: number): bigint {
+  if (multiplier === 1.0) return amount;
+  const index = BigInt(Math.trunc(multiplier * 1e12));
+  return (amount * INDEX_SCALE) / index;
+}
+
+/**
+ * Convert UI amount to principal, rounding UP.
+ * Used when receiving/minting tokens (ensures user gets at least the bridged amount).
+ */
+export function amountToPrincipalUp(amount: bigint, multiplier: number): bigint {
+  if (multiplier === 1.0) return amount;
+  const index = BigInt(Math.trunc(multiplier * 1e12));
+  return (amount * INDEX_SCALE + index - 1n) / index;
+}
+
+/**
+ * Convert principal to UI amount, rounding DOWN.
+ */
+export function principalToAmountDown(principal: bigint, multiplier: number): bigint {
+  if (multiplier === 1.0) return principal;
+  const index = BigInt(Math.trunc(multiplier * 1e12));
+  return (index * principal) / INDEX_SCALE;
+}
+
+/**
+ * Convert principal to UI amount, rounding UP.
+ */
+export function principalToAmountUp(principal: bigint, multiplier: number): bigint {
+  if (multiplier === 1.0) return principal;
+  const index = BigInt(Math.trunc(multiplier * 1e12));
+  return (index * principal + INDEX_SCALE - 1n) / INDEX_SCALE;
+}

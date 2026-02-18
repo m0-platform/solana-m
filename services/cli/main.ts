@@ -479,7 +479,7 @@ async function main() {
         console.log(`Registering transceiver and peer for ${chain}`);
 
         // set wormhole xcvr peer
-        const remoteXcvr: ChainAddress = {
+        const remoteXcvr: any = {
           chain,
           address: isEVM(chain)
             ? new UniversalAddress(PROGRAMS.evmTransiever, 'hex')
@@ -489,7 +489,7 @@ async function main() {
         await signSendWait(ctx, setXcvrPeerTxs, signer);
 
         // set manager peer
-        const remoteMgr: ChainAddress = {
+        const remoteMgr: any = {
           chain,
           address: isEVM(chain)
             ? new UniversalAddress(PROGRAMS.evmPeer, 'hex')
@@ -533,10 +533,15 @@ async function main() {
 
   program.command('pause-bridging').action(async () => {
     const [payer, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
-    const { ntt, sender } = NttManager(connection, payer, mint.publicKey);
+    let { ntt, sender } = NttManager(connection, payer, mint.publicKey);
 
-    const pauseTxn = (await ntt.pause(sender).next()).value as SolanaUnsignedTransaction<'Mainnet', 'Solana'>;
+    if (process.env.SQUADS_VAULT) {
+      sender = new PublicKey(process.env.SQUADS_VAULT);
+    }
+
+    const pauseTxn = (await ntt.unpause(sender).next()).value as SolanaUnsignedTransaction<'Mainnet', 'Solana'>;
     const tx = pauseTxn.transaction.transaction as Transaction;
+    tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
 
     if (process.env.SQUADS_VAULT) {
       const b = tx.serialize({ verifySignatures: false });

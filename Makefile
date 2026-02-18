@@ -78,7 +78,7 @@ define upgrade_program
 		--max-sign-attempts $(MAX_SIGN_ATTEMPTS) \
 		--buffer temp-buffer.json \
 		target/deploy/$(1).so 
-	@echo "Upgrading program with buffer $$(solana address --keypair temp-buffer.json)" 
+	@echo "Upgrading program with buffer $$(solana address --keypair temp-buffer.json)"
 	@solana program upgrade \
 		--keypair $(DEVNET_KEYPAIR) \
 		$$(solana address --keypair temp-buffer.json) \
@@ -94,8 +94,8 @@ define propose_upgrade_program
 		--keypair $(DEVNET_KEYPAIR) \
 		--max-sign-attempts $(MAX_SIGN_ATTEMPTS) \
 		--buffer temp-buffer.json \
-		target/verifiable/$(1).so 
-	@echo "Transfering buffer $$(solana address --keypair temp-buffer.json) authority to Squads" 
+		target/verifiable/$(1).so
+	@echo "Transfering buffer $$(solana address --keypair temp-buffer.json) authority to Squads"
 	@solana program set-buffer-authority $$(solana address --keypair temp-buffer.json) \
 		--new-buffer-authority $(SQUADS_VAULT) \
 		--keypair $(DEVNET_KEYPAIR)
@@ -103,7 +103,7 @@ define propose_upgrade_program
 	@rm temp-buffer.json
 endef
 
-upgrade-earn-devnet: 
+upgrade-earn-devnet:
 	$(call build-verified,earn,devnet)
 	$(call upgrade_program,earn,$(EARN_PROGRAM_ID))
 
@@ -115,7 +115,7 @@ upgrade-portal-devnet:
 	$(call build-verified,portal,devnet)
 	$(call upgrade_program,portal,$(PORTAL_PROGRAM_ID))
 
-upgrade-earn-mainnet: 
+upgrade-earn-mainnet:
 	$(call build-verified,earn,mainnet)
 	$(call propose_upgrade_program,earn,$(EARN_PROGRAM_ID))
 
@@ -124,7 +124,7 @@ upgrade-ext-earn-mainnet:
 	$(call propose_upgrade_program,ext_earn,$(EXT_EARN_PROGRAM_ID))
 
 upgrade-portal-mainnet:
-	$(call build-verified,portal,mainnet)
+# 	$(call build-verified,portal,mainnet)
 	$(call propose_upgrade_program,portal,$(PORTAL_PROGRAM_ID))
 
 #

@@ -18,7 +18,7 @@ export function isEVM(chain: Chain) {
 
 export function NttManager(connection: Connection, owner: Keypair, mint: PublicKey) {
   const signer = new SolanaSendSigner(connection, 'Solana', owner, false, { min: 300_000 }) as Signer<Network, Chain>;
-  const sender = Wormhole.parseAddress('Solana', signer.address()) as AccountAddress<'Solana'>;
+  const sender = Wormhole.parseAddress('Solana', signer.address()) as any;
 
   const wormholeNetwork = process.env.NETWORK?.includes('devnet') ? 'Testnet' : 'Mainnet';
   const wh = new Wormhole(wormholeNetwork, [solana.Platform]);

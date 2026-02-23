@@ -7,6 +7,7 @@ require (
 	github.com/streamingfast/substreams-sink v0.5.2
 	github.com/streamingfast/substreams-sink-mongodb v1.0.1-0.20241129192855-fd2965de08c2
 	github.com/urfave/cli/v3 v3.3.3
+	go.mongodb.org/mongo-driver v1.9.1
 	go.uber.org/zap v1.26.0
 )
 
@@ -115,7 +116,6 @@ require (
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	github.com/yourbasic/graph v0.0.0-20210606180040-8ecfec1c2869 // indirect
 	github.com/zeebo/errs v1.4.0 // indirect
-	go.mongodb.org/mongo-driver v1.9.1 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.34.0 // indirect

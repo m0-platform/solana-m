@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"substream-tooling/mongo"
+	"substream-tooling/solana"
 
 	"github.com/urfave/cli/v3"
 	"go.uber.org/zap"
@@ -73,6 +74,74 @@ func main() {
 						logger.Fatal("failed to write latest cursor", zap.Error(err))
 					}
 					logger.Info("wrote cursor",
+						zap.String("hash", hash),
+						zap.Stringer("cursor", cursor),
+						zap.Uint64("block", cursor.Block().Num()),
+					)
+					return nil
+				},
+			},
+			{
+				Name:  "write-cursor-auto",
+				Usage: "Automatically determine and write the next cursor based on highest block in transactions",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "mongo-dns",
+						Required: true,
+						Usage:    "MongoDB connection string",
+					},
+					&cli.StringFlag{
+						Name:     "rpc-url",
+						Required: true,
+						Usage:    "Solana RPC endpoint URL",
+					},
+				},
+				Action: func(ctx context.Context, cmd *cli.Command) error {
+					mongoDNS := cmd.String("mongo-dns")
+					rpcURL := cmd.String("rpc-url")
+
+					// Step 1: Get highest block_height from transactions collection
+					logger.Info("querying highest block_height from transactions collection...")
+					_, slot, err := mongo.GetHighestBlockHeight(ctx, mongoDNS)
+					if err != nil {
+						logger.Fatal("failed to get highest block height", zap.Error(err))
+					}
+					logger.Info("found highest block_height", zap.Uint64("slot", slot))
+
+					// Step 2: Calculate next block number
+					latestSlot := slot + 1
+
+					// Step 3: Fetch block hash from Solana RPC
+					logger.Info("fetching block hash from Solana RPC...", zap.Uint64("slot", latestSlot))
+					blockHash, err := solana.GetBlockHash(ctx, rpcURL, latestSlot)
+					if err != nil {
+						logger.Fatal("failed to get block hash from RPC", zap.Error(err))
+					}
+					logger.Info("fetched block hash", zap.String("block_hash", blockHash))
+
+					// Step 4: Get current cursor hash for override
+					logger.Info("getting current cursor hash...")
+					cursorHash, err := mongo.GetLatestCursor(ctx, logger, mongoDNS)
+					if err != nil {
+						logger.Fatal("failed to get cursor hash", zap.Error(err))
+					}
+					logger.Info("using cursor hash", zap.String("cursor_hash", cursorHash))
+
+					// Step 5: Write the cursor using existing function
+					logger.Info("writing cursor...")
+					hash, cursor, err := mongo.WriteCursor(
+						ctx,
+						logger,
+						mongoDNS,
+						latestSlot,
+						blockHash,
+						cursorHash,
+					)
+					if err != nil {
+						logger.Fatal("failed to write cursor", zap.Error(err))
+					}
+
+					logger.Info("successfully wrote cursor",
 						zap.String("hash", hash),
 						zap.Stringer("cursor", cursor),
 						zap.Uint64("block", cursor.Block().Num()),

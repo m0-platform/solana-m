@@ -8,6 +8,9 @@ import (
 	"github.com/streamingfast/bstream"
 	sink "github.com/streamingfast/substreams-sink"
 	"github.com/streamingfast/substreams-sink-mongodb/mongo"
+	"go.mongodb.org/mongo-driver/bson"
+	mongodriver "go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 )
 
@@ -44,7 +47,7 @@ func WriteCursor(
 
 	cursor, err := db.GetCursor(ctx, targetHash)
 	if err != nil {
-		return "", nil, fmt.Errorf("error getting cursor: %w", err)
+		return "", nil, fmt.Errorf("error getting cursor %s: %w", targetHash, err)
 	}
 
 	latest := bstream.NewBlockRef(latestBlockHash, latestBlockNum)
@@ -82,4 +85,54 @@ func loadConnection(_ context.Context, logger *zap.Logger, mongoDNS string) (*mo
 	}
 
 	return sink, hex.EncodeToString(outputModuleHash), nil
+}
+
+// GetHighestBlockHeight queries the transactions collection and returns the highest block_height
+func GetHighestBlockHeight(ctx context.Context, mongoDNS string) (uint64, uint64, error) {
+	client, err := mongodriver.Connect(ctx, options.Client().ApplyURI(mongoDNS))
+	if err != nil {
+		return 0, 0, fmt.Errorf("connecting to mongodb: %w", err)
+	}
+	defer client.Disconnect(ctx)
+
+	db := client.Database("solana-m-substream")
+	collection := db.Collection("transactions")
+
+	opts := options.FindOne().SetSort(bson.D{{Key: "block_height", Value: -1}})
+
+	var result struct {
+		BlockHeight float64 `bson:"block_height"`
+		Slot        float64 `bson:"slot"`
+	}
+
+	err = collection.FindOne(ctx, bson.D{}, opts).Decode(&result)
+	if err != nil {
+		return 0, 0, fmt.Errorf("finding highest block_height: %w", err)
+	}
+
+	return uint64(result.BlockHeight), uint64(result.Slot), nil
+}
+
+func GetLatestCursor(ctx context.Context, logger *zap.Logger, mongoDNS string) (string, error) {
+	client, err := mongodriver.Connect(ctx, options.Client().ApplyURI(mongoDNS))
+	if err != nil {
+		return "", fmt.Errorf("connecting to mongodb: %w", err)
+	}
+	defer client.Disconnect(ctx)
+
+	db := client.Database("solana-m-substream")
+	collection := db.Collection("_cursors")
+
+	opts := options.FindOne().SetSort(bson.D{{Key: "block_num", Value: -1}})
+
+	var result struct {
+		ID string `bson:"id"`
+	}
+
+	err = collection.FindOne(ctx, bson.D{}, opts).Decode(&result)
+	if err != nil {
+		return "", fmt.Errorf("finding latest cursor: %w", err)
+	}
+
+	return result.ID, nil
 }

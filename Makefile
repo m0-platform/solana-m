@@ -78,7 +78,7 @@ define upgrade_program
 		--max-sign-attempts $(MAX_SIGN_ATTEMPTS) \
 		--buffer temp-buffer.json \
 		target/deploy/$(1).so 
-	@echo "Upgrading program with buffer $$(solana address --keypair temp-buffer.json)" 
+	@echo "Upgrading program with buffer $$(solana address --keypair temp-buffer.json)"
 	@solana program upgrade \
 		--keypair $(DEVNET_KEYPAIR) \
 		$$(solana address --keypair temp-buffer.json) \
@@ -94,8 +94,8 @@ define propose_upgrade_program
 		--keypair $(DEVNET_KEYPAIR) \
 		--max-sign-attempts $(MAX_SIGN_ATTEMPTS) \
 		--buffer temp-buffer.json \
-		target/verifiable/$(1).so 
-	@echo "Transfering buffer $$(solana address --keypair temp-buffer.json) authority to Squads" 
+		target/verifiable/$(1).so
+	@echo "Transfering buffer $$(solana address --keypair temp-buffer.json) authority to Squads"
 	@solana program set-buffer-authority $$(solana address --keypair temp-buffer.json) \
 		--new-buffer-authority $(SQUADS_VAULT) \
 		--keypair $(DEVNET_KEYPAIR)
@@ -107,9 +107,25 @@ upgrade-earn-devnet:
 	$(call build-verified,earn,devnet)
 	$(call upgrade_program,earn,$(EARN_PROGRAM_ID))
 
+upgrade-ext-earn-devnet:
+	$(call build-verified,ext_earn,devnet)
+	$(call upgrade_program,ext_earn,$(EXT_EARN_PROGRAM_ID))
+
+upgrade-portal-devnet:
+	$(call build-verified,portal,devnet)
+	$(call upgrade_program,portal,$(PORTAL_PROGRAM_ID))
+
 upgrade-earn-mainnet:
 	$(call build-verified,earn,mainnet)
 	$(call propose_upgrade_program,earn,$(EARN_PROGRAM_ID))
+
+upgrade-ext-earn-mainnet:
+	$(call build-verified,ext_earn,mainnet)
+	$(call propose_upgrade_program,ext_earn,$(EXT_EARN_PROGRAM_ID))
+
+upgrade-portal-mainnet:
+	$(call build-verified,portal,mainnet)
+	$(call propose_upgrade_program,portal,$(PORTAL_PROGRAM_ID))
 
 #
 # Railway infra
@@ -177,6 +193,10 @@ define deploy-substream-mongo
 	docker push ghcr.io/m0-foundation/solana-m:substream-mongo-$(2)
 	railway redeploy --service substream-mongo --yes
 endef
+
+build-substream-mongo-mainnet:
+	$(call build-substream,solana-mainnet-beta,$(MAINNET_STARTING_BLOCK),sf.substreams.sink.database.v1.DatabaseChanges,map_transfer_events_to_db)
+	cp -f substreams/graph/m-token-transactions-v0.1.0.spkg substreams/db/m-token-transactions.spkg
 
 deploy-substream-mongo-devnet:
 	railway environment development

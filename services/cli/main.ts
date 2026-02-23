@@ -51,7 +51,7 @@ import { Program } from '@coral-xyz/anchor';
 import { MerkleTree } from '../../sdk/src/merkle';
 import { bs58 } from '@coral-xyz/anchor/dist/cjs/utils/bytes';
 import { Earn } from '../../target/types/earn';
-import { anchorProvider, keysFromEnv } from './utils';
+import { anchorProvider, keysFromEnv, updateMintAuthority } from './utils';
 const EARN_IDL = require('../../target/idl/earn.json');
 
 const PROGRAMS = {
@@ -428,6 +428,27 @@ async function main() {
 
       console.log(`Earner added: ${earner.toBase58()} (${sig})`);
     });
+
+  program.command('update-mint-authority').action(async () => {
+    const [payer, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
+    const owner = process.env.SQUADS_VAULT ? new PublicKey(process.env.SQUADS_VAULT) : payer.publicKey;
+
+    const tx = new Transaction().add(updateMintAuthority(owner, mint.publicKey));
+
+    tx.feePayer = owner;
+    tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+    if (process.env.SQUADS_VAULT) {
+      const b = tx.serialize({ verifySignatures: false });
+      console.log('Transaction:', {
+        b64: b.toString('base64'),
+        b58: bs58.encode(b),
+      });
+    } else {
+      const sig = await connection.sendTransaction(tx, [payer]);
+      console.log(`Portal Authority updated: ${sig}`);
+    }
+  });
 
   await program.parseAsync(process.argv);
 }

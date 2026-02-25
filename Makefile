@@ -1,4 +1,4 @@
-.PHONY: test-yield-bot yield-bot-devnet test-local-validator test-sdk build-devnet upgrade-earn-devnet upgrade-portal-devnet upgrade-ext-earn-devnet deploy-yield-bot deploy-dashboard-devnet deploy-dashboard-mainnet
+.PHONY: test-yield-bot yield-bot-devnet test-local-validator test-sdk build-devnet upgrade-earn-devnet upgrade-ext-earn-devnet deploy-yield-bot deploy-dashboard-devnet deploy-dashboard-mainnet
 
 #
 # Test commands
@@ -124,7 +124,7 @@ upgrade-ext-earn-mainnet:
 	$(call propose_upgrade_program,ext_earn,$(EXT_EARN_PROGRAM_ID))
 
 upgrade-portal-mainnet:
-# 	$(call build-verified,portal,mainnet)
+	$(call build-verified,portal,mainnet)
 	$(call propose_upgrade_program,portal,$(PORTAL_PROGRAM_ID))
 
 #

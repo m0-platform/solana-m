@@ -39,4 +39,4 @@ modules:
 network: solana-mainnet-beta
 
 params:
-  map_filtered_transactions: account:mzeroZRGCah3j5xEWp2Nih3GDejSBbH1rbHoxDg8By6 || account:mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo || account:mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp || account:usdkbee86pkLyRmxfFCdkyySpxRb5ndCxVsK2BkRXwX || account:usdkyPPxgV7sfNyKb8eDz66ogPrkRXG3wS2FVb6LLUf || account:mzerojk9tg56ebsrEAhfkyc9VgKjTW2zDqp6C5mhjzH
+  map_filtered_transactions: account:mzeroZRGCah3j5xEWp2Nih3GDejSBbH1rbHoxDg8By6 || account:mzerokyEX9TNDoK4o2YZQBDmMzjokAeN6M2g2S3pLJo || account:mzeroXDoBpRVhnEXBra27qzAMdxgpWVY3DzQW7xMVJp || account:usdkbee86pkLyRmxfFCdkyySpxRb5ndCxVsK2BkRXwX || account:usdkyPPxgV7sfNyKb8eDz66ogPrkRXG3wS2FVb6LLUf || account:mzerojk9tg56ebsrEAhfkyc9VgKjTW2zDqp6C5mhjzH  || account:usdsfJbX78ktZUnoRC7dwvvQz7xH3WdkpGne76gdUia

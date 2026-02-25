@@ -71,5 +71,4 @@ runs:
     - name: Build programs
       run: |
         anchor build -p earn
-        anchor build -p portal --no-idl
       shell: bash

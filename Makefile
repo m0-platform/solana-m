@@ -57,8 +57,6 @@ yield-bot-mainnet:
 # Program upgrade commands
 #
 EARN_PROGRAM_ID := MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c
-EXT_EARN_PROGRAM_ID := wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko
-PORTAL_PROGRAM_ID := mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY
 SQUADS_VAULT := 9QpF8a9TDM9DMiQ556bjEAyAx3WRunzW9HfiDcAPNyJW
 DEVNET_KEYPAIR := devnet-keypair.json
 COMPUTE_UNIT_PRICE := 300000
@@ -77,12 +75,12 @@ define upgrade_program
 		--keypair $(DEVNET_KEYPAIR) \
 		--max-sign-attempts $(MAX_SIGN_ATTEMPTS) \
 		--buffer temp-buffer.json \
-		target/deploy/$(1).so 
+		target/verifiable/$(1).so
 	@echo "Upgrading program with buffer $$(solana address --keypair temp-buffer.json)"
 	@solana program upgrade \
 		--keypair $(DEVNET_KEYPAIR) \
 		$$(solana address --keypair temp-buffer.json) \
-		$(2) 
+		$(2)
 	@rm temp-buffer.json
 endef
 
@@ -107,25 +105,9 @@ upgrade-earn-devnet:
 	$(call build-verified,earn,devnet)
 	$(call upgrade_program,earn,$(EARN_PROGRAM_ID))
 
-upgrade-ext-earn-devnet:
-	$(call build-verified,ext_earn,devnet)
-	$(call upgrade_program,ext_earn,$(EXT_EARN_PROGRAM_ID))
-
-upgrade-portal-devnet:
-	$(call build-verified,portal,devnet)
-	$(call upgrade_program,portal,$(PORTAL_PROGRAM_ID))
-
 upgrade-earn-mainnet:
 	$(call build-verified,earn,mainnet)
 	$(call propose_upgrade_program,earn,$(EARN_PROGRAM_ID))
-
-upgrade-ext-earn-mainnet:
-	$(call build-verified,ext_earn,mainnet)
-	$(call propose_upgrade_program,ext_earn,$(EXT_EARN_PROGRAM_ID))
-
-upgrade-portal-mainnet:
-	$(call build-verified,portal,mainnet)
-	$(call propose_upgrade_program,portal,$(PORTAL_PROGRAM_ID))
 
 #
 # Railway infra
@@ -144,15 +126,6 @@ define deploy-index-bot
 	railway redeploy --service "index bot" --yes
 endef
 
-define deploy-dashboard
-	railway environment $(1)
-	op inject -i dashboard/$(2) -o dashboard/.env.production -f && \
-	docker build --platform linux/amd64 -t ghcr.io/m0-foundation/solana-m:dashboard -f dashboard/Dockerfile . && \
-	rm dashboard/.env.production
-	docker push ghcr.io/m0-foundation/solana-m:dashboard
-	railway redeploy --service dashboard --yes
-endef
-
 deploy-yield-bot-devnet:
 	$(call deploy-yield-bot,development)
 
@@ -164,12 +137,6 @@ deploy-index-bot-devnet:
 
 deploy-index-bot-mainnet:
 	$(call deploy-index-bot,production)
-
-deploy-dashboard-devnet:
-	$(call deploy-dashboard,development,.env.dev.template)
-
-deploy-dashboard-mainnet:
-	$(call deploy-dashboard,production,.env.prod.template)
 
 #
 # Substreams
@@ -222,47 +189,3 @@ publish-api-sdk:
 	echo "//registry.npmjs.org/:_authToken=$(shell op read "op://Web3/NPM Publish Token m0-foundation/credential")" > .npmrc && \
 	pnpm publish --no-git-checks && \
 	rm .npmrc
-
-#
-# Switchboard
-#
-define run-switchboard
-	op run --account mzerolabs.1password.com --no-masking --env-file='./.env.$(2)' -- pnpm ts-node services/switchboard/index.ts $(1)
-endef
-
-publish-switchboard-feed-devnet:
-	$(call run-switchboard,create-feed,dev)
-
-update-switchboard-feed-devnet:
-	$(call run-switchboard,update-feed,dev)
-
-publish-switchboard-feed-mainnet:
-	$(call run-switchboard,create-feed,prod)
-
-update-switchboard-feed-mainnet:
-	$(call run-switchboard,update-feed,prod)
-
-simulate-switchboard-jobs:
-	$(call run-switchboard,simulate-jobs,dev)
-
-#
-# API
-#
-generate-api-code: 
-	@cd services/api && \
-	fern generate --local --keepDocker --force
-	@sed -i '' 's/Object.entries(object)/Object.entries(object as any)/g' services/api/server/generated/core/schemas/utils/entries.ts
-	@sed -i '' 's/Object.keys(object)/Object.keys(object as any)/g' services/api/server/generated/core/schemas/utils/keys.ts
-	@sed -i '' 's/Object.entries(obj)/Object.entries(obj as any)/g' services/api/server/generated/core/schemas/utils/filterObject.ts
-	@sed -i '' 's/\(acc, \[\)key, value\(\]\)/\1key, value\2: [string, any]/g' services/api/server/generated/core/schemas/utils/filterObject.ts
-
-build-api-server:
-	docker build --platform linux/amd64 -t ghcr.io/m0-foundation/solana-m:api -f services/api/server/Dockerfile .
-	docker push ghcr.io/m0-foundation/solana-m:api
-
-run-api-locally:
-	@export MONGO_CONNECTION_STRING="$(shell op read "op://Solana Dev/Mongo Read Access/connection string")" && \
-	export EVM_RPC="$(shell op read "op://Solana Dev/Alchemy/mainnet")" && \
-	export SVM_RPC="$(shell op read "op://Solana Dev/Helius/prod rpc")" && \
-	export DISABLE_CACHE=true && \
-	cd services/api/server && pnpm run dev

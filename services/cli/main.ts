@@ -95,7 +95,7 @@ async function main() {
     .action(async ({ owner }) => {
       const [payer, mint] = keysFromEnv(['PAYER_KEYPAIR', 'M_MINT_KEYPAIR']);
 
-      let mintAuth = PublicKey.findProgramAddressSync([Buffer.from('token_authority')], PROGRAMS.portal)[0];
+      let mintAuth = PublicKey.findProgramAddressSync([Buffer.from('authority')], PROGRAMS.portal)[0];
       if (owner) {
         mintAuth = new PublicKey(owner);
       }

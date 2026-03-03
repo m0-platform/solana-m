@@ -33,12 +33,6 @@ pub mod earn {
 
     // Admin instructions
 
-    #[cfg(feature = "migrate")]
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        Initialize::handler(ctx, 0)
-    }
-
-    #[cfg(not(feature = "migrate"))]
     pub fn initialize(ctx: Context<Initialize>, current_index: u64) -> Result<()> {
         Initialize::handler(ctx, current_index)
     }

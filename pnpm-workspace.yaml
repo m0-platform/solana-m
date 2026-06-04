@@ -1,7 +1,6 @@
 packages:
   - services/**/*
   - sdk
-  - dashboard
   - tests
 catalog:
   '@coral-xyz/anchor': 0.31.1

@@ -1,4 +1,7 @@
-.PHONY: test-yield-bot yield-bot-devnet test-local-validator test-sdk build-devnet upgrade-earn-devnet upgrade-ext-earn-devnet deploy-yield-bot deploy-dashboard-devnet deploy-dashboard-mainnet
+.PHONY: test-yield-bot test-sdk test-merkle test-earn build-test-swap-program build-test-earn-programs \
+	yield-bot-devnet yield-bot-mainnet upgrade-earn-devnet upgrade-earn-mainnet \
+	deploy-yield-bot-devnet deploy-yield-bot-mainnet deploy-index-bot-devnet deploy-index-bot-mainnet \
+	build-substream-mongo-mainnet deploy-substream-mongo-devnet deploy-substream-mongo-mainnet publish-sdk
 
 #
 # Test commands
@@ -56,7 +59,7 @@ yield-bot-mainnet:
 #
 # Program upgrade commands
 #
-EARN_PROGRAM_ID := MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c
+EARN_PROGRAM_ID := mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z
 SQUADS_VAULT := 9QpF8a9TDM9DMiQ556bjEAyAx3WRunzW9HfiDcAPNyJW
 DEVNET_KEYPAIR := devnet-keypair.json
 COMPUTE_UNIT_PRICE := 300000
@@ -178,13 +181,6 @@ deploy-substream-mongo-mainnet:
 #
 publish-sdk:
 	@cd sdk && \
-	pnpm build && \
-	echo "//registry.npmjs.org/:_authToken=$(shell op read "op://Web3/NPM Publish Token m0-foundation/credential")" > .npmrc && \
-	pnpm publish --no-git-checks && \
-	rm .npmrc
-
-publish-api-sdk:
-	@cd services/api/sdk-ts && \
 	pnpm build && \
 	echo "//registry.npmjs.org/:_authToken=$(shell op read "op://Web3/NPM Publish Token m0-foundation/credential")" > .npmrc && \
 	pnpm publish --no-git-checks && \

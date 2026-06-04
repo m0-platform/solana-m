@@ -73,7 +73,5 @@ EARN v1 (legacy): MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c
 
 ## Deployment
 
-```bash
-make upgrade-earn-devnet    # direct upgrade with devnet keypair
-make upgrade-earn-mainnet   # writes buffer, transfers buffer authority to Squads multisig
-```
+The v2 earn program is already live on mainnet. The `make upgrade-earn-{devnet,mainnet}`
+targets point at the legacy v1 program and are kept for historic reference only.

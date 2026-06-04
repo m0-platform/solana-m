@@ -59,7 +59,10 @@ yield-bot-mainnet:
 #
 # Program upgrade commands
 #
-EARN_PROGRAM_ID := mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z
+# NOTE: kept for historic reference — these targets upgrade the legacy v1 earn
+# program. The v2 earn program (mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z) is
+# already live on mainnet, so the upgrade-earn-* targets are probably not needed.
+EARN_PROGRAM_ID := MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c
 SQUADS_VAULT := 9QpF8a9TDM9DMiQ556bjEAyAx3WRunzW9HfiDcAPNyJW
 DEVNET_KEYPAIR := devnet-keypair.json
 COMPUTE_UNIT_PRICE := 300000

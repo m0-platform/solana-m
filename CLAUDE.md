@@ -20,8 +20,10 @@ anchor build -p earn
 anchor build -p earn -- --features testing --no-default-features
 anchor build -p earn -- --features migrate,testing --no-default-features
 
-# Build test fixtures (required once before make test-earn)
+# Build test fixtures (required once before tests; moves regular build
+# artifacts, so re-run `anchor build -p earn` afterwards — same order as CI)
 make build-test-earn-programs
+anchor build -p earn
 
 # Run test suites
 make test-earn        # earn program tests (LiteSVM)

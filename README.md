@@ -57,10 +57,12 @@ anchor build
 
 ### Test
 
-Test fixtures must be built once before running the earn tests:
+Test fixtures must be built once before running the tests. The fixture build **moves** the
+regular build artifacts, so re-run `anchor build` afterwards (same order as CI):
 
 ```bash
 make build-test-earn-programs   # builds earn with `testing` and `migrate,testing` features
+anchor build -p earn            # restores target/{deploy,idl,types}/earn.* used by the tests
 ```
 
 ```bash

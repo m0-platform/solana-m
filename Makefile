@@ -59,10 +59,7 @@ yield-bot-mainnet:
 #
 # Program upgrade commands
 #
-# NOTE: kept for historic reference — these targets upgrade the legacy v1 earn
-# program. The v2 earn program (mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z) is
-# already live on mainnet, so the upgrade-earn-* targets are probably not needed.
-EARN_PROGRAM_ID := MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c
+EARN_V1_PROGRAM_ID := MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c
 SQUADS_VAULT := 9QpF8a9TDM9DMiQ556bjEAyAx3WRunzW9HfiDcAPNyJW
 DEVNET_KEYPAIR := devnet-keypair.json
 COMPUTE_UNIT_PRICE := 300000
@@ -107,13 +104,16 @@ define propose_upgrade_program
 	@rm temp-buffer.json
 endef
 
+# NOTE: kept for historic reference — these targets upgrade the legacy v1 earn
+# program. The v2 earn program (mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z) is
+# already live on mainnet, so the upgrade-earn-* targets are probably not needed.
 upgrade-earn-devnet:
 	$(call build-verified,earn,devnet)
-	$(call upgrade_program,earn,$(EARN_PROGRAM_ID))
+	$(call upgrade_program,earn,$(EARN_V1_PROGRAM_ID))
 
 upgrade-earn-mainnet:
 	$(call build-verified,earn,mainnet)
-	$(call propose_upgrade_program,earn,$(EARN_PROGRAM_ID))
+	$(call propose_upgrade_program,earn,$(EARN_V1_PROGRAM_ID))
 
 #
 # Railway infra

@@ -4,30 +4,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Solana M is a Solana-based system for managing and distributing yield to token holders. It bridges M tokens from Ethereum to Solana while preserving yield-earning functionality through coordinated programs.
+Solana $M: a Token-2022 mint whose yield accrues via the ScaledUiAmount multiplier. The `earn`
+program — the only program in this repo — receives the $M index + earner merkle root from
+Ethereum through the Portal and updates the mint multiplier. The Portal program lives in
+[solana-portal](https://github.com/m0-foundation/solana-portal); $M extensions (wM, `ext_swap`)
+live in [solana-m-extensions](https://github.com/m0-foundation/solana-m-extensions).
 
 ## Build & Test Commands
 
 ```bash
-# Build all Anchor programs
-anchor build
+# Build the earn program
+anchor build -p earn
 
-# Build with feature flags
+# Build with explicit feature flags (always use --no-default-features)
 anchor build -p earn -- --features testing --no-default-features
 anchor build -p earn -- --features migrate,testing --no-default-features
-anchor build -p portal -- --features devnet --no-default-features
 
-# Run all tests
-anchor build && cd tests && pnpm test
+# Build test fixtures (required once before tests; moves regular build
+# artifacts, so re-run `anchor build -p earn` afterwards — same order as CI)
+make build-test-earn-programs
+anchor build -p earn
 
-# Run specific test suites
-make test-earn        # Earn program tests
-make test-yield-bot   # Yield bot SDK integration
-make test-sdk         # SDK functionality
-make test-merkle      # Merkle proof logic
+# Run test suites
+make test-earn        # earn program tests (LiteSVM)
+make test-sdk         # SDK tests (rebuilds sdk first)
+make test-yield-bot   # yield-bot integration
+make test-merkle      # merkle proof logic
 
-# Run single test file
-cd tests && pnpm jest --preset ts-jest tests/unit/<test-file>.test.ts
+# Run a single test file
+cd tests && pnpm jest --preset ts-jest tests/unit/<file>.test.ts
 
 # Lint/format
 pnpm lint
@@ -36,53 +41,37 @@ pnpm lint:fix
 
 ## Architecture
 
-### Solana Programs (Rust/Anchor)
+- **Earn** (`programs/earn/`, Rust/Anchor): earner registration via merkle proofs, index
+  propagation → ScaledUiAmount multiplier updates, $M recovery from frozen accounts.
+  See [programs/earn/README.md](programs/earn/README.md).
+- **SDK** (`sdk/`): published as `@m0-foundation/solana-m-sdk`; targets the extension (`m_ext`)
+  programs and reads $M state from Ethereum. Rebuild after changes: `cd sdk && pnpm build`.
+- **Services** (`services/`): `index-bot` (pushes index Ethereum → Solana), `yield-bot` (cranks
+  extension yield), `cli` (admin ops), `switchboard` (oracle feed), `shared` (common env/signer
+  setup). Each has its own README.
+- **Substreams** (`substreams/`): indexes $M transfer events into MongoDB.
 
-- **Earn** (`programs/earn/`): Yield distribution cycles, earner registration via merkle proofs, claim processing with weighted balance calculations
-- **Portal** (`programs/portal/`): Modified Wormhole NTT for cross-chain M token bridging, propagates M index + merkle roots from Ethereum
-- **ExtEarn** (`programs/ext_earn/`): Extension token (wM) wrapping/unwrapping and yield distribution
-
-### TypeScript Layer
-
-- **SDK** (`sdk/`): Core library for program interactions, published as `@m0-foundation/solana-m-sdk`
-- **Yield Bot** (`services/yield-bot/`): Automated crank-style yield distribution
-- **Index Bot** (`services/index-bot/`): Propagates M index updates from Ethereum
-- **CLI** (`services/cli/`): Administrative tools
-- **API** (`services/api/`): REST API server
-
-### Data Flow
-
-1. Ethereum (M index + merkle roots via TTGRegistrar) → Wormhole → Portal
-2. Portal calls Earn to propagate index and start yield cycles
-3. Yield Bot calculates weighted balances and distributes yield
-4. Substreams indexes transfer events to MongoDB
-
-## Key Program IDs
+## Key Addresses
 
 ```
-EARN_PROGRAM_ID:     MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c
-EXT_EARN_PROGRAM_ID: wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko
-PORTAL_PROGRAM_ID:   mzp1q2j5Hr1QuLC3KFBCAUz5aUckT6qyuZKZ3WJnMmY
+EARN (v2, live):  mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z
+PORTAL:           MzBrgc8yXBj4P16GTkcSyDZkEQZB9qDqf3fh9bByJce   (program source in solana-portal)
+EARN v1 (legacy): MzeRokYa9o1ZikH6XHRiSS5nD8mNjZyHpLCBRTBSY4c
 ```
 
 ## Development Notes
 
-- Programs use feature flags: `testing`, `devnet`, `mainnet` (use `--no-default-features` when specifying)
-- SDK must be rebuilt after changes: `cd sdk && pnpm build`
-- Verifiable builds required for deployments: `anchor build -p <program> --verifiable -- --features <env> --no-default-features`
-- Uses 1Password (`op`) for secrets management in Makefile commands
-- Token uses SPL Token 2022 with multisig mint authority (1 of 2: Earn PDA + Portal PDA)
+- Feature flags: `testing` (default; additionally lets the admin call `propagate_index`),
+  `migrate` (changes `initialize` to migrate state from the v1 earn program), `devnet`,
+  `mainnet`, `cpi`. Use `--no-default-features` whenever specifying flags.
+- Verifiable builds are required for deployments:
+  `anchor build -p earn --verifiable -- --features <env> --no-default-features`
+- 1Password CLI (`op`) backs secrets in Makefile and pnpm scripts.
+- The $M mint uses Token-2022 extensions ScaledUiAmount, DefaultAccountState (Frozen),
+  PermanentDelegate, and TransferHook. The earn global PDA is the ScaledUiAmount authority,
+  freeze authority, and permanent delegate; the Portal token authority PDA is the mint authority.
 
 ## Deployment
 
-```bash
-# Devnet program upgrades
-make upgrade-earn-devnet
-make upgrade-portal-devnet
-make upgrade-ext-earn-devnet
-
-# Mainnet upgrades (creates buffer, transfers to Squads multisig)
-make upgrade-earn-mainnet
-make upgrade-portal-mainnet
-make upgrade-ext-earn-mainnet
-```
+The v2 earn program is already live on mainnet. The `make upgrade-earn-{devnet,mainnet}`
+targets point at the legacy v1 program and are kept for historic reference only.

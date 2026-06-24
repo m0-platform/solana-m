@@ -1,13 +1,20 @@
 packages:
   - services/**/*
   - sdk
-  - dashboard
   - tests
+allowBuilds:
+  '@swc/core': false
+  bigint-buffer: true
+  bufferutil: true
+  esbuild: false
+  protobufjs: true
+  sharp: false
+  utf-8-validate: false
 catalog:
   '@coral-xyz/anchor': 0.31.1
-  '@sqds/multisig': ~2.1.3
   '@solana/spl-token': ~0.4.12
   '@solana/web3.js': ^1.68.0
+  '@sqds/multisig': ~2.1.3
   '@types/bn.js': ^5.1.2
   '@types/bs58': ^4.0.1
   bn.js: ~5.2.1

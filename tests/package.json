@@ -1,7 +1,7 @@
 {
   "name": "tests",
   "scripts": {
-    "test": "jest --preset ts-jest --verbose --testPathPattern='unit/earn.test.ts|unit/portal.test.ts|unit/ext_earn.test.ts'"
+    "test": "jest --preset ts-jest --verbose --testPathPattern='unit/earn.test.ts'"
   },
   "dependencies": {
     "@coral-xyz/anchor": "catalog:",

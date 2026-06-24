@@ -1,7 +1,11 @@
 {
   "name": "tests",
   "scripts": {
-    "test": "jest --preset ts-jest --verbose --testPathPattern='unit/earn.test.ts'"
+    "test": "jest --preset ts-jest --verbose",
+    "test:earn": "jest --preset ts-jest --verbose --testPathPattern='unit/earn.test.ts'",
+    "test:sdk": "jest --preset ts-jest --verbose --testPathPattern='unit/sdk.test.ts'",
+    "test:yield-bot": "jest --preset ts-jest --verbose --testPathPattern='unit/yieldbot.test.ts'",
+    "test:merkle": "jest --preset ts-jest --verbose --testPathPattern='unit/merkle.test.ts'"
   },
   "dependencies": {
     "@coral-xyz/anchor": "catalog:",

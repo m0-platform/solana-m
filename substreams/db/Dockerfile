@@ -5,7 +5,9 @@ WORKDIR /app
 COPY ./substreams/db .
 
 # Install the binary to the workspace
-RUN go install github.com/streamingfast/substreams-sink-mongodb/cmd/substreams-sink-mongodb@fd2965d && \
+# 29e1625 includes the Save() upsert-validation fix — fd2965d crashed with
+# "no document inserted" when replaying an already-written entity after a restart
+RUN go install github.com/streamingfast/substreams-sink-mongodb/cmd/substreams-sink-mongodb@29e1625 && \
     cp $(go env GOPATH)/bin/substreams-sink-mongodb /app/
 
 # Final stage with smaller image

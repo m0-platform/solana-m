@@ -223,6 +223,11 @@ export class EarnAuthority {
           })
           .instruction();
       case 'ScaledUi':
+        // The `ScaledUi` variant's `sync` method takes a different set of accounts than the `Crank` variant.
+        //
+        // `this.program` is built from the `Crank` variant IDL above, so `.methods.sync()` would resolve
+        // the wrong accounts here — we hand-build the raw TransactionInstruction instead. The account order
+        // below must match the on-chain ScaledUi `sync` signature.
         const vault = PublicKey.findProgramAddressSync([Buffer.from('m_vault')], this.program.programId)[0];
         return {
           keys: [
@@ -263,6 +268,9 @@ export class EarnAuthority {
             },
           ],
           programId: this.program.programId,
+          // Anchor instruction discriminator for `sync`: sha256("global:sync")[0..8].
+          // `sync` takes no args, so the discriminator is the entire instruction data.
+          // Kept in sync with `instructions[].discriminator` for "sync" in ./idl/m_ext.json.
           data: Buffer.from([4, 219, 40, 164, 21, 157, 189, 88]),
         };
       default:

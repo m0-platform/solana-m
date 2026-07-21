@@ -86,7 +86,7 @@ export async function yieldCLI() {
           env.connection.rpcEndpoint,
           env.signerPubkey.toBase58(),
         );
-        if (botBalance.belowTreshold) {
+        if (botBalance.belowThreshold) {
           const msg = `Bot balance is below configured threshold: ${botBalance.amount}. Top up the balance at the next possible occasion.`;
           logger.warn(msg);
           slackMessage.messages.push(":warning: " + msg);

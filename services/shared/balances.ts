@@ -21,7 +21,7 @@ const blockchainConfigs = {
 // gas token is below the expected threshold.
 type BotBalance = {
   amount: bigint,
-  belowTreshold: boolean
+  belowThreshold: boolean
 }
 
 // Checks the configured bot account's balance of the provided network's native gas token.
@@ -50,5 +50,5 @@ export async function checkBlockchainBalance(blockchain: BlockchainType, rpc: st
   const data = await resp.json();
   const balance = config.parseBalance(data.result);
 
-  return {amount: balance, belowTreshold: balance < config.defaultWarnThreshold};
+  return {amount: balance, belowThreshold: balance < config.defaultWarnThreshold};
 }

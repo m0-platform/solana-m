@@ -1,6 +1,6 @@
 .PHONY: test-yield-bot test-sdk test-merkle test-earn build-test-swap-program build-test-earn-programs \
 	yield-bot-devnet yield-bot-mainnet upgrade-earn-devnet upgrade-earn-mainnet \
-	deploy-yield-bot-devnet deploy-yield-bot-mainnet deploy-index-bot-devnet deploy-index-bot-mainnet \
+	deploy-yield-bot-devnet deploy-yield-bot-mainnet \
 	build-substream-mongo-mainnet deploy-substream-mongo-devnet deploy-substream-mongo-mainnet publish-sdk
 
 #
@@ -125,24 +125,11 @@ define deploy-yield-bot
 	railway redeploy --service "yield bot" --yes
 endef
 
-define deploy-index-bot
-	railway environment $(1)
-	docker build --build-arg now="$$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --platform linux/amd64 -t ghcr.io/m0-foundation/solana-m:index-bot -f services/index-bot/Dockerfile .
-	docker push ghcr.io/m0-foundation/solana-m:index-bot
-	railway redeploy --service "index bot" --yes
-endef
-
 deploy-yield-bot-devnet:
 	$(call deploy-yield-bot,development)
 
 deploy-yield-bot-mainnet:
 	$(call deploy-yield-bot,production)
-
-deploy-index-bot-devnet:
-	$(call deploy-index-bot,development)
-
-deploy-index-bot-mainnet:
-	$(call deploy-index-bot,production)
 
 #
 # Substreams

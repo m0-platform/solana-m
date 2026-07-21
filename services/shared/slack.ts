@@ -1,6 +1,6 @@
 export interface SlackMessage {
   messages: string[];
-  service: 'yield-bot' | 'index-bot';
+  service: 'yield-bot'; // extend in case a new service is added going forward.
   level: string;
   devnet?: boolean;
   explorer?: string;

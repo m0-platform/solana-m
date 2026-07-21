@@ -46,9 +46,9 @@ pnpm lint:fix
   See [programs/earn/README.md](programs/earn/README.md).
 - **SDK** (`sdk/`): published as `@m0-foundation/solana-m-sdk`; targets the extension (`m_ext`)
   programs and reads $M state from Ethereum. Rebuild after changes: `cd sdk && pnpm build`.
-- **Services** (`services/`): `index-bot` (pushes index Ethereum → Solana), `yield-bot` (cranks
-  extension yield), `cli` (admin ops), `switchboard` (oracle feed), `shared` (common env/signer
+- **Services** (`services/`): `yield-bot` (cranks extension yield), `cli` (admin ops), `switchboard` (oracle feed), `shared` (common env/signer
   setup). Each has its own README.
+  - NOTE: The outdated `index-bot` was deprecated in favor of https://github.com/m0-platform/m-index-propagator.
 - **Substreams** (`substreams/`): indexes $M transfer events into MongoDB.
 
 ## Key Addresses

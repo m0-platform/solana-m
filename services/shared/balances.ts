@@ -50,5 +50,5 @@ export async function checkBlockchainBalance(blockchain: BlockchainType, rpc: st
   const data = await resp.json();
   const balance = config.parseBalance(data.result);
 
-  return {amount: balance, belowTreshold: balance > config.defaultWarnThreshold};
+  return {amount: balance, belowTreshold: balance < config.defaultWarnThreshold};
 }

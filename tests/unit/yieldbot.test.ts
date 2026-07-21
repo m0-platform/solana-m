@@ -31,6 +31,7 @@ describe('Yield bot tests', () => {
  * Mocks the request data for the yield bot
  */
 function mockRequestData(earner: PublicKey) {
+  // limit requests only to the mocked selection; disable any real outgoing network requests.
   nock.disableNetConnect();
 
   nock(API_URL)

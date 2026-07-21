@@ -1,5 +1,3 @@
-import { Logger } from '@m0-foundation/solana-m-sdk';
-
 type BlockchainType = 'solana' | 'ethereum';
 
 const blockchainConfigs = {
@@ -19,42 +17,38 @@ const blockchainConfigs = {
   },
 };
 
-export async function logBlockchainBalance(blockchain: BlockchainType, rpc: string, address: string, logger: Logger) {
-  try {
-    const config = blockchainConfigs[blockchain];
+// A helper type to indicate whether the bot's amount of the network's native
+// gas token is below the expected threshold.
+type BotBalance = {
+  amount: bigint,
+  belowTreshold: boolean
+}
 
-    const raw = JSON.stringify({
-      method: config.method,
-      params: config.getParams(address),
-      id: 1,
-      jsonrpc: '2.0',
-    });
+// Checks the configured bot account's balance of the provided network's native gas token.
+// Returns the balance amount and whether it's below the expected threshold.
+export async function checkBlockchainBalance(blockchain: BlockchainType, rpc: string, address: string): Promise<BotBalance> {
+  const config = blockchainConfigs[blockchain];
 
-    const requestOptions = {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: raw,
-    };
+  const raw = JSON.stringify({
+    method: config.method,
+    params: config.getParams(address),
+    id: 1,
+    jsonrpc: '2.0',
+  });
 
-    const resp = await fetch(rpc, requestOptions);
-    if (!resp.ok) {
-      logger.error(`Failed to fetch ${blockchain} balance`, {
-        status: resp.status,
-        statusText: resp.statusText,
-      });
-      return;
-    }
+  const requestOptions = {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: raw,
+  };
 
-    const data = await resp.json();
-    const balance = config.parseBalance(data.result);
-
-    const log = balance > config.defaultWarnThreshold ? logger.info : logger.error;
-    log(`${blockchain} wallet balance`, {
-      balance: balance.toString(),
-      balanceDecimal: Number(balance) / config.decimalDivisor,
-      address,
-    });
-  } catch (error) {
-    logger.error(new Error(`Error fetching ${blockchain} balance: ${error}`));
+  const resp = await fetch(rpc, requestOptions);
+  if (!resp.ok) {
+    throw new Error(`Failed to fetch ${blockchain} balance; status: ${resp.status} - ${resp.statusText}`);
   }
+
+  const data = await resp.json();
+  const balance = config.parseBalance(data.result);
+
+  return {amount: balance, belowTreshold: balance > config.defaultWarnThreshold};
 }

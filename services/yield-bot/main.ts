@@ -11,7 +11,7 @@ import * as multisig from '@sqds/multisig';
 import { instructions } from '@sqds/multisig';
 import { RateLimiter } from 'limiter';
 import { sendSlackMessage, SlackMessage } from 'shared/slack';
-import { logBlockchainBalance } from 'shared/balances';
+import { checkBlockchainBalance } from 'shared/balances';
 import LokiTransport from 'winston-loki';
 import winston from 'winston';
 import { validateDatabaseData } from 'shared/validation';
@@ -55,52 +55,73 @@ export async function yieldCLI() {
     .command('distribute')
     .option('-d, --dryRun [bool]', 'Build and simulate transactions without sending them', false)
     .action(async ({ dryRun, bundle, tip }) => {
+      let env: EnvOptions;
       try {
-        const env = getEnv();
+        env = getEnv();
 
-        await logBlockchainBalance('solana', env.connection.rpcEndpoint, env.signerPubkey.toBase58(), logger);
-
-        const options: ParsedOptions = {
-          ...env,
-          builder: new TransactionBuilder(env.connection, logger),
-          dryRun,
-          bundle,
-          tip: Number.parseInt(tip, 10),
-        };
-
-        await validation(options);
-
-        // distribute yield for each program
-        for (const pid of [wM, USDKY]) {
-          logger.addMetaField('programId', pid.toBase58());
-          slackMessage.messages.push(`Distributing yield for program ${pid.toBase58()}`);
-
-          await distributeYield(options, pid);
+        // Check the bot's balance ahead of the sync transactions.
+        const botBalance = await checkBlockchainBalance('solana', env.connection.rpcEndpoint, env.signerPubkey.toBase58());
+        if (botBalance.belowTreshold) {
+          const msg = `Bot balance is below configured threshold: ${botBalance.amount}. Top up the balance at the next possible occasion.`;
+          logger.warn(msg);
+          // NOTE: we're sending a separate Slack message here for visibility of the bot balance being low.
+          sendSlackMessage({
+            service: "yield-bot",
+            level: "warn",
+            messages: [msg],
+          })
         }
       } catch (error: any) {
         logger.error(error);
         slackMessage.level = 'error';
         slackMessage.messages.push(`${error}`);
+
+        return;
+      }
+
+      const options: ParsedOptions = {
+        ...env,
+        builder: new TransactionBuilder(env.connection, logger),
+        dryRun,
+        bundle,
+        tip: Number.parseInt(tip, 10),
+      };
+
+      // distribute yield for each program
+      for (const pid of [wM, USDKY]) {
+        logger.addMetaField('programId', pid.toBase58());
+        slackMessage.messages.push(`Distributing yield for program ${pid.toBase58()}`);
+
+        try {
+          // NOTE: this might throw on a Crank variant program if the database is not in sync.
+          // In that case, this sends an error log + Slack message and continue.
+          await distributeYield(options, pid);
+        } catch (error: any) {
+          logger.error(error);
+          slackMessage.level = 'error';
+          slackMessage.messages.push(`${error}`);
+        }
       }
     });
 
   await program.parseAsync(process.argv);
 }
 
-async function validation(opt: ParsedOptions) {
-  const auth = await EarnAuthority.load(opt.connection, wM, logger);
-  await validateDatabaseData(auth);
-}
-
 async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promise<void> {
   const auth = await EarnAuthority.load(opt.connection, programID, logger);
   const ixs: TransactionInstruction[] = [];
 
-  // sync index if applicable
+  // sync index if applicable (will throw an error for `no-yield` as that doesn't have a sync method)
   ixs.push(await auth.buildIndexSyncInstruction());
   slackMessage.messages.push('Syncing index');
 
   if (auth.global.variant === 'Crank') {
+    // The Crank variant requires access to an indexing database in order to recursively
+    // calculate the required yield to pay out.
+    //
+    // This only relates to the Crank model because the scaled-ui variant just requires an index sync.
+    await validateDatabaseData(auth);
+
     // build claim instructions if there are any earners
     for (const earner of await auth.getAllEarners()) {
       // throttle requests

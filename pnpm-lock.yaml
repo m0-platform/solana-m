@@ -151,36 +151,6 @@ importers:
         specifier: 'catalog:'
         version: 13.1.0
 
-  services/index-bot:
-    dependencies:
-      '@m0-foundation/liquidity-sdk':
-        specifier: ^0.1.0
-        version: 0.1.0
-      '@m0-foundation/solana-m-sdk':
-        specifier: 'workspace:'
-        version: link:../../sdk
-      '@solana/web3.js':
-        specifier: 'catalog:'
-        version: 1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
-      commander:
-        specifier: 'catalog:'
-        version: 13.1.0
-      shared:
-        specifier: 'workspace:'
-        version: link:../shared
-      typescript:
-        specifier: 'catalog:'
-        version: 5.8.3
-      viem:
-        specifier: 'catalog:'
-        version: 2.23.15(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
-      winston:
-        specifier: 'catalog:'
-        version: 3.17.0
-      winston-loki:
-        specifier: 'catalog:'
-        version: 6.1.3
-
   services/shared:
     dependencies:
       '@m0-foundation/solana-m-sdk':

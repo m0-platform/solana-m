@@ -13,7 +13,7 @@ other governance-approved actors) are thawed.
 | --- | --- |
 | [`programs/earn/`](programs/earn/) | The only on-chain program in this repo: earner registry + index/multiplier updates |
 | [`sdk/`](sdk/) | TypeScript SDK, published as [`@m0-foundation/solana-m-sdk`](https://www.npmjs.com/package/@m0-foundation/solana-m-sdk) |
-| [`services/`](services/) | Off-chain services: [index-bot](services/index-bot/), [yield-bot](services/yield-bot/), [cli](services/cli/), [switchboard](services/switchboard/), [shared](services/shared/) |
+| [`services/`](services/) | Off-chain services: [yield-bot](services/yield-bot/), [cli](services/cli/), [switchboard](services/switchboard/), [shared](services/shared/) |
 | [`substreams/`](substreams/) | Substreams indexing $M transfer events into MongoDB |
 | [`tests/`](tests/) | Jest + LiteSVM integration tests |
 | [`audits/`](audits/) | Audit reports |
@@ -26,8 +26,7 @@ others, including the `ext_swap` program) live in
 ## How yield flows
 
 1. The $M index grows continuously on Ethereum (M protocol).
-2. [`index-bot`](services/index-bot/) calls the hub executor entry point on Ethereum, which
-   delivers the index (and earner merkle root) to Solana through the Wormhole Executor.
+2. The current M index is propagated to Solana through the Wormhole Executor using the [m-index-propagator](https://github.com/m0-platform/m-index-propagator).
 3. The Portal program receives the message and calls
    `earn.propagate_index(index, earner_merkle_root)`.
 4. `earn` raises the mint's ScaledUiAmount multiplier (`multiplier = index / 1e12`) and stores

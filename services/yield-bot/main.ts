@@ -29,7 +29,7 @@ if (process.env.LOKI_URL) {
 // rate limit claims
 const limiter = new RateLimiter({ tokensPerInterval: 2, interval: 1000 });
 
-// meta info from job will be posted to slack
+// This global var collects the information sent to Slack eventually.
 //
 // NOTE: This format is defined by the actual Slack workflow for the "Solana Bot".
 let slackMessage: SlackMessage = {
@@ -89,11 +89,7 @@ export async function yieldCLI() {
         if (botBalance.belowTreshold) {
           const msg = `Bot balance is below configured threshold: ${botBalance.amount}. Top up the balance at the next possible occasion.`;
           logger.warn(msg);
-          // NOTE: we're sending a separate Slack message here for visibility of the bot balance being low.
-          sendSlackMessage({
-            service: 'yield-bot',
-            messages: [":warning: " + msg],
-          });
+          slackMessage.messages.push(":warning: " + msg);
         }
       } catch (error: any) {
         logger.error(error);
@@ -207,7 +203,7 @@ function buildSuccessText(opt: ParsedOptions, result: DistributeResult): string 
 // header, followed by the extension's detail text on the next line(s).
 function renderYieldLog(log: YieldToExtensionLog): string {
   const status = log.success ? ':white_check_mark:' : ':x:';
-  return `${status} *${log.name}*\n${log.text}`;
+  return `${status} ${log.name} (${log.programId.toString()})\n${log.text}\n`;
 }
 
 async function buildAndSendTransaction(
@@ -400,7 +396,9 @@ function getLokiTransport(host: string, logger: winston.Logger) {
 if (!process.argv[1].endsWith('jest.js')) {
   yieldCLI().finally(async () => {
     // Render each structured log into the Slack summary.
-    slackMessage.messages = yieldLogs.length ? yieldLogs.map(renderYieldLog) : ['No actions taken'];
+    yieldLogs.map(renderYieldLog).forEach((entry) => {
+      slackMessage.messages.push(entry);
+    });
 
     await lokiTransport?.flush();
     await sendSlackMessage(slackMessage);

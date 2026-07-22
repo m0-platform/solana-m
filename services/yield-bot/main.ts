@@ -11,7 +11,7 @@ import * as multisig from '@sqds/multisig';
 import { instructions } from '@sqds/multisig';
 import { RateLimiter } from 'limiter';
 import { sendSlackMessage, SlackMessage } from 'shared/slack';
-import { logBlockchainBalance } from 'shared/balances';
+import { checkBlockchainBalance } from 'shared/balances';
 import LokiTransport from 'winston-loki';
 import winston from 'winston';
 import { validateDatabaseData } from 'shared/validation';
@@ -29,11 +29,12 @@ if (process.env.LOKI_URL) {
 // rate limit claims
 const limiter = new RateLimiter({ tokensPerInterval: 2, interval: 1000 });
 
-// meta info from job will be posted to slack
+// This global var collects the information sent to Slack eventually.
+//
+// NOTE: This format is defined by the actual Slack workflow for the "Solana Bot".
 let slackMessage: SlackMessage = {
   messages: [],
   service: 'yield-bot',
-  level: 'info',
 };
 
 export interface ParsedOptions extends EnvOptions {
@@ -43,9 +44,29 @@ export interface ParsedOptions extends EnvOptions {
   tip: number;
 }
 
-// extensions
-const wM = new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko');
-const USDKY = new PublicKey('extMahs9bUFMYcviKCvnSRaXgs5PcqmMzcnHRtTqE85');
+// One structured Slack entry per extension we distribute yield to. `programId` is retained for
+// logging/metadata even though the Slack output shows the friendly `name` instead of the raw ID.
+type YieldToExtensionLog = {
+  name: string;
+  programId: string;
+  success: boolean;
+  text: string;
+};
+
+// Data returned by a successful `distributeYield` run, used to build the Slack success text.
+type DistributeResult = {
+  signature: string;
+  distribution?: { amountUsd: number; earners: number }; // only for the Crank variant with earners
+};
+
+// extensions we distribute yield to, keyed by a human-friendly display name
+const EXTENSIONS: { name: string; programId: PublicKey }[] = [
+  { name: 'wM', programId: new PublicKey('wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko') },
+  { name: 'USDKy', programId: new PublicKey('extMahs9bUFMYcviKCvnSRaXgs5PcqmMzcnHRtTqE85') },
+];
+
+// structured per-extension results; rendered into the Slack summary in the finally flush below
+const yieldLogs: YieldToExtensionLog[] = [];
 
 // entrypoint for the yield bot command
 export async function yieldCLI() {
@@ -55,52 +76,75 @@ export async function yieldCLI() {
     .command('distribute')
     .option('-d, --dryRun [bool]', 'Build and simulate transactions without sending them', false)
     .action(async ({ dryRun, bundle, tip }) => {
+      let env: EnvOptions;
       try {
-        const env = getEnv();
+        env = getEnv();
 
-        await logBlockchainBalance('solana', env.connection.rpcEndpoint, env.signerPubkey.toBase58(), logger);
-
-        const options: ParsedOptions = {
-          ...env,
-          builder: new TransactionBuilder(env.connection, logger),
-          dryRun,
-          bundle,
-          tip: Number.parseInt(tip, 10),
-        };
-
-        await validation(options);
-
-        // distribute yield for each program
-        for (const pid of [wM, USDKY]) {
-          logger.addMetaField('programId', pid.toBase58());
-          slackMessage.messages.push(`Distributing yield for program ${pid.toBase58()}`);
-
-          await distributeYield(options, pid);
+        // Check the bot's balance ahead of the sync transactions.
+        const botBalance = await checkBlockchainBalance(
+          'solana',
+          env.connection.rpcEndpoint,
+          env.signerPubkey.toBase58(),
+        );
+        if (botBalance.belowThreshold) {
+          const msg = `Bot balance is below configured threshold: ${botBalance.amount}. Top up the balance at the next possible occasion.`;
+          logger.warn(msg);
+          slackMessage.messages.push(":warning: " + msg);
         }
       } catch (error: any) {
         logger.error(error);
-        slackMessage.level = 'error';
-        slackMessage.messages.push(`${error}`);
+        yieldLogs.push({ name: 'startup', programId: '-', success: false, text: `${error}` });
+
+        return;
+      }
+
+      const options: ParsedOptions = {
+        ...env,
+        builder: new TransactionBuilder(env.connection, logger),
+        dryRun,
+        bundle,
+        tip: Number.parseInt(tip, 10),
+      };
+
+      // distribute yield for each extension, recording a structured result per program
+      for (const { name, programId } of EXTENSIONS) {
+        logger.addMetaField('programId', programId.toBase58());
+
+        try {
+          // NOTE: this might throw on a Crank variant program if the database is not in sync.
+          // In that case, we record a failed log entry and continue with the next extension.
+          const result = await distributeYield(options, programId);
+          yieldLogs.push({
+            name,
+            programId: programId.toBase58(),
+            success: true,
+            text: buildSuccessText(options, result),
+          });
+        } catch (error: any) {
+          logger.error(error);
+          yieldLogs.push({ name, programId: programId.toBase58(), success: false, text: `${error}` });
+        }
       }
     });
 
   await program.parseAsync(process.argv);
 }
 
-async function validation(opt: ParsedOptions) {
-  const auth = await EarnAuthority.load(opt.connection, wM, logger);
-  await validateDatabaseData(auth);
-}
-
-async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promise<void> {
+async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promise<DistributeResult> {
   const auth = await EarnAuthority.load(opt.connection, programID, logger);
   const ixs: TransactionInstruction[] = [];
+  let distribution: DistributeResult['distribution'];
 
-  // sync index if applicable
+  // sync index if applicable (will throw an error for `no-yield` as that doesn't have a sync method)
   ixs.push(await auth.buildIndexSyncInstruction());
-  slackMessage.messages.push('Syncing index');
 
   if (auth.global.variant === 'Crank') {
+    // The Crank variant requires access to an indexing database in order to recursively
+    // calculate the required yield to pay out.
+    //
+    // This only relates to the Crank model because the scaled-ui variant just requires an index sync.
+    await validateDatabaseData(auth);
+
     // build claim instructions if there are any earners
     for (const earner of await auth.getAllEarners()) {
       // throttle requests
@@ -117,7 +161,7 @@ async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promis
       const distributed = await auth.simulateAndValidateClaimIxs(ixs);
 
       const amountDec = distributed.toNumber() / 1e6;
-      slackMessage.messages.push(`Distributed ${distributed} ($${amountDec.toFixed(0)}) to ${claimIxs} earners`);
+      distribution = { amountUsd: amountDec, earners: claimIxs };
 
       logger.info('distributing yield', {
         amount: distributed.toNumber(),
@@ -128,9 +172,38 @@ async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promis
 
   // send transaction
   const signature = await buildAndSendTransaction(opt, ixs);
-  slackMessage.messages.push(`Yield updates complete: ${signature[0]}\n`);
 
-  return;
+  return { signature: signature[0], distribution };
+}
+
+// Builds a bare Solana explorer link for a transaction. A bare URL is used (rather than mrkdwn
+// `<url|text>`) so it stays clickable regardless of how the Slack workflow renders the variable.
+function explorerTxUrl(signature: string, isDevnet: boolean): string {
+  const base = `https://explorer.solana.com/tx/${signature}`;
+  return isDevnet ? `${base}?cluster=devnet` : base;
+}
+
+// Composes the body shown under a successful extension: the distributed amount (Crank only) followed
+// by an explorer link, or a dry-run notice when no transaction was actually sent.
+function buildSuccessText(opt: ParsedOptions, result: DistributeResult): string {
+  const lines: string[] = [];
+
+  if (result.distribution) {
+    lines.push(`Distributed $${result.distribution.amountUsd.toFixed(0)} to ${result.distribution.earners} earners`);
+  }
+
+  lines.push(
+    opt.dryRun ? 'Dry run — transaction built & simulated, not sent.' : explorerTxUrl(result.signature, opt.isDevnet),
+  );
+
+  return lines.join('\n');
+}
+
+// Renders a single structured log into the mrkdwn block posted to Slack: a status emoji + bold name
+// header, followed by the extension's detail text on the next line(s).
+function renderYieldLog(log: YieldToExtensionLog): string {
+  const status = log.success ? ':white_check_mark:' : ':x:';
+  return `${status} ${log.name} (${log.programId.toString()})\n${log.text}\n`;
 }
 
 async function buildAndSendTransaction(
@@ -322,9 +395,11 @@ function getLokiTransport(host: string, logger: winston.Logger) {
 // do not run the cli if this is being imported by jest
 if (!process.argv[1].endsWith('jest.js')) {
   yieldCLI().finally(async () => {
-    if (slackMessage?.messages.length === 0) {
-      slackMessage?.messages.push('No actions taken');
-    }
+    // Render each structured log into the Slack summary.
+    yieldLogs.map(renderYieldLog).forEach((entry) => {
+      slackMessage.messages.push(entry);
+    });
+
     await lokiTransport?.flush();
     await sendSlackMessage(slackMessage);
     process.exit(0);

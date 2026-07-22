@@ -1,7 +1,6 @@
 export interface SlackMessage {
   messages: string[];
   service: 'yield-bot'; // extend in case a new service is added going forward.
-  level: string;
   devnet?: boolean;
   explorer?: string;
 }
@@ -13,12 +12,12 @@ export async function sendSlackMessage(message: SlackMessage) {
     return;
   }
 
-  const { messages, level, service } = message;
+  const { messages, service } = message;
 
   const body = {
     service,
-    level,
-    message: '• ' + messages.join('\n• ') + '\n',
+    // Each caller supplies fully-formatted entries; separate them with a blank line.
+    message: messages.join('\n\n'),
   };
 
   const response = await fetch(webhookUrl, {

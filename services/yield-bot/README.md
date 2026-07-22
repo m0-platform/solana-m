@@ -1,7 +1,7 @@
 # yield-bot
 
 Cranks yield distribution for M extension tokens (currently wM and USDKY, programs in
-[solana-m-extensions](https://github.com/m0-foundation/solana-m-extensions)). For each
+[solana-m-extensions](https://github.com/m0-platform/solana-m-extensions)). For each
 extension it builds an index-sync instruction and — for `Crank`-variant extensions — a claim
 instruction per earner, simulates the batch, and sends transactions in batches of 10. Before
 distributing, it verifies the indexed MongoDB data is up to date with the chain and aborts if

@@ -7,8 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Solana $M: a Token-2022 mint whose yield accrues via the ScaledUiAmount multiplier. The `earn`
 program — the only program in this repo — receives the $M index + earner merkle root from
 Ethereum through the Portal and updates the mint multiplier. The Portal program lives in
-[solana-portal](https://github.com/m0-foundation/solana-portal); $M extensions (wM, `ext_swap`)
-live in [solana-m-extensions](https://github.com/m0-foundation/solana-m-extensions).
+[solana-portal](https://github.com/m0-platform/solana-portal); $M extensions (wM, `ext_swap`)
+live in [solana-m-extensions](https://github.com/m0-platform/solana-m-extensions).
 
 ## Build & Test Commands
 

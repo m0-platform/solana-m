@@ -122,7 +122,7 @@ define deploy-yield-bot
 	railway environment $(1)
 	docker build --build-arg now="$$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --platform linux/amd64 -t ghcr.io/m0-platform/solana-m:yield-bot -f services/yield-bot/Dockerfile .
 	docker push ghcr.io/m0-platform/solana-m:yield-bot
-	railway redeploy --service "yield bot - wM" --yes
+	railway redeploy --service "yield bot" --yes
 endef
 
 deploy-yield-bot-devnet:

@@ -1,6 +1,6 @@
 FROM node:22-alpine
 
-LABEL org.opencontainers.image.source=https://github.com/m0-foundation/solana-m
+LABEL org.opencontainers.image.source=https://github.com/m0-platform/solana-m
 LABEL org.opencontainers.image.description="Yield Bot"
 
 WORKDIR /app

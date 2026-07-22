@@ -120,9 +120,9 @@ upgrade-earn-mainnet:
 #
 define deploy-yield-bot
 	railway environment $(1)
-	docker build --build-arg now="$$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --platform linux/amd64 -t ghcr.io/m0-foundation/solana-m:yield-bot -f services/yield-bot/Dockerfile .
-	docker push ghcr.io/m0-foundation/solana-m:yield-bot
-	railway redeploy --service "yield bot" --yes
+	docker build --build-arg now="$$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --platform linux/amd64 -t ghcr.io/m0-platform/solana-m:yield-bot -f services/yield-bot/Dockerfile .
+	docker push ghcr.io/m0-platform/solana-m:yield-bot
+	railway redeploy --service "yield bot - wM" --yes
 endef
 
 deploy-yield-bot-devnet:
@@ -149,8 +149,8 @@ endef
 define deploy-substream-mongo
 	$(call build-substream,$(1),$(3),sf.substreams.sink.database.v1.DatabaseChanges,map_transfer_events_to_db)
 	cp -f substreams/graph/m-token-transactions-v0.1.0.spkg substreams/db/m-token-transactions.spkg
-	docker build --platform linux/amd64 -t ghcr.io/m0-foundation/solana-m:substream-mongo-$(2) -f substreams/db/Dockerfile .
-	docker push ghcr.io/m0-foundation/solana-m:substream-mongo-$(2)
+	docker build --platform linux/amd64 -t ghcr.io/m0-platform/solana-m:substream-mongo-$(2) -f substreams/db/Dockerfile .
+	docker push ghcr.io/m0-platform/solana-m:substream-mongo-$(2)
 	railway redeploy --service substream-mongo --yes
 endef
 

@@ -27,7 +27,7 @@ Program ID: `mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z`
   `m_mint`, `portal_authority`, `ext_swap_global_account`, `earner_merkle_root`, `bump`.
 - The Portal's token authority is derived with seed `"authority"` under the Portal program
   (`MzBrgc8yXBj4P16GTkcSyDZkEQZB9qDqf3fh9bByJce`, source in
-  [solana-portal](https://github.com/m0-foundation/solana-portal)).
+  [solana-portal](https://github.com/m0-platform/solana-portal)).
 
 `initialize` enforces that the $M mint carries the **ScaledUiAmount**, **DefaultAccountState
 (Frozen)**, and **PermanentDelegate** extensions with the `EarnGlobal` PDA as scaled-ui

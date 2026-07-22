@@ -19,9 +19,9 @@ other governance-approved actors) are thawed.
 | [`audits/`](audits/) | Audit reports |
 
 Related repos: the Portal program lives in
-[`solana-portal`](https://github.com/m0-foundation/solana-portal); $M extensions (wM and
+[`solana-portal`](https://github.com/m0-platform/solana-portal); $M extensions (wM and
 others, including the `ext_swap` program) live in
-[`solana-m-extensions`](https://github.com/m0-foundation/solana-m-extensions).
+[`solana-m-extensions`](https://github.com/m0-platform/solana-m-extensions).
 
 ## How yield flows
 

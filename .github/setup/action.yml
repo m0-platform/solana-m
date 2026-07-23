@@ -64,11 +64,9 @@ runs:
       shell: bash
 
     - name: Build test programs
-      run: |
-        make build-test-earn-programs
+      run: make build-test-earn-programs
       shell: bash
 
     - name: Build programs
-      run: |
-        anchor build -p earn
+      run: anchor build -p earn -- --features testing --no-default-features
       shell: bash

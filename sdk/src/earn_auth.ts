@@ -71,11 +71,14 @@ export class EarnAuthority {
       return null;
     }
 
-    // get all index updates since the earner's last claim. Not capped at
-    // global.timestamp: it freezes during claim outages, which collapses the
-    // whole gap into one window priced at the current balance.
+    // get the index updates since the earner's last claim. With pendingSync
+    // the walk runs to the present: capping at global.timestamp collapses a
+    // claim outage into one window priced at the current balance, since the
+    // timestamp only advances on sync. Without pendingSync the claim is
+    // normalized against the on-chain index, so steps past it must stay out.
     const steps = await indexUpdates({
       fromTime: earner.data.lastClaimTimestamp.toNumber(),
+      ...(pendingSync ? {} : { toTime: this.global.timestamp!.toNumber() + 1 }),
     });
 
     // iterate through the steps and calculate the pending yield for the earner

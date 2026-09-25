@@ -71,10 +71,11 @@ export class EarnAuthority {
       return null;
     }
 
-    // get the index updates from the earner's last claim to the current index
+    // get all index updates since the earner's last claim. Not capped at
+    // global.timestamp: it freezes during claim outages, which collapses the
+    // whole gap into one window priced at the current balance.
     const steps = await indexUpdates({
       fromTime: earner.data.lastClaimTimestamp.toNumber(),
-      toTime: this.global.timestamp!.toNumber() + 1, // include current index
     });
 
     // iterate through the steps and calculate the pending yield for the earner

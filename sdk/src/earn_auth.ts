@@ -71,10 +71,15 @@ export class EarnAuthority {
       return null;
     }
 
-    // get the index updates from the earner's last claim to the current index
+    // bound the walk at the index the claim is normalized against. Capping
+    // the pendingSync path at global.timestamp instead would collapse a claim
+    // outage into one window priced at the current balance (it only advances
+    // on sync).
     const steps = await indexUpdates({
       fromTime: earner.data.lastClaimTimestamp.toNumber(),
-      toTime: this.global.timestamp!.toNumber() + 1, // include current index
+      toTime: pendingSync
+        ? Math.floor(lastestIndex.ts.getTime() / 1000) + 1
+        : this.global.timestamp!.toNumber() + 1,
     });
 
     // iterate through the steps and calculate the pending yield for the earner

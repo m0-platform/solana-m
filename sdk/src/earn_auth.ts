@@ -86,10 +86,6 @@ export class EarnAuthority {
     let claimYield: BN = new BN(0);
     steps.reverse();
 
-    if (pendingSync) {
-      steps.push({ ts: new Date(), index: lastestIndex.index } as any);
-    }
-
     let last = steps[0];
     for (let i = 1; i < steps.length; i++) {
       let current = steps[i];

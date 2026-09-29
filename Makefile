@@ -1,4 +1,4 @@
-.PHONY: test-yield-bot test-sdk test-merkle test-earn build-test-swap-program build-test-earn-programs \
+.PHONY: test-yield-bot test-claim test-sdk test-merkle test-earn build-test-swap-program build-test-earn-programs \
 	yield-bot-devnet yield-bot-mainnet upgrade-earn-devnet upgrade-earn-mainnet \
 	deploy-yield-bot-devnet deploy-yield-bot-mainnet \
 	build-substream-mongo-mainnet deploy-substream-mongo-devnet deploy-substream-mongo-mainnet publish-sdk
@@ -9,6 +9,9 @@
 test-yield-bot:
 	@cd sdk && pnpm build
 	cd tests && pnpm jest --preset ts-jest tests/unit/yieldbot.test.ts; exit $$?
+
+test-claim:
+	cd tests && pnpm jest --preset ts-jest tests/unit/claim.test.ts tests/unit/db.test.ts; exit $$?
 
 test-sdk:
 	@cd sdk && pnpm build

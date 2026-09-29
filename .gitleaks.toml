@@ -1,0 +1,11 @@
+# Public Switchboard feed ids. Same shape as a private key, not a credential.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Public Switchboard feed hashes"
+regexTarget = "secret"
+regexes = [
+  '''^0x2741d2c4500c73292f6198d585302b210b92f8e41163c544fcdac3cf1c2ef716$''',
+  '''^0xd4cc8770e2e4542dd5582cfc3ac0f6f045571bdb1ab7dd70192a49649d729197$''',
+]

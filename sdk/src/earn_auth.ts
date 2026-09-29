@@ -59,9 +59,46 @@ export class EarnAuthority {
     return accounts.map((a) => new Earner(this.connection, a.publicKey, a.account, this.program.programId));
   }
 
+  // $M index the bundled sync reads from the mint (mirrors multiplier_to_index in m_ext)
+  async loadMintIndex(): Promise<BN> {
+    const mint = await spl.getMint(
+      this.connection,
+      this.global.mMint,
+      this.connection.commitment,
+      spl.TOKEN_2022_PROGRAM_ID,
+    );
+    const config = spl.getScaledUiAmountConfig(mint);
+    if (!config) {
+      throw new Error('$M mint has no scaled UI amount config');
+    }
+
+    return new BN(Math.trunc(1e12 * config.newMultiplier).toString());
+  }
+
+  // ext index the bundled sync will write (mirrors the crank sync in m_ext)
+  async projectExtIndex(): Promise<BN> {
+    const vault = PublicKey.findProgramAddressSync([Buffer.from('m_vault')], this.program.programId)[0];
+    const vaultMTokenAccount = await spl.getAccount(
+      this.connection,
+      spl.getAssociatedTokenAddressSync(this.global.mMint, vault, true, spl.TOKEN_2022_PROGRAM_ID),
+      this.connection.commitment,
+      spl.TOKEN_2022_PROGRAM_ID,
+    );
+
+    // the ext index only grows while the vault is an approved $M earner
+    if (vaultMTokenAccount.isFrozen) {
+      return this.global.index!;
+    }
+
+    return this.global.index!.mul(await this.loadMintIndex()).div(this.global.mIndex!);
+  }
+
   async buildClaimInstruction(earner: Earner, pendingSync = false): Promise<TransactionInstruction | null> {
-    const lastestIndex = await currentIndex();
-    const latestIndex = pendingSync ? new BN(lastestIndex.index) : this.global.index!;
+    const dbIndex = await currentIndex();
+
+    // claims are normalized against the ext index. With a pending sync that is the
+    // index the sync will write, which differs from the $M index for a new crank.
+    const latestIndex = pendingSync ? await this.projectExtIndex() : this.global.index!;
 
     if (earner.data.lastClaimIndex.gte(latestIndex)) {
       this.logger.warn('Earner already claimed', {
@@ -77,9 +114,7 @@ export class EarnAuthority {
     // on sync).
     const steps = await indexUpdates({
       fromTime: earner.data.lastClaimTimestamp.toNumber(),
-      toTime: pendingSync
-        ? Math.floor(lastestIndex.ts.getTime() / 1000) + 1
-        : this.global.timestamp!.toNumber() + 1,
+      toTime: pendingSync ? Math.floor(dbIndex.ts.getTime() / 1000) + 1 : this.global.timestamp!.toNumber() + 1,
     });
 
     // iterate through the steps and calculate the pending yield for the earner

@@ -1,4 +1,3 @@
-// external dependencies
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
@@ -6,30 +5,21 @@ use anchor_spl::{
     token_2022_extensions::spl_pod::optional_keys::OptionalNonZeroPubkey,
     token_interface::{Mint, Token2022, TokenAccount},
 };
-use cfg_if::cfg_if;
 use spl_token_2022::extension::{
     default_account_state::DefaultAccountState, permanent_delegate::PermanentDelegate,
-    scaled_ui_amount::ScaledUiAmountConfig,
-    BaseStateWithExtensions,
-    ExtensionType,
+    scaled_ui_amount::ScaledUiAmountConfig, BaseStateWithExtensions, ExtensionType,
     StateWithExtensions,
 };
 
-// local dependencies
 use crate::{
-    constants::{ANCHOR_DISCRIMINATOR_SIZE, PORTAL_PROGRAM, INDEX_SCALE_F64},
+    constants::{ANCHOR_DISCRIMINATOR_SIZE, INDEX_SCALE_F64, PORTAL_PROGRAM},
     errors::EarnError,
-    state::{EarnGlobal, GLOBAL_SEED, AUTHORITY_SEED},
-    utils::{conversion::{update_multiplier, index_to_multiplier}, token::thaw_token_account},
+    state::{EarnGlobal, AUTHORITY_SEED, GLOBAL_SEED},
+    utils::{
+        conversion::{index_to_multiplier, update_multiplier},
+        token::thaw_token_account,
+    },
 };
-
-cfg_if::cfg_if!(
-    if #[cfg(feature = "migrate")] {
-        declare_program!(old_earn);
-        use old_earn::{accounts::Global as OldGlobal, ID as OLD_EARN_PROGRAM_ID};
-        use crate::utils::conversion::{get_scaled_ui_config, principal_to_amount_up};
-    }
-);
 
 declare_program!(ext_swap);
 use ext_swap::{constants::GLOBAL_SEED as SWAP_GLOBAL_SEED, ID as EXT_SWAP_PROGRAM_ID};
@@ -48,27 +38,12 @@ pub struct Initialize<'info> {
     )]
     pub global_account: Account<'info, EarnGlobal>,
 
-    #[cfg(feature = "migrate")]
-    #[account(
-        seeds = [GLOBAL_SEED],
-        seeds::program = OLD_EARN_PROGRAM_ID,
-        bump = old_global_account.bump,
-    )]
-    pub old_global_account: Account<'info, OldGlobal>,
-
     #[account(
         mut,
         mint::token_program = token_program,
         mint::decimals = 6, // Must be 6 decimals
     )]
     pub m_mint: InterfaceAccount<'info, Mint>,
-
-    #[cfg(feature = "migrate")]
-    #[account(
-        address = old_global_account.mint @ EarnError::InvalidMint,
-        mint::decimals = m_mint.decimals 
-    )]
-    pub old_m_mint: InterfaceAccount<'info, Mint>,
 
     /// CHECK: This account is validated by its seeds
     #[account(
@@ -135,16 +110,9 @@ impl Initialize<'_> {
         // Verify that the new multiplier is less than or equal to the current index (if migrating) or provided index (if not migrating)
         // This is required because the call to our update_multiplier fn will fail silently if the multiplier on the mint is greater.
         // That behavior is desired except when initializing the program. Therefore, we catch the error here.
-        let current_multiplier: f64;
         let mint_multiplier: f64 = scaled_ui_config.new_multiplier.into();
-        cfg_if! {
-            if #[cfg(feature = "migrate")] {
-                current_multiplier = self.old_global_account.index as f64 / INDEX_SCALE_F64;
+        let current_multiplier = _current_index as f64 / INDEX_SCALE_F64;
 
-            } else {
-                current_multiplier = _current_index as f64 / INDEX_SCALE_F64;
-            }
-        }
         if mint_multiplier > current_multiplier {
             return err!(EarnError::InvalidMint);
         }
@@ -196,39 +164,14 @@ impl Initialize<'_> {
             bump: ctx.bumps.global_account,
         });
 
-        cfg_if! {
-            if #[cfg(feature = "migrate")] {
-                // Set existing merkle root
-                ctx.accounts.global_account.earner_merkle_root = ctx.accounts.old_global_account.earner_merkle_root;
-
-                // Set the multiplier on the m_mint to the current index and timestamp on the old earn program
-                update_multiplier(
-                    &mut ctx.accounts.m_mint,                                       // mint
-                    &ctx.accounts.global_account.to_account_info(),                 // authority
-                    &[&[GLOBAL_SEED, &[ctx.bumps.global_account]]],                 // authority seeds
-                    &ctx.accounts.token_program,                                    // token program
-                    index_to_multiplier(ctx.accounts.old_global_account.index)?,    // index
-                    ctx.accounts.old_global_account.timestamp as i64,               // timestamp
-                )?;
-
-                // Check that the supply of the new mint (adjusted for the multiplier) is not greater than the supply of the old m mint
-                let scaled_ui_config = get_scaled_ui_config(&ctx.accounts.m_mint)?;
-                let new_supply_amount = principal_to_amount_up(ctx.accounts.m_mint.supply, scaled_ui_config.new_multiplier.into())?; 
-
-                if new_supply_amount > ctx.accounts.old_m_mint.supply {
-                    return err!(EarnError::InvalidMint);
-                }
-            } else {
-                update_multiplier(
-                    &mut ctx.accounts.m_mint,                       // mint
-                    &ctx.accounts.global_account.to_account_info(), // authority
-                    &[&[GLOBAL_SEED, &[ctx.bumps.global_account]]], // authority seeds
-                    &ctx.accounts.token_program,                    // token program
-                    index_to_multiplier(_current_index)?,            // index
-                    Clock::get()?.unix_timestamp,                   // timestamp
-                )?;
-            }
-        }
+        update_multiplier(
+            &mut ctx.accounts.m_mint,                       // mint
+            &ctx.accounts.global_account.to_account_info(), // authority
+            &[&[GLOBAL_SEED, &[ctx.bumps.global_account]]], // authority seeds
+            &ctx.accounts.token_program,                    // token program
+            index_to_multiplier(_current_index)?,           // index
+            Clock::get()?.unix_timestamp,                   // timestamp
+        )?;
 
         // Thaw the portal and ext swap token accounts so they can be used (if not already thawed)
         if ctx.accounts.portal_m_account.state == AccountState::Frozen {

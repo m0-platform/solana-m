@@ -40,3 +40,4 @@ tests/unit/sdk.test.ts:generic-api-key:451
 tests/unit/sdk.test.ts:generic-api-key:594
 tests/unit/sdk.test.ts:generic-api-key:633
 services/shared/environment.ts:generic-api-key:24
+tests/unit/yieldbot.test.ts:generic-api-key:13

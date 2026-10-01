@@ -2,18 +2,27 @@ import { PublicKey } from '@solana/web3.js';
 import BN from 'bn.js';
 import { Db, MongoClient, Document } from 'mongodb';
 
+let client: MongoClient | undefined;
 let database: Db;
 
+// index updates are only trusted from the earn program (same id on devnet and mainnet)
+export const EARN_PROGRAM_ID = 'mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z';
+
 const connect = async () => {
-  if (database) return;
+  if (client) return;
 
   if (!process.env.MONGO_CONNECTION_STRING) {
     throw new Error('connection string not set');
   }
 
-  const client = await MongoClient.connect(process.env.MONGO_CONNECTION_STRING);
+  client = await MongoClient.connect(process.env.MONGO_CONNECTION_STRING);
   database = client.db('solana-m-substream');
 };
+
+export async function disconnect() {
+  await client?.close();
+  client = undefined;
+}
 
 export async function indexUpdates(params: { fromTime: number; toTime?: number }) {
   await connect();
@@ -22,6 +31,7 @@ export async function indexUpdates(params: { fromTime: number; toTime?: number }
     {
       $match: {
         event: 'index_update_v2',
+        program_id: EARN_PROGRAM_ID,
       },
     },
     {
@@ -80,6 +90,7 @@ export async function currentIndex() {
     {
       $match: {
         event: 'index_update_v2',
+        program_id: EARN_PROGRAM_ID,
       },
     },
     {
@@ -106,6 +117,9 @@ export async function currentIndex() {
   ]);
 
   const result = await cursor.toArray();
+  if (result.length === 0) {
+    throw new Error(`No index_update_v2 events from ${EARN_PROGRAM_ID}`);
+  }
 
   return { index: result[0].index as number, ts: result[0].transaction.block_time as Date };
 }

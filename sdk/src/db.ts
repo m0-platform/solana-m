@@ -6,7 +6,7 @@ let client: MongoClient | undefined;
 let database: Db;
 
 // index updates are only trusted from the earn program (same id on devnet and mainnet)
-const EARN_PROGRAM_ID = 'mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z';
+export const EARN_PROGRAM_ID = 'mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z';
 
 const connect = async () => {
   if (client) return;
@@ -117,6 +117,9 @@ export async function currentIndex() {
   ]);
 
   const result = await cursor.toArray();
+  if (result.length === 0) {
+    throw new Error(`No index_update_v2 events from ${EARN_PROGRAM_ID}`);
+  }
 
   return { index: result[0].index as number, ts: result[0].transaction.block_time as Date };
 }

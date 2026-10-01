@@ -12,6 +12,7 @@ export const ETH_MERKLE_TREE_BUILDER_DEVNET: `0x${string}` = '0x050258e4761650ad
 // Re-export the viem PublicClient type
 export { type PublicClient, createPublicClient, createTestClient, http } from 'viem';
 
+export { EARN_PROGRAM_ID } from './db';
 export { EarnAuthority } from './earn_auth';
 export { EarnManager } from './earn_manager';
 export { Earner } from './earner';

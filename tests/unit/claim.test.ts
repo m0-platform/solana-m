@@ -1,7 +1,7 @@
 import { BN } from '@coral-xyz/anchor';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import * as spl from '@solana/spl-token';
-import { EarnAuthority } from '../../sdk/src/earn_auth';
+import { EarnAuthority, multiplierToIndex } from '../../sdk/src/earn_auth';
 import { currentIndex, getBalanceAt, indexUpdates } from '../../sdk/src/db';
 import { validateDatabaseData } from '../../services/shared/validation';
 
@@ -32,11 +32,66 @@ function mockDb(steps: Step[], balanceAt: (ts: number) => number) {
   );
 }
 
+// $M mint with a ScaledUiAmount config holding the multiplier
+function encodeMint(multiplier: number) {
+  const data = Buffer.alloc(spl.getMintLen([spl.ExtensionType.ScaledUiAmountConfig]));
+  spl.MintLayout.encode(
+    {
+      mintAuthorityOption: 0,
+      mintAuthority: PublicKey.default,
+      supply: BigInt(0),
+      decimals: 6,
+      isInitialized: true,
+      freezeAuthorityOption: 0,
+      freezeAuthority: PublicKey.default,
+    },
+    data,
+  );
+  data[spl.ACCOUNT_SIZE] = spl.AccountType.Mint;
+
+  const tlv = spl.ACCOUNT_SIZE + 1;
+  data.writeUInt16LE(spl.ExtensionType.ScaledUiAmountConfig, tlv);
+  data.writeUInt16LE(spl.ScaledUiAmountConfigLayout.span, tlv + 2);
+  spl.ScaledUiAmountConfigLayout.encode(
+    {
+      authority: PublicKey.default,
+      multiplier,
+      newMultiplierEffectiveTimestamp: BigInt(0),
+      newMultiplier: multiplier,
+    },
+    data,
+    tlv + 4,
+  );
+  return data;
+}
+
+// vault $M token account, frozen when the vault is not an approved earner
+function encodeVault(mMint: PublicKey, owner: PublicKey, frozen: boolean) {
+  const data = Buffer.alloc(spl.ACCOUNT_SIZE);
+  spl.AccountLayout.encode(
+    {
+      mint: mMint,
+      owner,
+      amount: BigInt(0),
+      delegateOption: 0,
+      delegate: PublicKey.default,
+      state: frozen ? spl.AccountState.Frozen : spl.AccountState.Initialized,
+      isNativeOption: 0,
+      isNative: BigInt(0),
+      delegatedAmount: BigInt(0),
+      closeAuthorityOption: 0,
+      closeAuthority: PublicKey.default,
+    },
+    data,
+  );
+  return data;
+}
+
 function buildAuthority(opts: {
   extIndex: number;
   mIndex: number;
   timestamp: number;
-  mintIndex: number;
+  mintMultiplier: number;
   vaultFrozen: boolean;
 }) {
   const programId = Keypair.generate().publicKey;
@@ -57,31 +112,20 @@ function buildAuthority(opts: {
     programId,
   );
 
-  // vault $M token account, frozen when the vault is not an approved earner
-  const data = Buffer.alloc(spl.ACCOUNT_SIZE);
-  spl.AccountLayout.encode(
-    {
-      mint: mMint,
-      owner: programId,
-      amount: BigInt(0),
-      delegateOption: 0,
-      delegate: PublicKey.default,
-      state: opts.vaultFrozen ? spl.AccountState.Frozen : spl.AccountState.Initialized,
-      isNativeOption: 0,
-      isNative: BigInt(0),
-      delegatedAmount: BigInt(0),
-      closeAuthorityOption: 0,
-      closeAuthority: PublicKey.default,
-    },
-    data,
-  );
-  (connection as any).getAccountInfo = async () => ({
-    data,
-    owner: spl.TOKEN_2022_PROGRAM_ID,
-    lamports: 1,
-    executable: false,
-  });
-  jest.spyOn(auth, 'loadMintIndex').mockResolvedValue(new BN(opts.mintIndex));
+  // derive the vault ATA by hand so a wrong seed or ATA derivation in the SDK finds no account
+  const mVault = PublicKey.findProgramAddressSync([Buffer.from('m_vault')], programId)[0];
+  const vaultAta = PublicKey.findProgramAddressSync(
+    [mVault.toBuffer(), spl.TOKEN_2022_PROGRAM_ID.toBuffer(), mMint.toBuffer()],
+    spl.ASSOCIATED_TOKEN_PROGRAM_ID,
+  )[0];
+  const accounts = new Map([
+    [mMint.toBase58(), encodeMint(opts.mintMultiplier)],
+    [vaultAta.toBase58(), encodeVault(mMint, mVault, opts.vaultFrozen)],
+  ]);
+  (connection as any).getAccountInfo = async (address: PublicKey) => {
+    const data = accounts.get(address.toBase58());
+    return data ? { data, owner: spl.TOKEN_2022_PROGRAM_ID, lamports: 1, executable: false } : null;
+  };
 
   // capture the snapshot balance instead of building a real instruction
   (auth as any).program = {
@@ -109,10 +153,14 @@ function buildEarner(lastClaimIndex: number, lastClaimTimestamp: number) {
   };
 }
 
-async function claim(auth: EarnAuthority, earnManager: PublicKey, earner: any): Promise<BN | null> {
+async function claim(auth: EarnAuthority, earnManager: PublicKey, earner: any, target?: any): Promise<BN | null> {
   (auth as any).managerCache.set(earnManager, { data: { feeTokenAccount: Keypair.generate().publicKey } });
-  return (await auth.buildClaimInstruction(earner, true)) as unknown as BN | null;
+  return (await auth.buildClaimInstruction(earner, true, target)) as unknown as BN | null;
 }
+
+// what claim_for pays for a snapshot balance once the sync writes extIndex
+const payout = (snapshot: BN, lastClaimIndex: number, extIndex: number) =>
+  snapshot.mul(new BN(extIndex)).div(new BN(lastClaimIndex)).sub(snapshot).toNumber();
 
 describe('claim calculation', () => {
   beforeEach(() => jest.clearAllMocks());
@@ -131,7 +179,7 @@ describe('claim calculation', () => {
       extIndex: 1_000_000_000_000,
       mIndex: 1_000_000_000_000,
       timestamp: T0,
-      mintIndex: 1_210_000_000_000,
+      mintMultiplier: 1.21,
       vaultFrozen: false,
     });
     const { earner, earnManager } = buildEarner(1_000_000_000_000, T0);
@@ -158,7 +206,7 @@ describe('claim calculation', () => {
       extIndex: 1_000_000_000_000,
       mIndex: 1_100_000_000_000,
       timestamp: T0,
-      mintIndex: 1_210_000_000_000,
+      mintMultiplier: 1.21,
       vaultFrozen: false,
     });
     const { earner, earnManager } = buildEarner(1_000_000_000_000, T0);
@@ -183,13 +231,84 @@ describe('claim calculation', () => {
       extIndex: 1_000_000_000_000,
       mIndex: 1_100_000_000_000,
       timestamp: T0,
-      mintIndex: 1_210_000_000_000,
+      mintMultiplier: 1.21,
       vaultFrozen: true,
     });
     const { earner, earnManager } = buildEarner(1_000_000_000_000, T0);
 
     // sync leaves the ext index unchanged, so there is nothing to claim
     expect(await claim(auth, earnManager, earner)).toBeNull();
+  });
+
+  test('pays only the ext growth when $M grew while the vault was frozen', async () => {
+    // ext synced 1.0 -> 1.1, then $M rose 1.1 -> 1.21 while the vault was frozen
+    mockDb(
+      [
+        { ts: T0, index: 1_000_000_000_000 },
+        { ts: T0 + DAY, index: 1_100_000_000_000 },
+        { ts: T0 + 2 * DAY, index: 1_210_000_000_000 },
+      ],
+      () => 1000,
+    );
+    const auth = buildAuthority({
+      extIndex: 1_100_000_000_000,
+      mIndex: 1_210_000_000_000,
+      timestamp: T0 + 2 * DAY,
+      mintMultiplier: 1.21,
+      vaultFrozen: true,
+    });
+    const { earner, earnManager } = buildEarner(1_000_000_000_000, T0);
+
+    // y = 210 over $M 1.0 -> 1.21, so b* = 210 / 0.21 = 1000 and claim_for pays 1000 * 0.1 = 100
+    // (normalizing against ext 1.1 gives b* = 2100 and pays 210)
+    const snapshot = (await claim(auth, earnManager, earner))!;
+    expect(snapshot.toNumber()).toBe(1000);
+    expect(payout(snapshot, 1_000_000_000_000, 1_100_000_000_000)).toBe(100);
+  });
+
+  test('sizes every claim against the pinned target when an index lands mid-loop', async () => {
+    const steps = [
+      { ts: T0, index: 1_000_000_000_000 },
+      { ts: T0 + DAY, index: 1_100_000_000_000 },
+      { ts: T0 + 2 * DAY, index: 1_210_000_000_000 },
+    ];
+    const balanceAt = (ts: number) => (ts < T0 + 3 * DAY ? 1000 : 5000);
+    mockDb(steps, balanceAt);
+    const auth = buildAuthority({
+      extIndex: 1_000_000_000_000,
+      mIndex: 1_000_000_000_000,
+      timestamp: T0,
+      mintMultiplier: 1.21,
+      vaultFrozen: false,
+    });
+    const target = await auth.loadClaimTarget(true);
+    expect(target.extIndex.toNumber()).toBe(1_210_000_000_000);
+
+    // a propagation to 1.331 lands after the target is pinned, and the balance jumps with it
+    mockDb([...steps, { ts: T0 + 3 * DAY, index: 1_331_000_000_000 }], balanceAt);
+    (currentIndex as jest.Mock).mockClear();
+
+    const { earner, earnManager } = buildEarner(1_000_000_000_000, T0);
+    expect((await claim(auth, earnManager, earner, target))!.toNumber()).toBe(1000);
+    expect(currentIndex).not.toHaveBeenCalled();
+  });
+});
+
+describe('mint index', () => {
+  test('truncates the f64 multiplier like multiplier_to_index', () => {
+    // 1e12 * 1.000000000014 is 1000000000013.9999 in f64
+    expect(multiplierToIndex(1.000000000014).toNumber()).toBe(1_000_000_000_013);
+  });
+
+  test('loadMintIndex decodes the ScaledUiAmount multiplier from the $M mint', async () => {
+    const auth = buildAuthority({
+      extIndex: 1_000_000_000_000,
+      mIndex: 1_000_000_000_000,
+      timestamp: T0,
+      mintMultiplier: 1.096111330414,
+      vaultFrozen: false,
+    });
+    expect((await auth.loadMintIndex()).toNumber()).toBe(1_096_111_330_414);
   });
 });
 
@@ -199,11 +318,21 @@ describe('database validation', () => {
 
   test('throws when the DB is behind the $M mint multiplier', async () => {
     await expect(validateDatabaseData(authority(1_100_000_000_000, 1_210_000_000_000))).rejects.toThrow(
-      'Database index is not up to date',
+      'Database index does not match mint',
+    );
+  });
+
+  test('throws when the DB is ahead of the $M mint multiplier', async () => {
+    await expect(validateDatabaseData(authority(1_331_000_000_000, 1_210_000_000_000))).rejects.toThrow(
+      'Database index does not match mint',
     );
   });
 
   test('passes when the DB matches the $M mint multiplier', async () => {
     await expect(validateDatabaseData(authority(1_210_000_000_000, 1_210_000_000_000))).resolves.toBeUndefined();
+  });
+
+  test('passes when the truncated mint index sits one below the DB', async () => {
+    await expect(validateDatabaseData(authority(1_000_000_000_014, 1_000_000_000_013))).resolves.toBeUndefined();
   });
 });

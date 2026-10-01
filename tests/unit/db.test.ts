@@ -1,8 +1,7 @@
 import { MongoClient } from 'mongodb';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import { currentIndex, disconnect, indexUpdates } from '../../sdk/src/db';
+import { EARN_PROGRAM_ID, currentIndex, disconnect, indexUpdates } from '../../sdk/src/db';
 
-const EARN_PROGRAM_ID = 'mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z';
 const FOREIGN_PROGRAM_ID = 'wMXX1K1nca5W4pZr1piETe78gcAVVrEFi9f4g46uXko';
 
 describe('index queries', () => {
@@ -52,5 +51,10 @@ describe('index queries', () => {
 
   test('currentIndex ignores a newer foreign index_update_v2', async () => {
     expect((await currentIndex()).index).toBe(1_200_000_000_000);
+  });
+
+  test('currentIndex throws when the earn program has no index updates', async () => {
+    await client.db('solana-m-substream').collection('events').deleteMany({ program_id: EARN_PROGRAM_ID });
+    await expect(currentIndex()).rejects.toThrow(`No index_update_v2 events from ${EARN_PROGRAM_ID}`);
   });
 });

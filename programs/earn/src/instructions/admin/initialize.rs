@@ -1,5 +1,6 @@
 // external dependencies
 use anchor_lang::prelude::*;
+use anchor_spl::token_2022::spl_token_2022;
 use anchor_spl::{
     associated_token::AssociatedToken,
     token_2022::spl_token_2022::state::AccountState,
@@ -7,7 +8,7 @@ use anchor_spl::{
     token_interface::{Mint, Token2022, TokenAccount},
 };
 use cfg_if::cfg_if;
-use spl_token_2022::extension::{
+use anchor_spl::token_2022::spl_token_2022::extension::{
     default_account_state::DefaultAccountState, permanent_delegate::PermanentDelegate,
     scaled_ui_amount::ScaledUiAmountConfig,
     BaseStateWithExtensions,

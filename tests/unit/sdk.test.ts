@@ -7,7 +7,7 @@ import { EarnAuthority, EarnManager, Earner } from '@m0-foundation/solana-m-sdk'
 import { MExt } from '../programs/crank';
 import { Earn } from '../../target/types/earn';
 import nock from 'nock';
-import { fromWorkspace } from 'anchor-litesvm';
+import { fromWorkspace } from '../litesvm';
 import NodeWallet from '@coral-xyz/anchor/dist/cjs/nodewallet';
 
 const M_EXT = require('../programs/crank.json');

@@ -145,12 +145,15 @@ async function distributeYield(opt: ParsedOptions, programID: PublicKey): Promis
     // This only relates to the Crank model because the scaled-ui variant just requires an index sync.
     await validateDatabaseData(auth);
 
+    // size every claim against the index the bundled sync will write
+    const target = await auth.loadClaimTarget(true);
+
     // build claim instructions if there are any earners
     for (const earner of await auth.getAllEarners()) {
       // throttle requests
       await limiter.removeTokens(1);
 
-      const ix = await auth.buildClaimInstruction(earner, true);
+      const ix = await auth.buildClaimInstruction(earner, true, target);
       if (ix) ixs.push(ix);
     }
 

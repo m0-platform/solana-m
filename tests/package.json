@@ -22,5 +22,9 @@
     "ts-jest": "~29.0.2",
     "ts-node": "~10.9.2",
     "web3": "catalog:"
+  },
+  "devDependencies": {
+    "mongodb": "^6.20.0",
+    "mongodb-memory-server": "^11.3.0"
   }
 }

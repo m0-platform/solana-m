@@ -38,6 +38,7 @@ import {
   http,
   ETH_MERKLE_TREE_BUILDER,
   ETH_MERKLE_TREE_BUILDER_DEVNET,
+  EARN_PROGRAM_ID,
   EvmCaller,
 } from '../../sdk/src';
 import { Program } from '@coral-xyz/anchor';
@@ -50,7 +51,7 @@ const EARN_IDL = require('../../target/idl/earn.json');
 const PROGRAMS = {
   // program id the same for devnet and mainnet
   portal: new PublicKey('MzBrgc8yXBj4P16GTkcSyDZkEQZB9qDqf3fh9bByJce'),
-  earn: new PublicKey('mz2vDzjbQDUDXBH6FPF5s4odCJ4y8YLE5QWaZ8XdZ9Z'),
+  earn: new PublicKey(EARN_PROGRAM_ID),
   swap: new PublicKey('MSwapi3WhNKMUGm9YrxGhypgUEt7wYQH3ZgG32XoWzH'),
 };
 

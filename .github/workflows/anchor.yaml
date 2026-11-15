@@ -65,6 +65,10 @@ jobs:
         run: make test-yield-bot
         shell: bash
 
+      - name: Run claim tests
+        run: make test-claim
+        shell: bash
+
   merkle-proof-tests:
     runs-on: ubuntu-24.04
     steps:

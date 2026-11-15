@@ -10,6 +10,14 @@ import { MExt } from './idl/m_ext';
 import { getProgram } from './idl';
 import { currentIndex, getBalanceAt, indexUpdates } from './db';
 
+// ext index a claim is normalized against and the walk bound, shared by every claim in a run
+export type ClaimTarget = { extIndex: BN; toTime: number };
+
+// $M index from a mint multiplier (mirrors multiplier_to_index in m_ext)
+export function multiplierToIndex(multiplier: number): BN {
+  return new BN(Math.trunc(1e12 * multiplier).toString());
+}
+
 export class EarnAuthority {
   global: GlobalAccountData;
 
@@ -59,11 +67,63 @@ export class EarnAuthority {
     return accounts.map((a) => new Earner(this.connection, a.publicKey, a.account, this.program.programId));
   }
 
-  async buildClaimInstruction(earner: Earner, pendingSync = false): Promise<TransactionInstruction | null> {
-    const lastestIndex = await currentIndex();
-    const latestIndex = pendingSync ? new BN(lastestIndex.index) : this.global.index!;
+  // $M index the bundled sync reads from the mint
+  async loadMintIndex(): Promise<BN> {
+    const mint = await spl.getMint(
+      this.connection,
+      this.global.mMint,
+      this.connection.commitment,
+      spl.TOKEN_2022_PROGRAM_ID,
+    );
+    const config = spl.getScaledUiAmountConfig(mint);
+    if (!config) {
+      throw new Error('$M mint has no scaled UI amount config');
+    }
 
-    if (earner.data.lastClaimIndex.gte(latestIndex)) {
+    return multiplierToIndex(config.newMultiplier);
+  }
+
+  // ext index the bundled sync will write (mirrors the crank sync in m_ext)
+  async projectExtIndex(): Promise<BN> {
+    const vault = PublicKey.findProgramAddressSync([Buffer.from('m_vault')], this.program.programId)[0];
+    const vaultMTokenAccount = await spl.getAccount(
+      this.connection,
+      spl.getAssociatedTokenAddressSync(this.global.mMint, vault, true, spl.TOKEN_2022_PROGRAM_ID),
+      this.connection.commitment,
+      spl.TOKEN_2022_PROGRAM_ID,
+    );
+
+    // the ext index only grows while the vault is an approved $M earner
+    if (vaultMTokenAccount.isFrozen) {
+      return this.global.index!;
+    }
+
+    return this.global.index!.mul(await this.loadMintIndex()).div(this.global.mIndex!);
+  }
+
+  // With a pending sync, the target is the ext index the sync will write, which differs
+  // from the $M index for a new crank. Capping the pendingSync walk at global.timestamp
+  // instead would collapse a claim outage into one window priced at the current balance
+  // (it only advances on sync).
+  async loadClaimTarget(pendingSync = false): Promise<ClaimTarget> {
+    if (!pendingSync) {
+      return { extIndex: this.global.index!, toTime: this.global.timestamp!.toNumber() + 1 };
+    }
+
+    const dbIndex = await currentIndex();
+    return { extIndex: await this.projectExtIndex(), toTime: Math.floor(dbIndex.ts.getTime() / 1000) + 1 };
+  }
+
+  // pass one target to every claim in a run so an index propagation mid-loop
+  // cannot size earners in the same sync against different indices
+  async buildClaimInstruction(
+    earner: Earner,
+    pendingSync = false,
+    target?: ClaimTarget,
+  ): Promise<TransactionInstruction | null> {
+    const { extIndex, toTime } = target ?? (await this.loadClaimTarget(pendingSync));
+
+    if (earner.data.lastClaimIndex.gte(extIndex)) {
       this.logger.warn('Earner already claimed', {
         earner: earner.pubkey.toBase58(),
         tokenAccount: earner.data.userTokenAccount.toBase58(),
@@ -71,21 +131,13 @@ export class EarnAuthority {
       return null;
     }
 
-    // bound the walk at the index the claim is normalized against. Capping
-    // the pendingSync path at global.timestamp instead would collapse a claim
-    // outage into one window priced at the current balance (it only advances
-    // on sync).
-    const steps = await indexUpdates({
-      fromTime: earner.data.lastClaimTimestamp.toNumber(),
-      toTime: pendingSync
-        ? Math.floor(lastestIndex.ts.getTime() / 1000) + 1
-        : this.global.timestamp!.toNumber() + 1,
-    });
+    const steps = await indexUpdates({ fromTime: earner.data.lastClaimTimestamp.toNumber(), toTime });
 
     // iterate through the steps and calculate the pending yield for the earner
     let claimYield: BN = new BN(0);
     steps.reverse();
 
+    const first = steps[0];
     let last = steps[0];
     for (let i = 1; i < steps.length; i++) {
       let current = steps[i];
@@ -111,9 +163,31 @@ export class EarnAuthority {
       last = current;
     }
 
-    // calculate the claim "snapshot" balance from the claim yield and indices
-    // b* = y / ((I_n / I_l) - 1) = y * I_l / (I_n - I_l)
-    const claimBalance = claimYield.mul(earner.data.lastClaimIndex).div(latestIndex.sub(earner.data.lastClaimIndex));
+    if (!first || last.index <= first.index) {
+      this.logger.info('No yield to claim', {
+        earner: earner.pubkey.toBase58(),
+        tokenAccount: earner.data.userTokenAccount.toBase58(),
+      });
+      return null;
+    }
+
+    // ext growth below the walk's $M growth means a sync ran while the vault was frozen.
+    // The claim then pays the ext growth at the balance averaged over the whole walk.
+    const walkGrowth = earner.data.lastClaimIndex.mul(new BN(last.index));
+    if (walkGrowth.sub(extIndex.mul(new BN(first.index))).gt(walkGrowth.div(new BN(1_000_000_000)))) {
+      this.logger.warn('Ext index grew less than the $M index since the last claim', {
+        earner: earner.pubkey.toBase58(),
+        lastClaimIndex: earner.data.lastClaimIndex.toString(),
+        extIndex: extIndex.toString(),
+        fromMIndex: first.index,
+        toMIndex: last.index,
+      });
+    }
+
+    // calculate the claim "snapshot" balance from the claim yield and the walk's own $M
+    // indices, so it does not depend on the ext index the sync writes
+    // b* = y / ((I_n / I_0) - 1) = y * I_0 / (I_n - I_0)
+    const claimBalance = claimYield.mul(new BN(first.index)).div(new BN(last.index).sub(new BN(first.index)));
 
     if (claimBalance.lte(new BN(0))) {
       this.logger.info('No yield to claim', {

@@ -20,6 +20,7 @@ export interface GlobalAccountData {
 
   // crank fields
   index?: BN;
+  mIndex?: BN;
   timestamp?: BN;
   earnAuthority?: PublicKey;
 }
@@ -55,6 +56,7 @@ export async function loadGlobal(connection: Connection, program: PublicKey): Pr
     variant: Object.keys(global.yield_config.yield_variant)[0] as 'Crank' | 'ScaledUi' | 'NoYield',
     wrapAuthorities: global.wrap_authorities,
     index: global.yield_config.last_ext_index,
+    mIndex: global.yield_config.last_m_index,
     timestamp: global.yield_config.timestamp,
     earnAuthority: global.yield_config.earn_authority,
   };

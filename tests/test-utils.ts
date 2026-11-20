@@ -19,8 +19,7 @@ import {
   VersionedTransaction,
 } from '@solana/web3.js';
 import fs from 'fs';
-import { LiteSVMProvider } from 'anchor-litesvm';
-import { FailedTransactionMetadata, LiteSVM, TransactionMetadata } from 'litesvm';
+import { FailedTransactionMetadata, LiteSVM, LiteSVMProvider, TransactionMetadata } from './litesvm';
 import { bs58 } from '@coral-xyz/anchor/dist/cjs/utils/bytes';
 import { Wallet } from '@coral-xyz/anchor';
 import {

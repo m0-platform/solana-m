@@ -1,7 +1,7 @@
-use ::spl_token_2022::extension::immutable_owner::ImmutableOwner;
-use ::spl_token_2022::extension::BaseStateWithExtensions;
-use ::spl_token_2022::extension::PodStateWithExtensions;
-use ::spl_token_2022::pod::PodAccount;
+use anchor_spl::token_2022::spl_token_2022::extension::immutable_owner::ImmutableOwner;
+use anchor_spl::token_2022::spl_token_2022::extension::BaseStateWithExtensions;
+use anchor_spl::token_2022::spl_token_2022::extension::PodStateWithExtensions;
+use anchor_spl::token_2022::spl_token_2022::pod::PodAccount;
 use anchor_lang::{prelude::*, solana_program::program::invoke_signed};
 use anchor_spl::{
     token_2022::spl_token_2022,
@@ -87,7 +87,7 @@ pub fn transfer_tokens_from_program<'info>(
         authority: authority.clone(),
     };
     let cpi_context = CpiContext::new_with_signer(
-        token_program.to_account_info(),
+        token_program.key(),
         transfer_options,
         authority_seeds,
     );

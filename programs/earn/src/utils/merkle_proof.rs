@@ -1,7 +1,7 @@
 // earn/utils/merkle_proof.rs
 
 use crate::errors::EarnError;
-use anchor_lang::{prelude::*, solana_program};
+use anchor_lang::prelude::*;
 
 pub const ZERO_BIT: u8 = 0;
 pub const ONE_BIT: u8 = 1;
@@ -13,7 +13,7 @@ pub struct ProofElement {
 }
 
 pub fn verify_in_tree(root: [u8; 32], value: [u8; 32], proof: Vec<ProofElement>) -> Result<u64> {
-    let leaf = solana_program::keccak::hashv(&[&[ZERO_BIT], value.as_slice()]).to_bytes();
+    let leaf = solana_keccak_hasher::hashv(&[&[ZERO_BIT], value.as_slice()]).to_bytes();
 
     let mut computed_hash = leaf;
     let mut index: u64 = 0;
@@ -21,7 +21,7 @@ pub fn verify_in_tree(root: [u8; 32], value: [u8; 32], proof: Vec<ProofElement>)
     for (i, proof_element) in proof.into_iter().enumerate() {
         if proof_element.on_right {
             // Hash(current computed hash + current element of the proof)
-            computed_hash = solana_program::keccak::hashv(&[
+            computed_hash = solana_keccak_hasher::hashv(&[
                 &[ONE_BIT],
                 computed_hash.as_slice(),
                 proof_element.node.as_slice(),
@@ -29,7 +29,7 @@ pub fn verify_in_tree(root: [u8; 32], value: [u8; 32], proof: Vec<ProofElement>)
             .to_bytes();
         } else {
             // Hash(current element of the proof + current computed hash)
-            computed_hash = solana_program::keccak::hashv(&[
+            computed_hash = solana_keccak_hasher::hashv(&[
                 &[ONE_BIT],
                 proof_element.node.as_slice(),
                 computed_hash.as_slice(),

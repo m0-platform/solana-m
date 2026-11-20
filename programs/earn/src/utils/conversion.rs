@@ -3,9 +3,10 @@ use crate::{
     errors::EarnError,
 };
 use anchor_lang::prelude::*;
+use anchor_spl::token_2022::spl_token_2022;
 use anchor_lang::solana_program::program::invoke_signed;
 use anchor_spl::token_interface::{Mint, Token2022};
-use spl_token_2022::extension::{
+use anchor_spl::token_2022::spl_token_2022::extension::{
     scaled_ui_amount::ScaledUiAmountConfig, BaseStateWithExtensions, StateWithExtensions,
 };
 
